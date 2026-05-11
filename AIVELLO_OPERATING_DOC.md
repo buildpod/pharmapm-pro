@@ -3,7 +3,7 @@
 **Project:** AivelloStudio RIM — pharma project management tool
 **Owner:** Vineet Pathak
 **Started:** Apr 2026
-**Last updated:** May 6, 2026
+**Last updated:** May 11, 2026
 
 ---
 
@@ -92,12 +92,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M4 — Milestones grid (Session A: port logic + read-only grid)
-**Goal:** Port v1 `scheduling.js` → `lib/domain/scheduling.ts`, port `dates.js` → `lib/domain/dates.ts`, port 305 tests as Vitest tests (all pass), wire mock milestones into a read-only data grid.
-**Definition of done:** Milestones grid displays mock data, TypeScript domain ports compile, Vitest tests green.
+**Module:** M4B — Milestones grid (Session B: interactive grid)
+**Goal:** Inline editing (date pickers, dropdowns), cascade preview modal, "Schedule from Go-Live" action, per-column filters, lock toggle column.
+**Definition of done:** Milestones grid is fully interactive, cascade preview works, all M4 DoD items met.
 
 **Started:** (next session)
 **Status:** not started
+
+### M4A Completion summary (2026-05-11)
+
+**Module:** M4A — Milestones grid (Session A: port logic + read-only grid)
+**Status:** ✅ Complete
+**Outcome:** Ported `src/domain/dates.js` → `v2/lib/domain/dates.ts` (8 pure UTC-safe functions). Ported `src/domain/scheduling.js` → `v2/lib/domain/scheduling.ts` (topologicalSort, cascade, computeRAG, computeDependencyStatus, scheduleBackward, previewCascade, computeEndFromDuration, computeDurationFromDates). Installed Vitest 4.1.5; wrote 43 tests covering all domain functions including negative addWorkingDays, lockDate behaviour, backward scheduling, cascade preview non-mutation, and RAG thresholds. All 43 pass. Wired domain engine into read-only milestones grid at `/milestones` — shows all 13 mock milestones with RAG badge, dependency status badge, variance days, lock icon, and phase column. Computed server-side at build time (pure TypeScript, no client state needed). Build clean, pushed `f3b4487`.
 
 ### M3 Completion summary (2026-05-11)
 
@@ -271,6 +277,31 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M4A — Milestones grid: port logic + read-only grid)
+
+**Worked on:**
+- Read `src/domain/dates.js`, `src/domain/scheduling.js`, `src/test/test.js`, `src/config/rules.js` to understand RAG thresholds (redDelayDays: 5, amberDelayDays: 0)
+- Created `v2/lib/domain/dates.ts` — TypeScript port of all 8 date functions (isValidISO, dayOfWeek, today, nowISO, addDays, addWorkingDays with negative-day support, daysBetween, compare)
+- Created `v2/lib/domain/scheduling.ts` — TypeScript port of all 8 scheduling functions with proper types (ScheduleMilestone interface, RAG type, etc.)
+- Installed Vitest 4.1.5 as dev dependency
+- Created `v2/lib/domain/dates.test.ts` — 13 tests covering all date functions
+- Created `v2/lib/domain/scheduling.test.ts` — 30 tests covering all scheduling functions
+- All 43 Vitest tests pass in 148ms
+- Rewrote `v2/app/(app)/milestones/page.tsx` — full read-only grid: 13 mock milestones, computed RAG + dependency status from domain engine, variance days, lock icon, legend
+
+**Decided:**
+- Domain functions run server-side (pure TypeScript, no "use client" needed) — computed at Next.js static export build time
+- RAG thresholds hardcoded from v1 config (redDelayDays: 5, amberDelayDays: 0) — configurable in M8 settings
+- "today" pinned to "2026-05-11" for grid display (matches mock data's current date)
+
+**Built:** 43/43 Vitest tests pass. Milestones grid live with RAG + dependency engine. Build clean (11 static pages).
+
+**Committed:** `f3b4487` on `enterprisepharmapm-pro`.
+
+**Next session goal:** M4B — interactive milestones grid: inline editing, cascade preview modal, "Schedule from Go-Live" action, per-column filters, lock toggle.
+
+---
 
 ### Session — 2026-05-11 (M3 — Dashboard view)
 

@@ -6,6 +6,8 @@ on:
       - enterprisepharmapm-pro
     paths:
       - "v2/**"
+      - "index.html"
+      - "src/**"
       - ".github/workflows/deploy.yml"
 
 permissions:
@@ -20,9 +22,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: v2
 
     steps:
       - name: Checkout
@@ -41,15 +40,27 @@ jobs:
           cache-dependency-path: v2/pnpm-lock.yaml
 
       - name: Install dependencies
+        working-directory: v2
         run: pnpm install --ignore-scripts
 
-      - name: Build
+      - name: Build v2
+        working-directory: v2
         run: pnpm build
+
+      - name: Assemble full site
+        run: |
+          mkdir -p _site/v2
+          # v1 — preserve existing files at the site root
+          cp index.html _site/
+          cp verify.html _site/ 2>/dev/null || true
+          cp -r src _site/
+          # v2 — nest the Next.js static export under /v2/
+          cp -r v2/out/. _site/v2/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: v2/out
+          path: _site
 
   deploy:
     needs: build

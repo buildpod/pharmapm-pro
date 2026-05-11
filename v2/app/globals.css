@@ -58,3 +58,25 @@
     font-family: Arial, Helvetica, sans-serif;
   }
 }
+
+@media print {
+  /* Hide chrome, show only report content */
+  aside, nav, header, [data-sidebar], [data-topbar] {
+    display: none !important;
+  }
+  body {
+    background: white;
+    font-size: 11px;
+  }
+  /* Remove main area padding so report fills the page */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+  /* Ensure colors print */
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

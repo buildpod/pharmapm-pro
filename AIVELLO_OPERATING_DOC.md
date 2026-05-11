@@ -92,12 +92,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M2 — App shell
-**Goal:** Sidebar (project context, nav groups, badges, user avatar), top bar (breadcrumb, search trigger, alerts, export), routing for 7 views (dashboard, milestones, tasks, risks, documents, costs, reports), each view a placeholder page with the right title.
-**Definition of done:** All 7 nav items work, page transitions smooth, layout responsive.
+**Module:** M3 — Dashboard view
+**Goal:** KPI cards (health, schedule, budget, risks), phase progress bar, sparkline charts (risk profile, budget burn) using Recharts, upcoming milestones list (top 5), documents pending decision list (top 3).
+**Definition of done:** Dashboard populated with mock Veeva RIM data, looks polished.
 
 **Started:** (next session)
 **Status:** not started
+
+### M2 Completion summary (2026-05-11)
+
+**Module:** M2 — App shell
+**Status:** ✅ Complete
+**Outcome:** Full app shell live at `https://buildpod.github.io/pharmapm-pro/v2/`. Fixed 224px sidebar with logo, project context card, 4 nav groups (OVERVIEW / PLANNING / RISK & FINANCE / DOCUMENTATION), badge counts on Risks (3) and Documents (2), user avatar. Top bar with breadcrumb, search, bell with alert dot, Export button. 7 routed views all working. Dashboard has 4 real KPI cards. Mobile Sheet (hamburger) wired. Vineet confirmed via screenshot.
 
 ### M1 Completion summary (2026-05-11)
 
@@ -258,6 +264,32 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M2 — App shell)
+
+**Worked on:**
+- Installed shadcn/ui component deps: `@radix-ui/react-dialog`, `@radix-ui/react-avatar`, `@radix-ui/react-separator`
+- Created shadcn components: Sheet, Avatar, Badge, Separator
+- Built `components/sidebar.tsx` (client component, usePathname for active state)
+- Built `components/topbar.tsx` (breadcrumb, search/bell/export, mobile Sheet trigger)
+- Created `app/(app)/layout.tsx` — app shell with fixed sidebar + scrollable main area
+- Deleted old `app/page.tsx` (Hello RIM placeholder)
+- Created 7 routes under `app/(app)/`: `/`, `/milestones`, `/tasks`, `/risks`, `/costs`, `/documents`, `/reports`
+- Dashboard page: 4 real KPI cards (Schedule Health, Open Risks, Budget Utilised, Days to Go-Live)
+- Added `trailingSlash: true` to `next.config.mjs` for GitHub Pages sub-route compatibility
+- 11 static pages build clean, TypeScript clean, deployed
+
+**Decided:**
+- Skip `pnpm dev` local testing step — CI deploy is fast enough (40s build + 10s deploy), go straight to GitHub Pages
+- Dashboard KPI cards use hardcoded mock values for now (real mock data from `lib/mockData.ts` comes in M3)
+
+**Built:** App shell live at `https://buildpod.github.io/pharmapm-pro/v2/`. All 7 nav items confirmed working via Vineet's screenshot.
+
+**Committed:** `164cb1b` — M2 app shell commit on `enterprisepharmapm-pro`.
+
+**Next session goal:** M3 — Dashboard view. Real mock data, Recharts sparklines, upcoming milestones list, decisions pending list.
+
+---
 
 ### Session — 2026-05-11 (M1 — Project setup)
 

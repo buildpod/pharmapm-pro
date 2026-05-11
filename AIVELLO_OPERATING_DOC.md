@@ -92,12 +92,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M6B — Tasks grid
-**Goal:** Tasks grid with workstream grouping (collapsible sections), priority flags, inline progress, link tasks to parent milestone.
-**Definition of done:** Tasks grid functional with mock data, filterable, workstream groups collapsible.
+**Module:** M7 — Reports / Weekly Status Report
+**Goal:** Printable weekly status report layout with headline metrics, this week / next week sections, top risks, decisions needed. Print stylesheet (clean PDF). Export Excel button using SheetJS (client-side formatted xlsx).
+**Definition of done:** Vineet can click Print or Export Excel and get usable artifacts.
 
 **Started:** (next session)
 **Status:** not started
+
+### M6B Completion summary (2026-05-11)
+
+**Module:** M6B — Tasks grid
+**Status:** ✅ Complete
+**Outcome:** Added Task type + 18 tasks to mockData across 5 workstreams. Built `components/tasks/tasks-grid.tsx` (client): collapsible workstream group headers showing done/total count + blocked badge + critical-open flag + avg progress mini bar; task rows with priority dot, name + milestone tag, priority badge, owner, due date (overdue red), click-progress-to-slider (range input, auto-advances status), click-status-to-cycle badge; priority + status filter dropdowns; summary bar. Build clean, pushed `8ea8d8d`. M6 fully complete.
 
 ### M6A Completion summary (2026-05-11)
 
@@ -289,6 +295,28 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M6B — Tasks grid)
+
+**Worked on:**
+- Extended `lib/mockData.ts` with `Task` type (id, name, workstream, priority, status, progress, milestoneId, owner, dueDate) and 18 task records across 5 workstreams (Configuration ×4, Validation ×4, Data Migration ×4, Training ×3, Project Mgmt ×3)
+- Created `components/tasks/tasks-grid.tsx` (client component):
+  - `WorkstreamGroup` — collapsible (chevron toggle, default open), header shows workstream name, done/total count, blocked count badge, critical-open flag, avg progress mini bar
+  - `TaskRow` — priority dot, task name + `MilestoneTag` (truncated milestone name linked by id), priority badge (hidden on small screens), owner, due date (red if overdue), inline progress (click → range slider, blur/Enter commits; auto-marks status), click-to-cycle status badge
+  - Smart status/progress coupling: progress slider to 100% → Complete; > 0 from Not Started → In Progress; cycling Complete → Not Started → In Progress → Complete
+  - Priority + status filter dropdowns; groups with 0 matching tasks hidden
+  - Summary bar: x/y complete, in-progress badge, blocked badge
+- Updated `app/(app)/tasks/page.tsx` to thin wrapper
+
+**Decided:**
+- Milestone link is display-only (tag showing milestone name) — navigation to /milestones filtered view is M9+ scope
+- Progress editing uses a range slider (step 5) on click rather than a number input — more touch-friendly and pharma-appropriate (5% granularity)
+
+**Built:** Tasks grid fully functional. Build clean, 2.97 kB. Pushed `8ea8d8d`. M6 fully complete.
+
+**Next session goal:** M7 — Weekly Status Report (printable layout + Excel export via SheetJS).
+
+---
 
 ### Session — 2026-05-11 (M6A — Risks + Costs grids)
 

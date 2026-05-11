@@ -92,12 +92,17 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M7 — Reports / Weekly Status Report
-**Goal:** Printable weekly status report layout with headline metrics, this week / next week sections, top risks, decisions needed. Print stylesheet (clean PDF). Export Excel button using SheetJS (client-side formatted xlsx).
-**Definition of done:** Vineet can click Print or Export Excel and get usable artifacts.
+**Module:** M8 — Settings + cascade preview + holidays
+**Goal:** Settings panel (working days, holidays, country presets — port from v1). Cascade preview modal wired into milestone date edits. Toast notifications for state changes (use Sonner).
+**Definition of done:** Feature parity with v1 settings + cascade preview + country holidays.
 
 **Started:** (next session)
 **Status:** not started
+
+### M7 Completion summary (2026-05-11)
+
+**Module:** M7 — Reports / Weekly Status Report
+**Status:** ✅ Complete
 
 ### M6B Completion summary (2026-05-11)
 
@@ -295,6 +300,35 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M7 — Reports / Weekly Status Report)
+
+**Worked on:**
+- Installed SheetJS (`xlsx` 0.18.5) as a dependency
+- Created `components/reports/weekly-report.tsx` (client component):
+  - `buildReportData()` — derives: schedule health (Green/Amber/Red from milestone variance), this-week milestones/tasks, next-2-week milestones/tasks, open risks sorted by score, pending decisions across all documents, burn % from costLines
+  - 6 KPI cards: Schedule Health (RAG), Days to Go-Live, Open Risks (+ high count), Budget Utilised ($k), Decisions Pending, Tasks In Flight (+ blocked count)
+  - This Week section — completed/due milestones + tasks with status badge
+  - Next 2 Weeks section — upcoming milestones with variance badge (+Xd) + upcoming tasks with priority badge
+  - Top Open Risks table — score pill (color-coded High/Medium/Low), risk title, P×I, owner
+  - Decisions Needed table — document name, type, person, Reviewer/Approver role badge
+  - Print/Save PDF button: `window.print()` — sidebar/topbar hidden via `print:hidden` Tailwind utility + `data-sidebar`/`data-topbar` attributes; `print-color-adjust: exact` ensures colors print
+  - Export Excel button — SheetJS 5-sheet workbook: Summary, Milestones (Next 2 Weeks), Open Risks, Decisions Needed, Tasks (Next 2 Weeks); filename `AivelloRIM_WeeklyReport_YYYY-MM-DD.xlsx`
+  - Confidential footer
+- Updated `app/(app)/reports/page.tsx` — thin wrapper, page title hidden on print
+- Updated `app/globals.css` — `@media print` block: hides aside/nav/header, removes main padding, forces white background
+- Updated `app/(app)/layout.tsx` — added `data-sidebar`/`data-topbar` attributes and `print:hidden` to sidebar + topbar wrapper
+
+**Decided:**
+- SheetJS over server-side generation (no server available in static export; client-side is appropriate)
+- 5 sheets covers the DoD and the most useful artifacts for a pharma PM
+- `window.print()` is the most reliable print-to-PDF trigger; no extra library needed
+
+**Built:** Reports page fully functional. Build clean, `/reports` 96 kB (SheetJS is ~90 kB of that). Pushed `8cd3774`.
+
+**Next session goal:** M8 — Settings panel (working days, holidays, country presets) + Sonner toast notifications.
+
+---
 
 ### Session — 2026-05-11 (M6B — Tasks grid)
 

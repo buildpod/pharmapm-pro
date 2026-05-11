@@ -42,7 +42,6 @@ function cellColor(p: number, i: number) {
 }
 
 function RiskMatrix({ risks }: { risks: Risk[] }) {
-  // Build a lookup: (probability, impact) → risks there
   const cells: Record<string, Risk[]> = {};
   risks.forEach((r) => {
     const key = `${r.probability}-${r.impact}`;
@@ -51,69 +50,73 @@ function RiskMatrix({ risks }: { risks: Risk[] }) {
   });
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-      <p className="mb-3 text-sm font-semibold text-foreground">Risk Matrix (P × I)</p>
-      <div className="flex gap-2">
-        {/* Y-axis label */}
-        <div className="flex flex-col items-center justify-center gap-0 w-4 shrink-0">
-          <span className="text-[9px] text-muted-foreground [writing-mode:vertical-rl] rotate-180 tracking-widest uppercase">
-            Impact ↑
-          </span>
+    <div className="rounded-lg border border-border bg-card p-4 shadow-sm self-start">
+      <p className="mb-3 text-sm font-semibold text-foreground">Risk Matrix</p>
+
+      <div className="flex items-start gap-1.5">
+        {/* Y-axis row numbers */}
+        <div className="flex flex-col gap-0.5 pt-0.5">
+          {[5, 4, 3, 2, 1].map((i) => (
+            <div key={i} className="h-9 w-3 flex items-center justify-end">
+              <span className="text-[9px] text-muted-foreground">{i}</span>
+            </div>
+          ))}
         </div>
-        <div className="flex-1">
-          {/* Grid: impact rows from 5 (top) down to 1 */}
-          <div className="grid gap-0.5" style={{ gridTemplateRows: "repeat(5, 1fr)" }}>
-            {[5, 4, 3, 2, 1].map((impact) => (
-              <div key={impact} className="flex gap-0.5 items-center">
-                <span className="w-3 shrink-0 text-[9px] text-muted-foreground text-right">{impact}</span>
-                {[1, 2, 3, 4, 5].map((prob) => {
-                  const key = `${prob}-${impact}`;
-                  const cellRisks = cells[key] ?? [];
-                  return (
-                    <div
-                      key={prob}
-                      className={cn(
-                        "flex-1 aspect-square border rounded-sm flex flex-wrap items-center justify-center gap-0.5 p-0.5 min-h-[32px]",
-                        cellColor(prob, impact)
-                      )}
-                      title={`P${prob} × I${impact} = ${prob * impact}`}
-                    >
-                      {cellRisks.map((r) => (
-                        <span
-                          key={r.id}
-                          title={r.title}
-                          className={cn(
-                            "flex h-4 w-4 items-center justify-center rounded-full text-[7px] font-black text-white shrink-0",
-                            scoreBand(r.score) === "high"   ? "bg-red-500" :
-                            scoreBand(r.score) === "medium" ? "bg-amber-500" :
-                            "bg-green-500"
-                          )}
-                        >
-                          {r.id.replace("r", "")}
-                        </span>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
+
+        {/* 5×5 fixed-size grid */}
+        <div>
+          <div className="grid grid-cols-5 gap-0.5">
+            {[5, 4, 3, 2, 1].flatMap((impact) =>
+              [1, 2, 3, 4, 5].map((prob) => {
+                const key = `${prob}-${impact}`;
+                const cellRisks = cells[key] ?? [];
+                return (
+                  <div
+                    key={key}
+                    className={cn(
+                      "h-9 w-9 border rounded-sm flex flex-wrap items-center justify-center gap-0.5 p-0.5",
+                      cellColor(prob, impact)
+                    )}
+                    title={`P${prob} × I${impact} = ${prob * impact}`}
+                  >
+                    {cellRisks.map((r) => (
+                      <span
+                        key={r.id}
+                        title={r.title}
+                        className={cn(
+                          "flex h-4 w-4 items-center justify-center rounded-full text-[7px] font-black text-white shrink-0",
+                          scoreBand(r.score) === "high"   ? "bg-red-500" :
+                          scoreBand(r.score) === "medium" ? "bg-amber-500" :
+                          "bg-green-500"
+                        )}
+                      >
+                        {r.id.replace("r", "")}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })
+            )}
           </div>
+
           {/* X-axis labels */}
-          <div className="flex gap-0.5 mt-0.5 ml-3.5">
+          <div className="grid grid-cols-5 gap-0.5 mt-0.5">
             {[1, 2, 3, 4, 5].map((p) => (
-              <div key={p} className="flex-1 text-center text-[9px] text-muted-foreground">{p}</div>
+              <div key={p} className="w-9 text-center text-[9px] text-muted-foreground">{p}</div>
             ))}
           </div>
-          <p className="text-center text-[9px] text-muted-foreground mt-0.5 tracking-widest uppercase">
-            Probability →
-          </p>
         </div>
       </div>
 
+      <div className="mt-1 ml-4 text-[9px] text-muted-foreground">Probability →</div>
+      <div className="mt-3 text-[9px] text-muted-foreground -ml-0.5" style={{ writingMode: "horizontal-tb" }}>
+        ↑ Impact
+      </div>
+
       {/* Legend */}
-      <div className="mt-3 flex gap-3 flex-wrap">
+      <div className="mt-3 flex flex-col gap-1.5">
         {(["high", "medium", "low"] as const).map((band) => (
-          <span key={band} className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", bandStyles[band].pill)}>
+          <span key={band} className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold w-fit", bandStyles[band].pill)}>
             {band === "high" ? "High ≥15" : band === "medium" ? "Medium 8–14" : "Low <8"}
           </span>
         ))}
@@ -228,10 +231,12 @@ export function RisksGrid() {
   const mitigatedCount = risks.filter((r) => r.status === "mitigated").length;
 
   return (
-    <div className="space-y-4">
-      {/* P×I matrix */}
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      {/* P×I matrix — fixed-size card, sits beside the table on desktop */}
       <RiskMatrix risks={risks} />
 
+      {/* Table + toolbar */}
+      <div className="min-w-0 flex-1 space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Status pills */}
@@ -308,6 +313,7 @@ export function RisksGrid() {
       <p className="text-[10px] text-muted-foreground px-1">
         Click a status badge to cycle: Open → Mitigated → Closed. Click Mitigation to expand the response plan.
       </p>
+      </div>{/* end flex-1 table column */}
     </div>
   );
 }

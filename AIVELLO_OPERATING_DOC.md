@@ -92,12 +92,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M3 — Dashboard view
-**Goal:** KPI cards (health, schedule, budget, risks), phase progress bar, sparkline charts (risk profile, budget burn) using Recharts, upcoming milestones list (top 5), documents pending decision list (top 3).
-**Definition of done:** Dashboard populated with mock Veeva RIM data, looks polished.
+**Module:** M4 — Milestones grid (Session A: port logic + read-only grid)
+**Goal:** Port v1 `scheduling.js` → `lib/domain/scheduling.ts`, port `dates.js` → `lib/domain/dates.ts`, port 305 tests as Vitest tests (all pass), wire mock milestones into a read-only data grid.
+**Definition of done:** Milestones grid displays mock data, TypeScript domain ports compile, Vitest tests green.
 
 **Started:** (next session)
 **Status:** not started
+
+### M3 Completion summary (2026-05-11)
+
+**Module:** M3 — Dashboard view
+**Status:** ✅ Complete
+**Outcome:** Full dashboard live with real mock data. KPI cards (Schedule Health dynamic from mock, Open Risks 5, Budget 39%, Days to Go-Live 114), 6-phase progress bar (Initiation 100% → Go-Live 0%), Risk Profile amber sparkline + Budget Burn blue sparkline (Recharts), top-5 upcoming milestones with variance days, top-3 pending documents with per-person decision dots. Vineet confirmed via screenshot. Hover tooltips on charts working. Click-through links deferred to M4/M5 (noted in backlog).
 
 ### M2 Completion summary (2026-05-11)
 
@@ -247,6 +253,7 @@ Total estimate: **11 sessions** at one focused module per session.
 
 When Claude or Vineet has an idea mid-session that isn't part of the Current Module, it goes here. Only items in section 5 are being worked on.
 
+- Dashboard click-through: milestone rows → /milestones, doc rows → /documents, KPI cards → detail views (wire in M4/M5 naturally)
 - AI assist for generating milestones from system + methodology
 - Excel import (MS Project XML, MPP files)
 - Multi-user collaboration (requires backend)
@@ -264,6 +271,27 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M3 — Dashboard view)
+
+**Worked on:**
+- Installed Recharts 3.8.1
+- Created `lib/mockData.ts` — full Veeva RIM mock dataset: project info, 6 phases, 13 milestones, 6 risks, 4 documents (with per-person Decision rows), 6-month budget trend, 6-month risk trend, `getKpis()` derived helper
+- Created `components/dashboard/sparkline.tsx` — Recharts AreaChart client component with gradient fill
+- Created `components/dashboard/phase-progress.tsx` — 6-segment phase bar with completion %
+- Rewrote `app/(app)/page.tsx` — full dashboard: KPI cards from real mock data, phase bar, two sparklines, top-5 milestones with variance, top-3 pending docs with decision dots
+
+**Decided:**
+- Click-through from dashboard rows to detail views (milestones, documents) deferred to M4/M5 — will happen naturally when those views are built
+- Hover tooltips on Recharts charts already work out of the box (no extra work needed)
+
+**Built:** Dashboard confirmed live and polished. All M3 DoD items met.
+
+**Committed:** `1b7183d` on `enterprisepharmapm-pro`.
+
+**Next session goal:** M4A — port v1 scheduling/dates domain logic to TypeScript, Vitest tests, read-only milestones grid.
+
+---
 
 ### Session — 2026-05-11 (M2 — App shell)
 

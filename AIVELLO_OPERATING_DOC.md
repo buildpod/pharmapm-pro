@@ -92,12 +92,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M4B — Milestones grid (Session B: interactive grid)
-**Goal:** Inline editing (date pickers, dropdowns), cascade preview modal, "Schedule from Go-Live" action, per-column filters, lock toggle column.
-**Definition of done:** Milestones grid is fully interactive, cascade preview works, all M4 DoD items met.
+**Module:** M5 — Documents with reviewer/approver chips
+**Goal:** Each document shows per-person reviewer/approver avatar chips with status icons (✓ approved / ⏰ pending / ✗ rejected). Click chip to mark decision (mock state update). Status auto-derives (all reviewers approved → "Reviewed"). Per-doc detail pane with full history.
+**Definition of done:** Documents view shows chips per person, decisions update mock state.
 
 **Started:** (next session)
 **Status:** not started
+
+### M4B Completion summary (2026-05-11)
+
+**Module:** M4B — Milestones grid (Session B: interactive grid)
+**Status:** ✅ Complete
+**Outcome:** Added predecessor/duration/lag to all 13 mock milestones enabling real dependency chains. Created `components/ui/dialog.tsx` (Radix Dialog wrapper). Built `components/milestones/milestones-grid.tsx` (client component): phase + status filter dropdowns, "Schedule from Go-Live" button (runs scheduleBackward from project.goLiveDate), "Reset" button, inline date editing (click-to-edit date inputs on planned and forecast columns), cascade preview modal (shows all downstream shifts with old/new dates + daysShifted before applying), lock/unlock toggle per row, RAG + dependency status live-computed. All M4 DoD items met. Build clean, 6.09 kB page bundle. Pushed `47865e3`.
 
 ### M4A Completion summary (2026-05-11)
 
@@ -277,6 +283,37 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M4B — Milestones grid: interactive editing)
+
+**Worked on:**
+- Extended `lib/mockData.ts` Milestone type with `predecessor?: string`, `duration?: number`, `lag?: number`; updated all 13 milestones with realistic Veeva RIM dependency chain (m1 → m2 → m3/m4 → m5 → m6 → m7 → m8 → m9/m11 → m10 → m12 → m13)
+- Created `components/ui/dialog.tsx` — Radix Dialog wrapper (DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose)
+- Created `components/milestones/milestones-grid.tsx` — full interactive client component:
+  - Phase filter + status filter dropdowns
+  - "Schedule from Go-Live" button: calls `scheduleBackward(allMilestones, project.goLiveDate)`, applies result
+  - "Reset" button: restores original mock data
+  - `DateCell` sub-component: click-to-edit date input, Enter/Escape/blur handling
+  - `StatusCell` sub-component: click-to-dropdown for non-locked milestones
+  - Planned date edit triggers `previewCascade()` + cascades all successors, shows modal if downstream impact
+  - `CascadePreviewDialog`: lists affected milestones with old/new dates + day shift, Apply or Discard
+  - Forecast date edit: direct update, no cascade (projection field)
+  - Lock/unlock toggle per row: click lock icon
+  - RAG + dependency status computed live from domain engine
+- Updated `app/(app)/milestones/page.tsx` to thin wrapper
+
+**Decided:**
+- Forecast date has no cascade — it's a projection, not a plan. Only planned date cascades.
+- Locked milestones block both manual editing AND cascade pass-through (domain `lockDate` behaviour)
+- `toScheduleMs()` derives `plannedStart = addWorkingDays(plannedDate, -(duration-1))` on the fly — not stored in mockData
+
+**Built:** Full M4 DoD met. Build clean, /milestones is 6.09 kB client bundle.
+
+**Committed:** `47865e3` on `enterprisepharmapm-pro`.
+
+**Next session goal:** M5 — Documents view with per-person reviewer/approver chips.
+
+---
 
 ### Session — 2026-05-11 (M4A — Milestones grid: port logic + read-only grid)
 

@@ -92,12 +92,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M6 — Risks + Costs + Tasks grids
-**Goal:** Session A: Risks grid (P×I score, colour pills, sortable) + Costs grid (budget vs actual, burn bars, totals row). Session B: Tasks grid (workstream grouping, priority flags, inline progress, link to milestone).
-**Definition of done:** All three grids functional with mock data, filterable.
+**Module:** M6B — Tasks grid
+**Goal:** Tasks grid with workstream grouping (collapsible sections), priority flags, inline progress, link tasks to parent milestone.
+**Definition of done:** Tasks grid functional with mock data, filterable, workstream groups collapsible.
 
 **Started:** (next session)
-**Status:** not started (Session A next)
+**Status:** not started
+
+### M6A Completion summary (2026-05-11)
+
+**Module:** M6A — Risks grid + Costs grid
+**Status:** ✅ Complete
+**Outcome:** Added CostLine type + 7 cost line items to mockData ($2M budget / $780k actual, consistent with budgetTrend). Built `components/risks/risks-grid.tsx` (client): 5×5 P×I heatmap with colored cells and numbered risk dots at each position, risk table sorted by score desc (also by P or I), score pills by band (High ≥15 red / Medium 8–14 amber / Low <8 green), clickable status badges (Open → Mitigated → Closed), expandable mitigation per row, status + category filters. Built `components/costs/costs-grid.tsx` (server): 4 KPI cards, overall burn bar, cost breakdown table with category pill + contract type + per-row burn bars + totals row, monthly trend table with delta + cumulative + variance + forecast dimming. Build clean, pushed `d33ad81`.
 
 ### M4B Completion summary (2026-05-11)
 
@@ -283,6 +289,30 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M6A — Risks + Costs grids)
+
+**Worked on:**
+- Extended `lib/mockData.ts` with `CostLine` type and `costLines[7]` (Implementation/Validation/Migration/Integration/Training/License/Internal — $2M total, $780k actual, matching budgetTrend)
+- Created `components/risks/risks-grid.tsx` (client component):
+  - `RiskMatrix`: 5×5 P×I heatmap, cell color by score band, risk dots at coordinates
+  - `RiskRow`: score pill, title + category badge, P×I columns, clickable status badge, expandable mitigation
+  - Sort: score / probability / impact; status filter pills; category dropdown
+- Created `components/costs/costs-grid.tsx` (server component — no interactivity):
+  - 4 KPI cards (total budget, spent, remaining, line count)
+  - Overall burn bar with threshold coloring (amber >60%, red >85%)
+  - Cost breakdown table: category colored pill, description, contract type badge, budget $k, actual $k, per-row burn bar, totals row
+  - Monthly trend table: per-month delta planned/actual + variance indicator + cumulative columns; Jun forecast row dimmed
+
+**Decided:**
+- Costs is a server component — no state needed, all data is static mock; only Risks needs client state for status cycling
+- costLines actuals sum to exactly $780k to match budgetTrend May cumulative figure
+
+**Built:** Both grids functional. Build clean — /risks 4.05 kB client, /costs 137 B server. Pushed `d33ad81`.
+
+**Next session goal:** M6B — Tasks grid: workstream grouping, priority flags, inline progress, milestone link.
+
+---
 
 ### Session — 2026-05-11 (M5 — Documents: chips + decision tracking)
 

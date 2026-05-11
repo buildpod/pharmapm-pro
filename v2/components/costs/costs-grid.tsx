@@ -89,7 +89,7 @@ export function CostsGrid() {
       </div>
 
       {/* ── Cost line breakdown ────────────────────────────── */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <p className="text-sm font-semibold text-foreground">Cost Breakdown by Category</p>
           <span className="text-xs text-muted-foreground">budget · actual · burn</span>
@@ -158,7 +158,7 @@ export function CostsGrid() {
       </div>
 
       {/* ── Monthly burn trend ─────────────────────────────── */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <p className="text-sm font-semibold text-foreground">Monthly Burn Trend</p>
           <span className="text-xs text-muted-foreground">cumulative $k · Jan – Jun 2026</span>

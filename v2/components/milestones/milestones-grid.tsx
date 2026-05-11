@@ -376,7 +376,7 @@ export function MilestonesGrid() {
       </div>
 
       {/* Grid */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
         {/* Header */}
         <div className="grid grid-cols-[24px_2fr_1fr_1fr_1fr_64px_72px_72px_32px] gap-0 border-b border-border bg-muted/40 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           <div />

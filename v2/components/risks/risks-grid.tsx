@@ -282,7 +282,7 @@ export function RisksGrid() {
       </div>
 
       {/* Table */}
-      <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+      <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-border bg-muted/40 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

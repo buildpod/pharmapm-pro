@@ -193,7 +193,7 @@ function DocumentCard({
   const isOverdue = new Date(doc.dueDate) < new Date(TODAY);
 
   return (
-    <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
       {/* Card header */}
       <div className="px-5 py-4">
         {/* Top row: badges + due date */}

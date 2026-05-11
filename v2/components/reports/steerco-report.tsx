@@ -273,7 +273,7 @@ export function SteerCoReport() {
 
           {/* Key milestones */}
           <Section title="Critical Path Milestones">
-            <div className="rounded-md border border-border overflow-hidden">
+            <div className="rounded-md border border-border overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -352,7 +352,7 @@ export function SteerCoReport() {
             {data.escalatedRisks.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">No high-score risks currently open.</p>
             ) : (
-              <div className="rounded-md border border-border overflow-hidden">
+              <div className="rounded-md border border-border overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -403,7 +403,7 @@ export function SteerCoReport() {
             {/* Budget trend mini table */}
             <div className="mt-3">
               <p className="text-[10px] font-semibold text-muted-foreground mb-1 uppercase tracking-wide">Budget Trend (last 3 months)</p>
-              <div className="rounded-md border border-border overflow-hidden">
+              <div className="rounded-md border border-border overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

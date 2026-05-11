@@ -245,7 +245,7 @@ function WorkstreamGroup({
   const critical = tasks.some((t) => t.priority === "Critical" && t.status !== "Complete");
 
   return (
-    <div className="rounded-lg border border-border bg-card shadow-sm overflow-hidden">
+    <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
       {/* Group header */}
       <button
         onClick={() => setOpen((v) => !v)}

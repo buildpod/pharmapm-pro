@@ -163,7 +163,7 @@ function TaskTable({ tasks: tList, allTasks }: { tasks: Task[]; allTasks: Task[]
   const taskMap = Object.fromEntries(allTasks.map((t) => [t.id, t]));
 
   return (
-    <div className="rounded-md border border-border overflow-hidden">
+    <div className="rounded-md border border-border overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -338,7 +338,7 @@ export function WorkstreamReport() {
         {/* Linked milestones */}
         {data.linkedMilestones.length > 0 && (
           <Section title="Linked Milestones">
-            <div className="rounded-md border border-border overflow-hidden">
+            <div className="rounded-md border border-border overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -420,7 +420,7 @@ export function WorkstreamReport() {
         {/* Risks */}
         {data.wsRisks.length > 0 && (
           <Section title="Open Risks in this Workstream">
-            <div className="rounded-md border border-border overflow-hidden">
+            <div className="rounded-md border border-border overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

@@ -340,7 +340,7 @@ export function WeeklyReport() {
             {data.openRisks.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">No open risks.</p>
             ) : (
-              <div className="rounded-md border border-border overflow-hidden">
+              <div className="rounded-md border border-border overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -375,7 +375,7 @@ export function WeeklyReport() {
             {data.pendingDecisions.length === 0 ? (
               <p className="text-xs text-muted-foreground italic">No pending decisions.</p>
             ) : (
-              <div className="rounded-md border border-border overflow-hidden">
+              <div className="rounded-md border border-border overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-muted/40 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">

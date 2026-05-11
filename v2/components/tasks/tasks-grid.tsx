@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Milestone } from "lucide-react";
+import { ChevronDown, ChevronRight, Milestone, ArrowRight } from "lucide-react";
 import {
   tasks as initialTasks,
   milestones,
@@ -39,9 +39,10 @@ const nextStatus: Record<TaskStatus, TaskStatus> = {
 const allPriorities: TaskPriority[] = ["Critical", "High", "Medium", "Low"];
 const allStatuses: TaskStatus[]     = ["Not Started", "In Progress", "Complete", "Blocked", "On Hold"];
 
-// ─── Milestone label lookup ───────────────────────────────────────────────────
+// ─── Lookups ──────────────────────────────────────────────────────────────────
 
 const milestoneById = Object.fromEntries(milestones.map((m) => [m.id, m]));
+const taskById      = Object.fromEntries(initialTasks.map((t) => [t.id, t]));
 
 function MilestoneTag({ milestoneId }: { milestoneId?: string }) {
   if (!milestoneId) return null;
@@ -55,6 +56,37 @@ function MilestoneTag({ milestoneId }: { milestoneId?: string }) {
       <Milestone className="h-2.5 w-2.5 shrink-0" />
       {m.name.length > 22 ? m.name.slice(0, 22) + "…" : m.name}
     </span>
+  );
+}
+
+function DependencyTags({ dependsOn, allTasks }: { dependsOn?: string[]; allTasks: Task[] }) {
+  if (!dependsOn?.length) return null;
+  const taskMap = Object.fromEntries(allTasks.map((t) => [t.id, t]));
+  return (
+    <div className="mt-0.5 flex flex-wrap gap-1">
+      {dependsOn.map((depId) => {
+        const dep = taskMap[depId] ?? taskById[depId];
+        if (!dep) return null;
+        const done = dep.status === "Complete";
+        const blocked = dep.status === "Blocked";
+        return (
+          <span
+            key={depId}
+            title={`Depends on: ${dep.name}`}
+            className={cn(
+              "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium",
+              done    ? "bg-green-50 text-green-600" :
+              blocked ? "bg-red-50 text-red-600" :
+                        "bg-muted text-muted-foreground"
+            )}
+          >
+            <ArrowRight className="h-2 w-2 shrink-0" />
+            {depId.toUpperCase()}
+            {done && " ✓"}
+          </span>
+        );
+      })}
+    </div>
   );
 }
 
@@ -90,10 +122,12 @@ function formatDate(iso: string) {
 
 function TaskRow({
   task,
+  allTasks,
   onStatusToggle,
   onProgressChange,
 }: {
   task: Task;
+  allTasks: Task[];
   onStatusToggle: (id: string) => void;
   onProgressChange: (id: string, value: number) => void;
 }) {
@@ -111,12 +145,13 @@ function TaskRow({
         />
       </td>
 
-      {/* Name + milestone tag */}
+      {/* Name + milestone tag + dependencies */}
       <td className="px-2 py-2.5">
         <p className="text-xs font-medium text-foreground leading-tight">{task.name}</p>
-        <div className="mt-0.5">
+        <div className="mt-0.5 flex flex-wrap items-center gap-1">
           <MilestoneTag milestoneId={task.milestoneId} />
         </div>
+        <DependencyTags dependsOn={task.dependsOn} allTasks={allTasks} />
       </td>
 
       {/* Priority badge */}
@@ -191,11 +226,13 @@ function TaskRow({
 function WorkstreamGroup({
   name,
   tasks,
+  allTasks,
   onStatusToggle,
   onProgressChange,
 }: {
   name: string;
   tasks: Task[];
+  allTasks: Task[];
   onStatusToggle: (id: string) => void;
   onProgressChange: (id: string, value: number) => void;
 }) {
@@ -266,6 +303,7 @@ function WorkstreamGroup({
               <TaskRow
                 key={t.id}
                 task={t}
+                allTasks={allTasks}
                 onStatusToggle={onStatusToggle}
                 onProgressChange={onProgressChange}
               />
@@ -280,9 +318,12 @@ function WorkstreamGroup({
 // ─── Main grid ────────────────────────────────────────────────────────────────
 
 export function TasksGrid() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [filterPriority, setFilterPriority] = useState<TaskPriority | "All">("All");
-  const [filterStatus, setFilterStatus]     = useState<TaskStatus | "All">("All");
+  const [tasks, setTasks]                       = useState<Task[]>(initialTasks);
+  const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
+  const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
+  const [filterWorkstream, setFilterWorkstream] = useState<string>("All");
+
+  const allWorkstreams = Array.from(new Set(tasks.map((t) => t.workstream)));
 
   function handleStatusToggle(id: string) {
     setTasks((prev) =>
@@ -306,8 +347,9 @@ export function TasksGrid() {
 
   // Apply filters then group by workstream
   const filtered = tasks.filter((t) => {
-    if (filterPriority !== "All" && t.priority !== filterPriority) return false;
-    if (filterStatus   !== "All" && t.status   !== filterStatus)   return false;
+    if (filterPriority   !== "All" && t.priority   !== filterPriority)   return false;
+    if (filterStatus     !== "All" && t.status     !== filterStatus)     return false;
+    if (filterWorkstream !== "All" && t.workstream !== filterWorkstream) return false;
     return true;
   });
 
@@ -339,6 +381,16 @@ export function TasksGrid() {
         )}
 
         <div className="flex-1" />
+
+        {/* Workstream filter */}
+        <select
+          value={filterWorkstream}
+          onChange={(e) => setFilterWorkstream(e.target.value)}
+          className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+        >
+          <option value="All">All workstreams</option>
+          {allWorkstreams.map((ws) => <option key={ws} value={ws}>{ws}</option>)}
+        </select>
 
         {/* Priority filter */}
         <select
@@ -385,6 +437,7 @@ export function TasksGrid() {
               key={g.name}
               name={g.name}
               tasks={g.tasks}
+              allTasks={tasks}
               onStatusToggle={handleStatusToggle}
               onProgressChange={handleProgressChange}
             />

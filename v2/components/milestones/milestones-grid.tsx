@@ -231,7 +231,14 @@ function DateCell({
   );
 }
 
-// ─── Status cell ──────────────────────────────────────────────────────────────
+// ─── Status cell — click icon to cycle status ────────────────────────────────
+
+const nextMilestoneStatus: Record<MilestoneStatus, MilestoneStatus> = {
+  pending:      "in-progress",
+  "in-progress": "at-risk",
+  "at-risk":    "complete",
+  complete:     "pending",
+};
 
 function StatusCell({
   value,
@@ -243,17 +250,21 @@ function StatusCell({
   onChange: (s: MilestoneStatus) => void;
 }) {
   const { icon: Icon, cls } = statusIcon[value];
-  if (!editable) return <Icon className={cn("h-3.5 w-3.5", cls)} />;
+  if (!editable) {
+    return (
+      <span title={value}>
+        <Icon className={cn("h-3.5 w-3.5", cls)} />
+      </span>
+    );
+  }
   return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value as MilestoneStatus)}
-      className="text-xs border border-border rounded px-1 py-0.5 bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+    <button
+      onClick={() => onChange(nextMilestoneStatus[value])}
+      title={`${value} — click to mark ${nextMilestoneStatus[value]}`}
+      className="hover:opacity-70 transition-opacity"
     >
-      {statusOptions.map((s) => (
-        <option key={s} value={s}>{s}</option>
-      ))}
-    </select>
+      <Icon className={cn("h-3.5 w-3.5", cls)} />
+    </button>
   );
 }
 

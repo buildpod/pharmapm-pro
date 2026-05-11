@@ -174,6 +174,31 @@ export const documents: Document[] = [
   },
 ];
 
+// ─── Cost lines ───────────────────────────────────────────────────────────────
+
+export type ContractType = "T&M" | "Fixed" | "Internal";
+
+export type CostLine = {
+  id: string;
+  category: string;
+  description: string;
+  budgetK: number;    // $k budgeted
+  actualK: number;    // $k spent to date
+  contractType: ContractType;
+  owner: string;
+};
+
+export const costLines: CostLine[] = [
+  { id: "c1", category: "Implementation", description: "Veeva Vault configuration & development", budgetK: 650, actualK: 340, contractType: "Fixed",    owner: "KM" },
+  { id: "c2", category: "Validation",     description: "CSV / GAMP 5 validation services",        budgetK: 320, actualK: 140, contractType: "T&M",      owner: "QA" },
+  { id: "c3", category: "Migration",      description: "Data migration specialist vendor",         budgetK: 280, actualK:  85, contractType: "Fixed",    owner: "AR" },
+  { id: "c4", category: "Integration",    description: "ERP & eTMF integration development",       budgetK: 220, actualK:  65, contractType: "T&M",      owner: "AR" },
+  { id: "c5", category: "Training",       description: "End-user training & change management",    budgetK: 180, actualK:   0, contractType: "T&M",      owner: "HR" },
+  { id: "c6", category: "License",        description: "Veeva Vault annual licence (pro-rated)",   budgetK: 200, actualK: 110, contractType: "Fixed",    owner: "VP" },
+  { id: "c7", category: "Internal",       description: "Internal PM & governance overhead",        budgetK: 150, actualK:  40, contractType: "Internal", owner: "VP" },
+  // Total budget: 2 000 $k  ·  Total actual: 780 $k (39%) — matches budgetTrend May figure
+];
+
 // ─── Budget ───────────────────────────────────────────────────────────────────
 
 export type BudgetMonth = {

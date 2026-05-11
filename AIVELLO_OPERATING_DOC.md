@@ -92,12 +92,12 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M5 — Documents with reviewer/approver chips
-**Goal:** Each document shows per-person reviewer/approver avatar chips with status icons (✓ approved / ⏰ pending / ✗ rejected). Click chip to mark decision (mock state update). Status auto-derives (all reviewers approved → "Reviewed"). Per-doc detail pane with full history.
-**Definition of done:** Documents view shows chips per person, decisions update mock state.
+**Module:** M6 — Risks + Costs + Tasks grids
+**Goal:** Session A: Risks grid (P×I score, colour pills, sortable) + Costs grid (budget vs actual, burn bars, totals row). Session B: Tasks grid (workstream grouping, priority flags, inline progress, link to milestone).
+**Definition of done:** All three grids functional with mock data, filterable.
 
 **Started:** (next session)
-**Status:** not started
+**Status:** not started (Session A next)
 
 ### M4B Completion summary (2026-05-11)
 
@@ -283,6 +283,28 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M5 — Documents: chips + decision tracking)
+
+**Worked on:**
+- Created `components/documents/documents-list.tsx` (client component):
+  - `deriveStatus()` — auto-derives document status from decision state: draft → in-review → reviewed → approved / rejected
+  - `DecisionChip` — circular avatar with initials, status micro-badge overlay (✓/✗/·), click cycles pending → approved → rejected → pending, tooltip with name + role + date
+  - `HistoryPane` — expandable decision history table: person, role, Review/Approval type, status badge, date
+  - `DocumentCard` — type badge, auto-derived status badge, due date (overdue highlighted red), pending count badge, chip rows for reviewers and approvers, chevron toggle for history pane
+  - `DocumentsList` — clickable status pill filter bar, type dropdown filter, pending-total callout, 2-column responsive grid of cards
+- Updated `app/(app)/documents/page.tsx` to thin wrapper
+
+**Decided:**
+- `deriveStatus()` re-runs on every render from current chip state — no stored status field needed in local state
+- Forecast date on documents not in M5 scope (approval date auto-set to TODAY when chip is clicked to "approved")
+- IQ Protocol (draft, no chips assigned) shows an italic note rather than empty chip area
+
+**Built:** Documents view fully functional. Build clean, 4.01 kB page bundle. Pushed `9f2577a`.
+
+**Next session goal:** M6A — Risks grid (P×I score matrix, colour pills, sort) + Costs grid (budget vs actual, burn bars, totals).
+
+---
 
 ### Session — 2026-05-11 (M4B — Milestones grid: interactive editing)
 

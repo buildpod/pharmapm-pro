@@ -11,6 +11,7 @@ import {
   FileText,
   BarChart2,
   FlaskConical,
+  Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -43,6 +44,12 @@ const navGroups = [
     items: [
       { label: "Documents", href: "/documents", icon: FileText, badge: "2" },
       { label: "Reports", href: "/reports", icon: BarChart2 },
+    ],
+  },
+  {
+    label: "CONFIGURATION",
+    items: [
+      { label: "Settings", href: "/settings", icon: Settings },
     ],
   },
 ];

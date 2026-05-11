@@ -2,6 +2,7 @@
 const nextConfig = {
   output: 'export',
   basePath: '/pharmapm-pro/v2',
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },

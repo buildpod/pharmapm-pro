@@ -92,12 +92,17 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M8 — Settings + cascade preview + holidays
-**Goal:** Settings panel (working days, holidays, country presets — port from v1). Cascade preview modal wired into milestone date edits. Toast notifications for state changes (use Sonner).
-**Definition of done:** Feature parity with v1 settings + cascade preview + country holidays.
+**Module:** M9 — Polish + deploy
+**Goal:** Mobile responsive audit (iPhone-sized viewport for every view). Dark mode toggle. Command palette (⌘K) with cmdk library. Final deploy to GitHub Pages. Smoke test on phone.
+**Definition of done:** v2 is live, every view works on phone, ready to show pharma friends.
 
 **Started:** (next session)
 **Status:** not started
+
+### M8 Completion summary (2026-05-11)
+
+**Module:** M8 — Settings + cascade preview + holidays
+**Status:** ✅ Complete
 
 ### M7 Completion summary (2026-05-11)
 
@@ -300,6 +305,28 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M8 — Settings + holidays + Sonner)
+
+**Worked on:**
+- Installed Sonner 2.0.7
+- Created `lib/domain/countryHolidays.ts` — full TypeScript port of v1 `countryHolidays.js`: 15 pharma-hub countries × 2 years of holiday data; `getCountries()` + `getHolidays(code, year?)` exports
+- Created `lib/settingsStore.ts` — localStorage-backed `useSettings()` hook: workingDays (number[]), holidays (string[]), ragThresholds (redDelayDays/amberDelayDays), budgetBands (redPct/amberPct). Hydrates on mount, saves on every mutation. Validated mutations: `addHoliday`, `bulkAddHolidays`, `setWorkingDays` (min 1 day), `setRagThresholds` (amber < red), `setBudgetBands` (amber < red ≤100), `resetToDefaults`
+- Created `components/settings/settings-panel.tsx` — four sections: Working Days (7 toggle buttons, enforces min 1), Country Presets (15 countries, 2026/2027/both year picker, Apply preset, scrollable holiday list with × remove, manual date input), RAG Thresholds (amber/red day inputs, blur/Enter commits, validation), Budget Burn Bands (amber/red % inputs, same pattern). Reset to defaults button. Every mutation fires a Sonner toast (success/info/error).
+- Created `app/(app)/settings/page.tsx` — thin wrapper
+- Updated `app/(app)/layout.tsx` — added `<Toaster position="bottom-right" richColors closeButton />` in a fragment wrapper; cascade preview already built in M4B
+- Updated `components/sidebar.tsx` — added CONFIGURATION nav group with Settings (gear icon)
+
+**Decided:**
+- Settings stored in localStorage only (no backend) — persists across page refreshes within same browser; sufficient for M8 scope
+- Cascade preview already complete from M4B; M8 focused on settings UI + toast infrastructure
+- `useSettings()` is a hook per component instance (not a context) — sufficient since Settings page is the only mutator; other views will read from localStorage directly when they need it (M9+ scope)
+
+**Built:** Settings page functional, 12 static pages. Build clean. Pushed `6f980f5`.
+
+**Next session goal:** M9 — Polish + deploy: mobile audit, dark mode toggle, ⌘K command palette, final smoke test.
+
+---
 
 ### Session — 2026-05-11 (M7 — Reports / Weekly Status Report)
 

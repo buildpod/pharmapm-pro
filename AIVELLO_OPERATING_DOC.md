@@ -92,12 +92,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M9 — Polish + deploy
-**Goal:** Mobile responsive audit (iPhone-sized viewport for every view). Dark mode toggle. Command palette (⌘K) with cmdk library. Final deploy to GitHub Pages. Smoke test on phone.
-**Definition of done:** v2 is live, every view works on phone, ready to show pharma friends.
+**Module:** M10 — Resources module
+**Goal:** Team member availability view, vacation/absence calendar, impact highlighting on tasks/milestones/documents when a resource is unavailable, SteerCo pre-brief per-member digest.
+**Definition of done:** Resources page shows team members + calendar of absences, affected items are highlighted in their respective grids, SteerCo pre-brief tab shows what each participant needs to know before the meeting.
 
 **Started:** (next session)
 **Status:** not started
+
+### M9 Completion summary (2026-05-11)
+
+**Module:** M9 — Polish + deploy
+**Status:** ✅ Complete
+**Outcome:** Installed cmdk 1.1.1. Created `components/theme-provider.tsx` — reads localStorage `aivello_theme` on mount, falls back to `prefers-color-scheme`, toggles `.dark` on `<html>`. Created `components/command-palette.tsx` — ⌘K/Ctrl+K modal using cmdk `Command` component, 8 nav items (Dashboard → Settings), ESC closes, backdrop overlay, `CommandPaletteTrigger` search-bar-style button. Updated `components/topbar.tsx` — replaced static search icon with `CommandPaletteTrigger` + Moon/Sun toggle using `useTheme()`. Updated `app/(app)/layout.tsx` — wrapped in `ThemeProvider` + `CommandPalette` global overlay. Fixed `overflow-hidden → overflow-x-auto` on all table wrappers across milestones-grid, risks-grid, costs-grid, tasks-grid, documents-list, and all 3 report components. Build clean (12 static pages). Committed `4888681`, pushed to `enterprisepharmapm-pro`.
 
 ### M8 Completion summary (2026-05-11)
 
@@ -305,6 +311,27 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M9 — Polish + deploy)
+
+**Worked on:**
+- Installed cmdk 1.1.1
+- Created `components/theme-provider.tsx` — reads `localStorage.aivello_theme` on mount, falls back to `prefers-color-scheme`, toggles `.dark` class on `<html>`, exports `ThemeProvider` wrapper + `useTheme()` hook
+- Created `components/command-palette.tsx` — cmdk-based ⌘K/Ctrl+K modal: 8 nav items (Dashboard, Milestones, Tasks, Risks, Costs, Documents, Reports, Settings), ESC closes, backdrop overlay at `top-[20vh]`, `CommandPaletteTrigger` search-bar-style button with ⌘K badge
+- Updated `components/topbar.tsx` — replaced static Search icon with `CommandPaletteTrigger`; added Moon/Sun toggle using `useTheme()`; added `/settings` to `routeLabels`; added `min-w-0 truncate` on breadcrumb
+- Updated `app/(app)/layout.tsx` — wrapped everything in `ThemeProvider`, added `CommandPalette` as global overlay alongside `Toaster`
+- Mobile overflow audit: changed `overflow-hidden → overflow-x-auto` on all table wrapper divs across: `milestones-grid.tsx`, `risks-grid.tsx`, `costs-grid.tsx` (2 instances), `tasks-grid.tsx`, `documents-list.tsx`, `weekly-report.tsx` (2 instances), `steerco-report.tsx` (3 instances), `workstream-report.tsx` (2 instances)
+
+**Decided:**
+- Dark mode uses localStorage + `prefers-color-scheme` fallback — no server-side session needed given static export constraint
+- cmdk palette over a custom modal — zero boilerplate for keyboard navigation + a11y
+- `overflow-x-auto` over a horizontal-scroll wrapper component — Tailwind utility is sufficient and keeps each component self-contained
+
+**Built:** All M9 DoD items met. Build clean, 12 static pages. Pushed `4888681`.
+
+**Next session goal:** M10 — Resources module (team availability, vacation calendar, impact highlights, SteerCo pre-brief per-member digest).
+
+---
 
 ### Session — 2026-05-11 (M8 — Settings + holidays + Sonner)
 

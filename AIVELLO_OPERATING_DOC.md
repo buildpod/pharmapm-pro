@@ -92,7 +92,19 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M14.1 — Pre-flight fixes  →  M15 — Projects list + create + switcher
+**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M16 — Gantt + critical path**.
+
+### M15 Completion summary (2026-05-11)
+
+**Module:** M15 — Multi-project (projects list, create, sidebar switcher)
+**Status:** ✅ Complete (commit `f949295`)
+**Outcome:** App is now multi-project end-to-end. `Project` type + 2 seeded projects (Veeva RIM Implementation + empty Veeva PromoMats Migration). Every entity type gained a `projectId` field; all 77 existing mock entities back-filled. `<ProjectProvider>` wraps the app; `useProject()` exposes `activeProjectId`, `activeProject`, `setActiveProjectId`, and CRUD. Active project persists in localStorage. Sidebar dropdown replaces the static project card. `/projects` page with list + inline create form + per-project actions (switch / open / delete). Command palette gained a Projects entry. Every grid/page (dashboard, milestones, tasks, risks, documents, costs, resources) filters to the active project; switching projects re-scopes the entire UI. `getKpis(projectId)` accepts and filters. Cost totals now derive from the project's own cost lines (no more $2M hardcode). Build clean — 14 static pages.
+
+### M14.1 Completion summary (2026-05-11)
+
+**Module:** M14.1 — Pre-flight fixes
+**Status:** ✅ Complete (commit `16abfa7`)
+**Outcome:** Three small dogfood-driven fixes. (1) New `<SelectWithCustom>` component replaces all 6 datalists across risk/task/document/cost/team/meeting forms — known options are visible as a proper select; "+ Other (type new)…" escape hatch for free-text. (2) Duplicate task detection: task-form soft-warns via toast when an existing task in the same workstream has the same name (case-insensitive). (3) RACI on documents: added `owner` field to Document type (Responsible — who delivers it), back-filled all 13 mockData docs with sensible owners (VP/SL/AR/QA/HR by document type), surfaced as a coloured avatar on each card next to the due-date row; PeopleList headers updated to "Reviewers (Consulted)" / "Approvers (Accountable)".
 **Goal (M14.1):** Three small fixes the dogfood walkthrough surfaced:
 1. **Category pickers**: datalist UX hides options — users see "Technical" and think it's the only one. Replace datalists in all 6 forms with a proper select + "Other..." pattern via a new `<SelectWithCustom>` component.
 2. **Duplicate task prevention**: soft-warn (`toast.warning`) when adding/saving a task whose name (case-insensitive) already exists in the same workstream.
@@ -459,6 +471,42 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M14.1 — pre-flight fixes + M15 — multi-project)
+
+**Worked on:**
+
+M14.1 (commit `16abfa7`) — three dogfood-driven fixes:
+- New `<SelectWithCustom>` component (`components/ui/select-with-custom.tsx`) — replaces all 6 datalist inputs across risk/task/document/cost/team/meeting forms. Known options visible in a proper `<select>` with a "+ Other (type new)…" escape hatch that toggles to text input. Resolves the "I only see one category" UX problem.
+- Duplicate task detection — `TaskFormDrawer` soft-warns via `toast.warning` when adding/saving a task whose name (case-insensitive trimmed) already exists in the same workstream. Save still proceeds (PMs may have legitimate duplicates).
+- Document RACI — added `owner: string` field to `Document` type (RACI Responsible). Back-filled all 13 mockData documents with sensible owners by document type (VP for PM artefacts, SL/AR for tech, QA for validation, HR for training). Owner surfaced as a hashed-colour avatar in the document card's metadata row. PeopleList section headers updated to "Reviewers (Consulted)" and "Approvers (Accountable)" to make the RACI mapping explicit.
+
+M15 (commit `f949295`) — multi-project end-to-end:
+- New `Project` type in mockData with 2 seeded projects: existing "Veeva RIM Implementation" (`proj-veeva-rim`) and a new empty "Veeva PromoMats Migration" (`proj-promomats`) to verify isolation works
+- `projectId: string` field added to every entity type (Milestone, Task, Risk, Document, CostLine, TeamMember, RecurringMeeting, Absence). Python script back-filled all 77 existing mockData entities with `projectId: "proj-veeva-rim"`
+- New `<ProjectProvider>` (`components/projects/project-provider.tsx`) — holds projects state + active project id + CRUD callbacks. Both `aivello_active_project_v1` and `aivello_projects_v1` persist to localStorage
+- New `<ProjectSwitcher>` sidebar dropdown (`components/projects/project-switcher.tsx`) — replaces the static project card; lists every project with active check; footer "Manage projects" link to /projects
+- New `/projects` page (`app/(app)/projects/page.tsx`) — full list with active badge, Switch-to / Open / Delete actions per project, inline Create form with validation
+- `app/(app)/layout.tsx` wrapped in `<ProjectProvider>` (inside `<ThemeProvider>`)
+- Command palette + topbar breadcrumb: Projects entry added
+- `getKpis()` accepts optional `projectId` parameter; internally filters milestones/risks/docs/costLines to that project. Budget total now derives from project's own cost lines (was hardcoded $2M)
+- Every grid (milestones, tasks, risks, documents, costs) and the resources panel now read `activeProjectId` from `useProject()` and filter their state slice. Form pickers (predecessor dropdown, milestone link, dependsOn list, etc.) all scope to active project. Save handlers attach `activeProjectId` to new entities
+- Cascade engine now operates on project-scoped milestones; "Schedule from Go-Live" uses `activeProject.goLiveDate` instead of hardcoded `project.goLiveDate`
+- Dashboard header shows live `activeProject.name` / phase / go-live date
+
+**Decided:**
+- Single global state per entity type, filtered by `projectId` at the render boundary — chosen over per-project state slices because it keeps mutation handlers simple and matches how a real backend would behave
+- Forms construct entities with `projectId: initial?.projectId ?? ""` and the parent grid's `|| activeProjectId` fallback always wins for new rows. Avoids prop-drilling activeProjectId into every form
+- Two seeded projects: one populated, one empty. Empty project deliberately tests the empty-state UX (you switch to it and see Add buttons but no entities)
+- Sidebar `ProjectSwitcher` is the canonical switcher; `/projects` page is for management (create/delete/details). Wired both surfaces so user can do either
+- Python script for mockData back-fill instead of 77 individual edits — saved a lot of tokens
+- M14.1 + M15 shipped as separate commits even though logged in one session entry — preserves bisect-ability if something breaks
+
+**Built:** 14 static pages (was 13). Project switching produces visibly different dashboards. Creating a new project produces empty grids with Add buttons. Build clean.
+
+**Next session goal:** M16 — Gantt timeline view + critical path visualisation on the Milestones page. The cascade engine already knows enough to compute CP; this surfaces it.
+
+---
 
 ### Session — 2026-05-11 (M14 — Drawer pattern + validation across all entities)
 

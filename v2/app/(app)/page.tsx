@@ -1,153 +1,182 @@
 import {
-  TrendingUp,
-  TrendingDown,
-  AlertTriangle,
-  DollarSign,
-  Clock,
-  Milestone,
-  FileText,
-  CheckCircle2,
-  Circle,
-  AlertCircle,
+  TrendingUp, TrendingDown, AlertTriangle, DollarSign, Clock, Milestone,
+  FileText, CheckCircle2, Circle, AlertCircle, ArrowUpRight,
 } from "lucide-react";
 import { getKpis, budgetTrend, riskTrend } from "@/lib/mockData";
 import { PhaseProgress } from "@/components/dashboard/phase-progress";
 import { Sparkline } from "@/components/dashboard/sparkline";
 import { cn } from "@/lib/utils";
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Per-person avatar color (Linear/Notion pattern)
+const AVATAR_COLORS = [
+  "bg-rose-500", "bg-orange-500", "bg-amber-500", "bg-emerald-500", "bg-teal-500",
+  "bg-cyan-500", "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-fuchsia-500", "bg-pink-500",
+];
+function avatarColor(initials: string) {
+  const hash = initials.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
 const statusIcon = {
-  "complete":    { icon: CheckCircle2, cls: "text-green-600" },
-  "in-progress": { icon: Circle,       cls: "text-primary"   },
-  "at-risk":     { icon: AlertCircle,  cls: "text-destructive" },
+  "complete":    { icon: CheckCircle2, cls: "text-emerald-600" },
+  "in-progress": { icon: Circle,       cls: "text-blue-600"    },
+  "at-risk":     { icon: AlertCircle,  cls: "text-rose-600"    },
   "pending":     { icon: Circle,       cls: "text-muted-foreground" },
 } as const;
 
-export default function DashboardPage() {
-  const kpis = getKpis();
+// ─── KPI card ───────────────────────────────────────────────────────────────
 
-  const scheduleOnTrack = kpis.scheduleVariance <= 0;
-  const varianceLabel   = kpis.scheduleVariance === 0
-    ? "On schedule"
-    : kpis.scheduleVariance > 0
-    ? `+${kpis.scheduleVariance}d variance`
-    : `${kpis.scheduleVariance}d ahead`;
+function KpiCard({
+  label, value, sub, Icon, tone = "neutral", trend,
+}: {
+  label: string;
+  value: string | number;
+  sub: string;
+  Icon: typeof TrendingUp;
+  tone?: "neutral" | "good" | "warn" | "bad";
+  trend?: "up" | "down" | "flat";
+}) {
+  const toneStyles = {
+    neutral: { value: "text-foreground",     icon: "text-muted-foreground", chipBg: "bg-muted text-muted-foreground" },
+    good:    { value: "text-emerald-600",    icon: "text-emerald-500",      chipBg: "bg-emerald-50 text-emerald-700" },
+    warn:    { value: "text-amber-600",      icon: "text-amber-500",        chipBg: "bg-amber-50 text-amber-700"     },
+    bad:     { value: "text-rose-600",       icon: "text-rose-500",         chipBg: "bg-rose-50 text-rose-700"       },
+  };
+  const t = toneStyles[tone];
 
   return (
-    <div className="space-y-5">
-      {/* ── KPI Cards ───────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {/* Schedule Health */}
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Schedule Health</p>
-            {scheduleOnTrack
-              ? <TrendingUp className="h-4 w-4 text-green-600" />
-              : <TrendingDown className="h-4 w-4 text-destructive" />}
-          </div>
-          <p className={cn("mt-2 text-2xl font-bold", scheduleOnTrack ? "text-green-600" : "text-destructive")}>
-            {scheduleOnTrack ? "On Track" : "At Risk"}
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{varianceLabel}</p>
-        </div>
+    <div className="group rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+        <span className={cn("flex h-8 w-8 items-center justify-center rounded-lg", t.chipBg)}>
+          <Icon className={cn("h-4 w-4", t.icon)} />
+        </span>
+      </div>
+      <div className="mt-4 flex items-baseline gap-2">
+        <p className={cn("text-3xl font-bold tabular-nums leading-none", t.value)}>{value}</p>
+        {trend && (
+          <span className={cn("flex items-center text-xs font-semibold",
+            trend === "up" ? "text-emerald-600" : trend === "down" ? "text-rose-600" : "text-muted-foreground"
+          )}>
+            {trend === "up" ? <TrendingUp className="h-3 w-3" /> : trend === "down" ? <TrendingDown className="h-3 w-3" /> : null}
+          </span>
+        )}
+      </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">{sub}</p>
+    </div>
+  );
+}
 
-        {/* Open Risks */}
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Open Risks</p>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-          </div>
-          <p className="mt-2 text-2xl font-bold text-amber-500">{kpis.openRisksCount}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            {kpis.highRisks} high · {kpis.medRisks} medium
-          </p>
-        </div>
+// ─── Page ───────────────────────────────────────────────────────────────────
 
-        {/* Budget */}
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Budget Utilised</p>
-            <DollarSign className="h-4 w-4 text-primary" />
-          </div>
-          <p className="mt-2 text-2xl font-bold text-primary">{kpis.budgetPct}%</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            ${(kpis.latestActualK / 1000).toFixed(2)}M of ${(kpis.totalBudgetK / 1000).toFixed(1)}M
-          </p>
-        </div>
+export default function DashboardPage() {
+  const kpis = getKpis();
+  const scheduleOnTrack = kpis.scheduleVariance <= 0;
+  const varianceLabel = kpis.scheduleVariance === 0
+    ? "On schedule"
+    : kpis.scheduleVariance > 0
+    ? `+${kpis.scheduleVariance} day variance`
+    : `${kpis.scheduleVariance} day ahead`;
 
-        {/* Days to Go-Live */}
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-start justify-between">
-            <p className="text-xs font-medium text-muted-foreground">Days to Go-Live</p>
-            <Clock className="h-4 w-4 text-foreground" />
-          </div>
-          <p className="mt-2 text-2xl font-bold text-foreground">{kpis.daysToGoLive}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Target: 02 Sep 2026</p>
-        </div>
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Project Dashboard</h1>
+        <p className="text-sm text-muted-foreground">
+          Veeva RIM Implementation · Phase 2 — Configuration &amp; Testing · Go-Live target 02 Sep 2026
+        </p>
+      </header>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Schedule Health"
+          value={scheduleOnTrack ? "On Track" : "At Risk"}
+          sub={varianceLabel}
+          Icon={scheduleOnTrack ? TrendingUp : TrendingDown}
+          tone={scheduleOnTrack ? "good" : "bad"}
+        />
+        <KpiCard
+          label="Open Risks"
+          value={kpis.openRisksCount}
+          sub={`${kpis.highRisks} high · ${kpis.medRisks} medium`}
+          Icon={AlertTriangle}
+          tone={kpis.highRisks > 0 ? "bad" : kpis.medRisks > 0 ? "warn" : "good"}
+        />
+        <KpiCard
+          label="Budget Utilised"
+          value={`${kpis.budgetPct}%`}
+          sub={`$${(kpis.latestActualK / 1000).toFixed(2)}M of $${(kpis.totalBudgetK / 1000).toFixed(1)}M`}
+          Icon={DollarSign}
+          tone={kpis.budgetPct >= 85 ? "bad" : kpis.budgetPct >= 60 ? "warn" : "neutral"}
+        />
+        <KpiCard
+          label="Days to Go-Live"
+          value={kpis.daysToGoLive}
+          sub="Target 02 Sep 2026"
+          Icon={Clock}
+          tone="neutral"
+        />
       </div>
 
-      {/* ── Phase Progress ──────────────────────────── */}
+      {/* Phase progress */}
       <PhaseProgress />
 
-      {/* ── Sparkline Charts ────────────────────────── */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {/* Risk Profile */}
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-foreground">Risk Profile</p>
-            <span className="text-xs text-muted-foreground">open risks / month</span>
+      {/* Sparkline cards */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="mb-3 flex items-start justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Risk Profile</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Open risks per month</p>
+            </div>
+            <span className="rounded-md bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
+              {riskTrend.at(-1)?.open ?? 0} open
+            </span>
           </div>
-          <Sparkline
-            data={riskTrend}
-            dataKey="open"
-            color="#f59e0b"
-            gradientId="riskGrad"
-            label="Open risks"
-          />
-          <div className="mt-1 flex gap-4">
+          <Sparkline data={riskTrend} dataKey="open" color="#f59e0b" gradientId="riskGrad" label="Open risks" />
+          <div className="mt-1 flex gap-2">
             {riskTrend.map((d) => (
               <div key={d.month} className="flex-1 text-center">
-                <p className="text-[9px] text-muted-foreground">{d.month}</p>
+                <p className="text-[10px] font-medium text-muted-foreground">{d.month}</p>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Budget Burn */}
-        <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-1">
-            <p className="text-sm font-semibold text-foreground">Budget Burn</p>
-            <span className="text-xs text-muted-foreground">cumulative $k</span>
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+          <div className="mb-3 flex items-start justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Budget Burn</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">Cumulative $k spent</p>
+            </div>
+            <span className="rounded-md bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-700">
+              ${budgetTrend.filter((d) => d.actual > 0).at(-1)?.actual ?? 0}k
+            </span>
           </div>
-          <Sparkline
-            data={budgetTrend.filter((d) => d.actual > 0)}
-            dataKey="actual"
-            color="#3b82f6"
-            gradientId="budgetGrad"
-            label="Actual $k"
-          />
-          <div className="mt-1 flex gap-4">
+          <Sparkline data={budgetTrend.filter((d) => d.actual > 0)} dataKey="actual" color="#3b82f6" gradientId="budgetGrad" label="Actual $k" />
+          <div className="mt-1 flex gap-2">
             {budgetTrend.filter((d) => d.actual > 0).map((d) => (
               <div key={d.month} className="flex-1 text-center">
-                <p className="text-[9px] text-muted-foreground">{d.month}</p>
+                <p className="text-[10px] font-medium text-muted-foreground">{d.month}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* ── Upcoming Milestones + Pending Docs ─────── */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        {/* Upcoming Milestones */}
-        <div className="rounded-lg border border-border bg-card shadow-sm">
-          <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+      {/* Upcoming milestones + decisions */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {/* Upcoming milestones */}
+        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3">
             <Milestone className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-semibold text-foreground">Upcoming Milestones</p>
             <span className="ml-auto text-xs text-muted-foreground">next 5</span>
@@ -159,16 +188,19 @@ export default function DashboardPage() {
                 (new Date(m.forecastDate).getTime() - new Date(m.plannedDate).getTime()) / 86_400_000
               );
               return (
-                <li key={m.id} className="flex items-center gap-3 px-5 py-3">
-                  <Icon className={cn("h-3.5 w-3.5 shrink-0", cls)} />
-                  <div className="flex-1 min-w-0">
-                    <p className="truncate text-xs font-medium text-foreground">{m.name}</p>
-                    <p className="text-[10px] text-muted-foreground">{m.phase}</p>
+                <li key={m.id} className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-muted/20">
+                  <Icon className={cn("h-4 w-4 shrink-0", cls)} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
+                    <p className="text-xs text-muted-foreground">{m.phase}</p>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-xs text-foreground">{formatDate(m.forecastDate)}</p>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs font-medium text-foreground tabular-nums">{formatDate(m.forecastDate)}</p>
                     {variance !== 0 && (
-                      <p className={cn("text-[10px]", variance > 0 ? "text-destructive" : "text-green-600")}>
+                      <p className={cn(
+                        "mt-0.5 text-[11px] font-semibold tabular-nums",
+                        variance > 0 ? "text-rose-600" : "text-emerald-600",
+                      )}>
                         {variance > 0 ? `+${variance}d` : `${variance}d`}
                       </p>
                     )}
@@ -179,42 +211,48 @@ export default function DashboardPage() {
           </ul>
         </div>
 
-        {/* Decisions Needed */}
-        <div className="rounded-lg border border-border bg-card shadow-sm">
-          <div className="flex items-center gap-2 border-b border-border px-5 py-3">
+        {/* Decisions */}
+        <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-semibold text-foreground">Decisions Needed</p>
             <span className="ml-auto text-xs text-muted-foreground">pending review</span>
           </div>
           <ul className="divide-y divide-border">
             {kpis.pendingDocs.map((doc) => {
-              const allDecisions = [...doc.reviewers, ...doc.approvers];
-              const pendingCount = allDecisions.filter((d) => d.status === "pending").length;
+              const all = [...doc.reviewers, ...doc.approvers];
+              const pendingCount = all.filter((d) => d.status === "pending").length;
               return (
-                <li key={doc.id} className="px-5 py-3">
+                <li key={doc.id} className="px-5 py-3.5 transition-colors hover:bg-muted/20">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-medium text-foreground">{doc.name}</p>
-                      <p className="text-[10px] text-muted-foreground">
+                      <p className="truncate text-sm font-medium text-foreground">{doc.name}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {doc.type} · v{doc.version} · due {formatDate(doc.dueDate)}
                       </p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                    <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
                       {pendingCount} pending
                     </span>
                   </div>
-                  {/* Decision dots */}
-                  <div className="mt-2 flex gap-1">
-                    {allDecisions.map((d, i) => (
-                      <div
-                        key={i}
-                        title={`${d.person} (${d.role}): ${d.status}`}
-                        className={cn(
-                          "flex h-5 w-5 items-center justify-center rounded-full text-[8px] font-bold text-white",
-                          d.status === "approved" ? "bg-green-500" : d.status === "rejected" ? "bg-destructive" : "bg-muted-foreground/40"
-                        )}
-                      >
-                        {d.initials}
+                  {/* Decision avatars */}
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {all.map((d, i) => (
+                      <div key={i} className="relative" title={`${d.person} (${d.role}): ${d.status}`}>
+                        <span className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                          d.status === "pending" ? "bg-slate-300" : avatarColor(d.initials),
+                        )}>
+                          {d.initials}
+                        </span>
+                        <span className={cn(
+                          "absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-card text-[8px] font-black",
+                          d.status === "approved" ? "bg-emerald-500 text-white"
+                          : d.status === "rejected" ? "bg-rose-500 text-white"
+                          : "bg-slate-200 text-slate-600",
+                        )}>
+                          {d.status === "approved" ? "✓" : d.status === "rejected" ? "✗" : "·"}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -222,6 +260,12 @@ export default function DashboardPage() {
               );
             })}
           </ul>
+          <div className="border-t border-border bg-muted/20 px-5 py-2 text-[11px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <ArrowUpRight className="h-3 w-3" />
+              Click any document on the Documents page to cycle decisions
+            </span>
+          </div>
         </div>
       </div>
     </div>

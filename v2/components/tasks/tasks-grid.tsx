@@ -14,19 +14,29 @@ import { cn } from "@/lib/utils";
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const priorityStyles: Record<TaskPriority, { pill: string; dot: string; label: string }> = {
-  Critical: { pill: "bg-red-100 text-red-700",    dot: "bg-red-500",    label: "Critical" },
-  High:     { pill: "bg-amber-100 text-amber-700", dot: "bg-amber-500",  label: "High"     },
-  Medium:   { pill: "bg-yellow-50 text-yellow-700",dot: "bg-yellow-400", label: "Medium"   },
-  Low:      { pill: "bg-muted text-muted-foreground", dot: "bg-muted-foreground/40", label: "Low" },
+  Critical: { pill: "bg-rose-50 text-rose-700 border-rose-200",       dot: "bg-rose-500",   label: "Critical" },
+  High:     { pill: "bg-amber-50 text-amber-700 border-amber-200",    dot: "bg-amber-500",  label: "High"     },
+  Medium:   { pill: "bg-yellow-50 text-yellow-700 border-yellow-200", dot: "bg-yellow-400", label: "Medium"   },
+  Low:      { pill: "bg-slate-100 text-slate-600 border-slate-200",   dot: "bg-slate-300",  label: "Low"      },
 };
 
 const statusStyles: Record<TaskStatus, string> = {
-  "Complete":    "bg-green-100 text-green-700",
-  "In Progress": "bg-blue-100 text-blue-700",
-  "Not Started": "bg-muted text-muted-foreground",
-  "Blocked":     "bg-red-100 text-red-700",
-  "On Hold":     "bg-purple-100 text-purple-700",
+  "Complete":    "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "In Progress": "bg-blue-50 text-blue-700 border-blue-200",
+  "Not Started": "bg-slate-100 text-slate-600 border-slate-200",
+  "Blocked":     "bg-rose-50 text-rose-700 border-rose-200",
+  "On Hold":     "bg-violet-50 text-violet-700 border-violet-200",
 };
+
+// Per-person avatar color hash
+const AVATAR_COLORS = [
+  "bg-rose-500", "bg-orange-500", "bg-amber-500", "bg-emerald-500", "bg-teal-500",
+  "bg-cyan-500", "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-fuchsia-500", "bg-pink-500",
+];
+function avatarColor(initials: string) {
+  const hash = initials.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+}
 
 const nextStatus: Record<TaskStatus, TaskStatus> = {
   "Not Started": "In Progress",
@@ -94,20 +104,17 @@ function DependencyTags({ dependsOn, allTasks }: { dependsOn?: string[]; allTask
 
 function ProgressBar({ value, status }: { value: number; status: TaskStatus }) {
   const color =
-    status === "Complete"    ? "bg-green-500" :
-    status === "Blocked"     ? "bg-destructive" :
-    status === "In Progress" ? "bg-primary" :
-    "bg-muted-foreground/30";
+    status === "Complete"    ? "bg-emerald-500" :
+    status === "Blocked"     ? "bg-rose-500" :
+    status === "In Progress" ? "bg-blue-500" :
+    "bg-slate-300";
 
   return (
-    <div className="flex items-center gap-2 min-w-[100px]">
-      <div className="h-1.5 flex-1 rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all", color)}
-          style={{ width: `${value}%` }}
-        />
+    <div className="flex min-w-[100px] items-center gap-2">
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${value}%` }} />
       </div>
-      <span className="w-7 text-right text-[10px] tabular-nums text-muted-foreground shrink-0">
+      <span className="w-8 shrink-0 text-right text-[11px] font-semibold tabular-nums text-muted-foreground">
         {value}%
       </span>
     </div>
@@ -146,28 +153,39 @@ function TaskRow({
       </td>
 
       {/* Name + milestone tag + dependencies */}
-      <td className="px-2 py-2.5">
-        <p className="text-xs font-medium text-foreground leading-tight">{task.name}</p>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1">
+      <td className="px-2 py-3">
+        <p className="text-sm font-medium leading-tight text-foreground">{task.name}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1">
           <MilestoneTag milestoneId={task.milestoneId} />
         </div>
         <DependencyTags dependsOn={task.dependsOn} allTasks={allTasks} />
       </td>
 
       {/* Priority badge */}
-      <td className="px-2 py-2.5 hidden lg:table-cell">
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", p.pill)}>
+      <td className="hidden px-2 py-3 lg:table-cell">
+        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", p.pill)}>
           {task.priority}
         </span>
       </td>
 
-      {/* Owner */}
-      <td className="px-2 py-2.5 text-center text-xs text-muted-foreground w-12">
-        {task.owner}
+      {/* Owner avatar */}
+      <td className="w-14 px-2 py-3 text-center">
+        <span
+          className={cn(
+            "inline-flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white",
+            avatarColor(task.owner),
+          )}
+          title={task.owner}
+        >
+          {task.owner}
+        </span>
       </td>
 
       {/* Due date */}
-      <td className={cn("px-2 py-2.5 text-xs w-16", isOverdue ? "text-destructive font-semibold" : "text-muted-foreground")}>
+      <td className={cn(
+        "w-20 px-2 py-3 text-xs tabular-nums",
+        isOverdue ? "font-semibold text-rose-600" : "text-muted-foreground",
+      )}>
         {formatDate(task.dueDate)}
       </td>
 
@@ -205,13 +223,13 @@ function TaskRow({
       </td>
 
       {/* Status (click to cycle) */}
-      <td className="px-4 py-2.5 w-28">
+      <td className="w-28 px-4 py-3">
         <button
           onClick={() => onStatusToggle(task.id)}
           title={`${task.status} → click to mark ${nextStatus[task.status]}`}
           className={cn(
-            "rounded-full px-2 py-0.5 text-[10px] font-semibold transition-opacity hover:opacity-70 whitespace-nowrap",
-            statusStyles[task.status]
+            "whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-opacity hover:opacity-70",
+            statusStyles[task.status],
           )}
         >
           {task.status}
@@ -245,41 +263,40 @@ function WorkstreamGroup({
   const critical = tasks.some((t) => t.priority === "Critical" && t.status !== "Complete");
 
   return (
-    <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
       {/* Group header */}
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 border-b border-border bg-muted/30 px-4 py-3 text-left hover:bg-muted/50 transition-colors"
+        className="flex w-full items-center gap-3 border-b border-border bg-muted/30 px-5 py-3.5 text-left transition-colors hover:bg-muted/50"
       >
         {open
-          ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+          ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
 
         <span className="text-sm font-semibold text-foreground">{name}</span>
 
-        <span className="text-xs text-muted-foreground">
-          {done}/{total} complete
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {done} of {total} complete
         </span>
 
         {blocked > 0 && (
-          <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
             {blocked} blocked
           </span>
         )}
 
         {critical && (
-          <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-600">
-            critical open
+          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+            ⚠ critical open
           </span>
         )}
 
         <div className="ml-auto flex items-center gap-2">
-          {/* Mini group progress bar */}
-          <div className="hidden sm:flex items-center gap-1.5 w-24">
-            <div className="h-1 flex-1 rounded-full bg-muted overflow-hidden">
+          <div className="hidden w-32 items-center gap-2 sm:flex">
+            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
               <div className="h-full rounded-full bg-primary" style={{ width: `${avgPct}%` }} />
             </div>
-            <span className="text-[10px] tabular-nums text-muted-foreground">{avgPct}%</span>
+            <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">{avgPct}%</span>
           </div>
         </div>
       </button>
@@ -288,14 +305,14 @@ function WorkstreamGroup({
       {open && (
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-border text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              <th className="px-4 py-1.5 w-8" />
-              <th className="px-2 py-1.5 text-left">Task</th>
-              <th className="px-2 py-1.5 text-left hidden lg:table-cell w-24">Priority</th>
-              <th className="px-2 py-1.5 text-center w-12">Owner</th>
-              <th className="px-2 py-1.5 text-left w-16">Due</th>
-              <th className="px-2 py-1.5 text-left w-36">Progress</th>
-              <th className="px-4 py-1.5 text-left w-28">Status</th>
+            <tr className="border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <th className="w-8 px-4 py-2" />
+              <th className="px-2 py-2 text-left">Task</th>
+              <th className="hidden w-24 px-2 py-2 text-left lg:table-cell">Priority</th>
+              <th className="w-14 px-2 py-2 text-center">Owner</th>
+              <th className="w-20 px-2 py-2 text-left">Due</th>
+              <th className="w-36 px-2 py-2 text-left">Progress</th>
+              <th className="w-28 px-4 py-2 text-left">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -367,46 +384,45 @@ export function TasksGrid() {
   return (
     <div className="space-y-4">
       {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
-        <span className="text-xs text-muted-foreground">{completeTasks}/{totalTasks} complete</span>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
+        <span className="text-sm font-medium text-foreground tabular-nums">
+          {completeTasks} of {totalTasks} complete
+        </span>
         {inProgress > 0 && (
-          <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700">
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700">
             {inProgress} in progress
           </span>
         )}
         {blockedTasks > 0 && (
-          <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-[10px] font-semibold text-red-700">
+          <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[10px] font-semibold text-rose-700">
             {blockedTasks} blocked
           </span>
         )}
 
         <div className="flex-1" />
 
-        {/* Workstream filter */}
         <select
           value={filterWorkstream}
           onChange={(e) => setFilterWorkstream(e.target.value)}
-          className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="All">All workstreams</option>
           {allWorkstreams.map((ws) => <option key={ws} value={ws}>{ws}</option>)}
         </select>
 
-        {/* Priority filter */}
         <select
           value={filterPriority}
           onChange={(e) => setFilterPriority(e.target.value as TaskPriority | "All")}
-          className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="All">All priorities</option>
           {allPriorities.map((p) => <option key={p} value={p}>{p}</option>)}
         </select>
 
-        {/* Status filter */}
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value as TaskStatus | "All")}
-          className="rounded-md border border-border bg-card px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         >
           <option value="All">All statuses</option>
           {allStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -414,9 +430,9 @@ export function TasksGrid() {
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 px-1 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-3 px-1 text-[11px] text-muted-foreground">
         {allPriorities.map((p) => (
-          <span key={p} className="flex items-center gap-1">
+          <span key={p} className="flex items-center gap-1.5">
             <span className={cn("h-2 w-2 rounded-full", priorityStyles[p].dot)} />
             {p}
           </span>
@@ -427,11 +443,12 @@ export function TasksGrid() {
 
       {/* Workstream groups */}
       {groups.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border py-12 text-center text-xs text-muted-foreground">
-          No tasks match the current filters.
+        <div className="rounded-xl border border-dashed border-border bg-muted/20 py-16 text-center">
+          <p className="text-sm font-medium text-foreground">No tasks match the current filters.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Try clearing the workstream, priority, or status filter.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {groups.map((g) => (
             <WorkstreamGroup
               key={g.name}

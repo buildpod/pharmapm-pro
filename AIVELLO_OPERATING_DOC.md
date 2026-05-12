@@ -92,14 +92,26 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next session goal from Vineet_
+**Module:** M11 — Reports polish + editable absences + Dashboard cross-links
+**Goal:** Three small high-utility lifts agreed with Vineet 2026-05-11:
+1. Apply M10A design vocabulary to the three report views (Weekly Status, SteerCo, Workstream) — currently still on pre-polish tokens
+2. Make the absences list on the Resources page user-editable (add new absence form, remove existing absence) with Sonner toasts
+3. Wire dashboard click-throughs: upcoming-milestone rows → `/milestones`, pending-decision rows → `/documents`
 
-Backlog candidates worth considering for the next module (none locked in yet):
-- Resources deeper interactions: editable absence form, per-resource detail panel with full task/milestone list, reminder/notify hooks
-- Reports sweep with the same M10A design language (Weekly/SteerCo/Workstream tabs)
-- Dashboard click-throughs to detail views (milestone row → /milestones, doc row → /documents)
-- Entity search across the command palette (currently only navigates pages)
-- Domain integration: wire M8 settings (working days, holidays, RAG thresholds) into the milestones cascade engine and risk RAG computation
+**Definition of done:**
+- `components/reports/weekly-report.tsx`, `steerco-report.tsx`, `workstream-report.tsx` and the report-selector header in `app/(app)/reports/page.tsx` use bordered enterprise pills (bg-X-50 + border-X-200 + text-X-700), tabular-nums, M10A KPI-card pattern, and a `text-2xl` page header
+- Resources → Team Availability tab has an "Add absence" button that opens a form/dialog; existing absences each have a remove button; mutations fire a Sonner toast; mutations persist in component state (no backend)
+- Dashboard upcoming-milestone list items become `<Link>` to `/milestones`; pending-decision list items become `<Link>` to `/documents` (no deep-link anchors yet — out of scope for M11)
+- Build clean, all 13 routes still pass type-check + lint, deployed
+
+**Out of scope (deferred to backlog):**
+- Deep-link anchors (`/milestones#m6`) from dashboard rows
+- Per-resource detail panel
+- Entity search inside the command palette
+- Domain integration of M8 settings into the cascade engine
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M10B Completion summary (2026-05-11)
 

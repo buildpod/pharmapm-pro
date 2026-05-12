@@ -19,33 +19,39 @@ export default function ReportsPage() {
   const [active, setActive] = useState<TabId>("weekly");
 
   return (
-    <div className="space-y-4">
-      <div className="print:hidden">
-        <h2 className="text-lg font-semibold text-foreground">Reports</h2>
+    <div className="space-y-6">
+      <header className="space-y-1 print:hidden">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Reports</h1>
         <p className="text-sm text-muted-foreground">
-          Select a report type · print or save as PDF · export to Excel
+          Pick a report type. Each one can be printed (or saved as PDF) and exported to a multi-sheet Excel workbook.
         </p>
-      </div>
+      </header>
 
       {/* Tab bar */}
-      <div className="flex flex-wrap gap-2 print:hidden">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 print:hidden">
         {TABS.map((tab) => {
           const Icon = tab.icon;
+          const isActive = active === tab.id;
           return (
             <button
               key={tab.id}
               onClick={() => setActive(tab.id)}
               className={cn(
-                "flex items-center gap-2 rounded-lg border px-4 py-2.5 text-left transition-colors",
-                active === tab.id
-                  ? "border-primary bg-primary/5 text-primary"
-                  : "border-border bg-card text-foreground hover:bg-muted/50"
+                "flex items-start gap-3 rounded-xl border p-4 text-left shadow-sm transition-all",
+                isActive
+                  ? "border-primary bg-primary/5 text-primary shadow"
+                  : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/40"
               )}
             >
-              <Icon className="h-4 w-4 shrink-0" />
-              <div>
-                <p className="text-xs font-semibold leading-tight">{tab.label}</p>
-                <p className="text-[10px] text-muted-foreground leading-tight mt-0.5">{tab.desc}</p>
+              <span className={cn(
+                "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                isActive ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+              )}>
+                <Icon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold leading-tight">{tab.label}</p>
+                <p className="mt-1 text-xs leading-snug text-muted-foreground">{tab.desc}</p>
               </div>
             </button>
           );

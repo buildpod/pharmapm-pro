@@ -94,17 +94,17 @@ function buildSteerCoData() {
 const ragBg: Record<"Green" | "Amber" | "Red", string> = {
   Green: "bg-green-500",
   Amber: "bg-amber-500",
-  Red:   "bg-red-500",
+  Red:   "bg-rose-500",
 };
 const ragBorder: Record<"Green" | "Amber" | "Red", string> = {
   Green: "border-green-200 bg-green-50",
   Amber: "border-amber-200 bg-amber-50",
-  Red:   "border-red-200 bg-red-50",
+  Red:   "border-rose-200 bg-rose-50",
 };
 const ragText: Record<"Green" | "Amber" | "Red", string> = {
   Green: "text-green-700",
   Amber: "text-amber-700",
-  Red:   "text-red-700",
+  Red:   "text-rose-700",
 };
 
 function RagDot({ rag }: { rag: "Green" | "Amber" | "Red" }) {
@@ -127,9 +127,9 @@ function RagCard({ label, rag, detail }: { label: string; rag: "Green" | "Amber"
 // ─── Score band ───────────────────────────────────────────────────────────────
 
 function scorePill(score: number) {
-  if (score >= 15) return "bg-red-100 text-red-700";
-  if (score >= 8)  return "bg-amber-100 text-amber-700";
-  return "bg-green-100 text-green-700";
+  if (score >= 15) return "bg-rose-50 text-rose-700 border border-rose-200";
+  if (score >= 8)  return "bg-amber-50 text-amber-700 border border-amber-200";
+  return "bg-emerald-50 text-emerald-700 border border-emerald-200";
 }
 
 // ─── Excel export ─────────────────────────────────────────────────────────────
@@ -324,8 +324,8 @@ export function SteerCoReport() {
                       <span className="text-[10px] tabular-nums text-muted-foreground">{ph.pct}%</span>
                       <span className={cn(
                         "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
-                        ph.status === "complete" ? "bg-green-100 text-green-700" :
-                        ph.status === "active"   ? "bg-blue-100 text-blue-700" :
+                        ph.status === "complete" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                        ph.status === "active"   ? "bg-blue-50 text-blue-700 border border-blue-200" :
                         "bg-muted text-muted-foreground"
                       )}>
                         {ph.status === "complete" ? "Done" : ph.status === "active" ? "Active" : "Pending"}

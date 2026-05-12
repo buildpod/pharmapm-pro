@@ -1,16 +1,35 @@
 "use client";
 
-import { useState } from "react";
-import { Users, Calendar, ClipboardList, Layers, AlertTriangle, XCircle } from "lucide-react";
+import { useState, createContext, useContext } from "react";
+import { toast } from "sonner";
+import { Users, Calendar, ClipboardList, Layers, AlertTriangle, XCircle, Plus, Trash2, X } from "lucide-react";
 import {
-  teamMembers, absences, recurringMeetings, milestones, tasks, risks, documents,
-  type TeamMember, type RecurringMeeting,
+  teamMembers, absences as initialAbsences, recurringMeetings, milestones, tasks, risks, documents,
+  type TeamMember, type RecurringMeeting, type Absence, type AbsenceReason,
 } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const TODAY = "2026-05-11";
+
+// ─── Absences state (lifted) ────────────────────────────────────────────────
+
+type AbsencesContextValue = {
+  absences: Absence[];
+  addAbsence: (a: Omit<Absence, "id">) => void;
+  removeAbsence: (id: string) => void;
+};
+
+const AbsencesContext = createContext<AbsencesContextValue>({
+  absences: initialAbsences,
+  addAbsence: () => {},
+  removeAbsence: () => {},
+});
+
+function useAbsences() {
+  return useContext(AbsencesContext);
+}
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
@@ -22,7 +41,7 @@ function getMemberById(id: string) {
   return teamMembers.find((m) => m.id === id);
 }
 
-function getMemberAbsencesInWeek(memberId: string, wStart: string, wEnd: string) {
+function getMemberAbsencesInWeek(absences: Absence[], memberId: string, wStart: string, wEnd: string) {
   return absences.filter(
     (ab) => ab.memberId === memberId && overlaps(ab.startDate, ab.endDate, wStart, wEnd)
   );
@@ -73,27 +92,177 @@ const reasonPill: Record<string, string> = {
   "Other":          "bg-muted text-muted-foreground",
 };
 
+// ─── Add Absence form (inline card) ──────────────────────────────────────────
+
+const REASON_OPTIONS: AbsenceReason[] = ["Vacation", "Public Holiday", "Conference", "Sick Leave", "Other"];
+
+function AddAbsenceForm({
+  onCancel,
+  onSubmit,
+}: {
+  onCancel: () => void;
+  onSubmit: (a: Omit<Absence, "id">) => void;
+}) {
+  const ops = teamMembers.filter((m) => m.workstream !== "Executive");
+  const [memberId, setMemberId] = useState(ops[0]?.id ?? "");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [reason, setReason] = useState<AbsenceReason>("Vacation");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  function handleSubmit() {
+    if (!memberId)               { setError("Pick a team member"); return; }
+    if (!startDate || !endDate)  { setError("Both start and end dates are required"); return; }
+    if (startDate > endDate)     { setError("End date must be on or after start date"); return; }
+    setError(null);
+    onSubmit({
+      memberId, startDate, endDate, reason,
+      ...(note.trim() ? { note: note.trim() } : {}),
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-5 shadow-sm">
+      <div className="mb-4 flex items-start justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Add Absence</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Mock-only — no backend persistence yet.</p>
+        </div>
+        <button
+          onClick={onCancel}
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title="Cancel"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="font-medium text-muted-foreground">Team member</span>
+          <select
+            value={memberId}
+            onChange={(e) => setMemberId(e.target.value)}
+            className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {ops.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.name} — {m.role}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="font-medium text-muted-foreground">Reason</span>
+          <select
+            value={reason}
+            onChange={(e) => setReason(e.target.value as AbsenceReason)}
+            className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {REASON_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="font-medium text-muted-foreground">Start date</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs">
+          <span className="font-medium text-muted-foreground">End date</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-xs sm:col-span-2">
+          <span className="font-medium text-muted-foreground">Note (optional)</span>
+          <input
+            type="text"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="e.g. Veeva Summit 2026"
+            className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </label>
+      </div>
+
+      {error && (
+        <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs text-rose-700 dark:bg-rose-950/30">
+          {error}
+        </p>
+      )}
+
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        >
+          Save absence
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Tab 1: Team Availability ────────────────────────────────────────────────
 
 function TeamAvailabilityTab() {
+  const { absences, addAbsence, removeAbsence } = useAbsences();
+  const [addOpen, setAddOpen] = useState(false);
   const weeks = getWeeks(8);
   const ops = teamMembers.filter((m) => m.workstream !== "Executive");
 
   return (
     <div className="space-y-5">
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
-        {[
-          { cls: "bg-muted/50 border-border",           label: "Available" },
-          { cls: "bg-amber-100 border-amber-200",       label: "Absent — no impact" },
-          { cls: "bg-red-100 border-red-200",           label: "Absent — items at risk" },
-        ].map(({ cls, label }) => (
-          <span key={label} className="flex items-center gap-1.5">
-            <span className={cn("h-3 w-3 rounded-sm border inline-block", cls)} />
-            {label}
-          </span>
-        ))}
+      {/* Legend + add button */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-4 text-[11px] text-muted-foreground">
+          {[
+            { cls: "bg-muted/50 border-border",           label: "Available" },
+            { cls: "bg-amber-100 border-amber-200",       label: "Absent — no impact" },
+            { cls: "bg-rose-100 border-rose-200",         label: "Absent — items at risk" },
+          ].map(({ cls, label }) => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className={cn("h-3 w-3 rounded-sm border inline-block", cls)} />
+              {label}
+            </span>
+          ))}
+        </div>
+        <button
+          onClick={() => setAddOpen(true)}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Absence
+        </button>
       </div>
+
+      {addOpen && (
+        <AddAbsenceForm
+          onCancel={() => setAddOpen(false)}
+          onSubmit={(a) => {
+            addAbsence(a);
+            setAddOpen(false);
+          }}
+        />
+      )}
 
       {/* Calendar grid */}
       <div className="rounded-lg border border-border bg-card shadow-sm overflow-x-auto">
@@ -125,7 +294,7 @@ function TeamAvailabilityTab() {
                   </div>
                 </td>
                 {weeks.map((week) => {
-                  const weekAbs = getMemberAbsencesInWeek(member.id, week.start, week.end);
+                  const weekAbs = getMemberAbsencesInWeek(absences, member.id, week.start, week.end);
                   const absent = weekAbs.length > 0;
                   const impact = absent ? getImpactCount(member, week.start, week.end) : 0;
                   return (
@@ -136,7 +305,7 @@ function TeamAvailabilityTab() {
                           className={cn(
                             "rounded px-1.5 py-1 text-[10px] font-semibold leading-none cursor-default",
                             impact > 0
-                              ? "bg-rose-50 text-rose-700 border border-rose-200 border border-red-200"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200"
                               : "bg-amber-50 text-amber-700 border border-amber-200"
                           )}
                         >
@@ -181,7 +350,7 @@ function TeamAvailabilityTab() {
                 key={ab.id}
                 className={cn(
                   "rounded-lg border p-3 space-y-2",
-                  hasImpact ? "border-red-200 bg-red-50 dark:bg-red-950/20" : "border-border bg-card"
+                  hasImpact ? "border-rose-200 bg-rose-50 dark:bg-rose-950/20" : "border-border bg-card"
                 )}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -194,13 +363,22 @@ function TeamAvailabilityTab() {
                       <p className="text-[10px] text-muted-foreground">{ab.startDate} → {ab.endDate}</p>
                     </div>
                   </div>
-                  <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0", reasonPill[ab.reason] ?? "bg-muted text-muted-foreground")}>
-                    {ab.reason}
-                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", reasonPill[ab.reason] ?? "bg-muted text-muted-foreground")}>
+                      {ab.reason}
+                    </span>
+                    <button
+                      onClick={() => removeAbsence(ab.id)}
+                      title="Remove absence"
+                      className="rounded p-1 text-muted-foreground transition-colors hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
                 {ab.note && <p className="text-[10px] text-muted-foreground italic">{ab.note}</p>}
                 {hasImpact && (
-                  <div className="rounded bg-red-100 dark:bg-red-900/30 px-2 py-1.5 text-[10px] text-red-700 dark:text-red-400 space-y-0.5">
+                  <div className="rounded bg-rose-100 dark:bg-rose-900/30 px-2 py-1.5 text-[10px] text-rose-700 dark:text-rose-400 space-y-0.5">
                     <p className="font-semibold">
                       ⚠ {impactTasks.length + impactMs.length} item{impactTasks.length + impactMs.length > 1 ? "s" : ""} at risk during this period
                     </p>
@@ -224,6 +402,8 @@ function TeamAvailabilityTab() {
 // ─── Tab 2: Meeting Cadence ──────────────────────────────────────────────────
 
 function MeetingCadenceTab() {
+  const { absences } = useAbsences();
+
   function hasMandatoryConflict(mtg: RecurringMeeting) {
     return mtg.attendees.some(
       (att) =>
@@ -260,7 +440,7 @@ function MeetingCadenceTab() {
             key={mtg.id}
             className={cn(
               "rounded-lg border bg-card p-4 space-y-3",
-              conflict ? "border-red-300" : "border-border"
+              conflict ? "border-rose-300" : "border-border"
             )}
           >
             <div className="flex items-start justify-between gap-2">
@@ -292,7 +472,7 @@ function MeetingCadenceTab() {
 
             <div className="text-[11px]">
               <p className="text-muted-foreground">Next occurrence</p>
-              <p className={cn("font-semibold", conflict ? "text-red-600" : "text-foreground")}>
+              <p className={cn("font-semibold", conflict ? "text-rose-600" : "text-foreground")}>
                 {mtg.nextDate}{conflict && " — ⚠ Mandatory attendee conflict"}
               </p>
             </div>
@@ -356,6 +536,7 @@ function MeetingCadenceTab() {
 // ─── Tab 3: SteerCo Pre-Brief ────────────────────────────────────────────────
 
 function SteerCoPreBriefTab() {
+  const { absences } = useAbsences();
   const steerco = recurringMeetings.find((m) => m.type === "steerco")!;
   const mandatory = teamMembers.filter((m) => m.steercoRole === "mandatory");
 
@@ -383,12 +564,12 @@ function SteerCoPreBriefTab() {
   );
 
   const ragStyle: Record<string, string> = {
-    Red:   "border-red-200 bg-red-50 dark:bg-red-950/20",
+    Red:   "border-rose-200 bg-rose-50 dark:bg-rose-950/20",
     Amber: "border-amber-200 bg-amber-50 dark:bg-amber-950/20",
     Green: "border-green-200 bg-green-50 dark:bg-green-950/20",
   };
   const ragText: Record<string, string> = {
-    Red:   "text-red-700",
+    Red:   "text-rose-700",
     Amber: "text-amber-700",
     Green: "text-green-700",
   };
@@ -510,8 +691,8 @@ function SteerCoPreBriefTab() {
         ) : (
           <div className="space-y-2">
             {escalated.map((r) => (
-              <div key={r.id} className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 dark:bg-red-950/20 px-3 py-2">
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700 shrink-0">
+              <div key={r.id} className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 dark:bg-rose-950/20 px-3 py-2">
+                <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black text-rose-700 shrink-0">
                   {r.score}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -541,7 +722,7 @@ function SteerCoPreBriefTab() {
                   <span className="font-medium text-foreground">{member.name}</span>
                   <span className="text-muted-foreground">{ab.startDate} → {ab.endDate} · {ab.reason}</span>
                   {impact > 0 && (
-                    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                    <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
                       ⚠ {impact} item{impact > 1 ? "s" : ""} at risk
                     </span>
                   )}
@@ -599,6 +780,7 @@ function SteerCoPreBriefTab() {
 const ALL_WORKSTREAMS = ["Configuration", "Validation", "Data Migration", "Training", "Project Mgmt"];
 
 function WorkstreamPreBriefTab() {
+  const { absences } = useAbsences();
   const [ws, setWs] = useState(ALL_WORKSTREAMS[0]);
 
   const lead      = teamMembers.find((m) => m.workstream === ws);
@@ -686,7 +868,7 @@ function WorkstreamPreBriefTab() {
             { label: "Total",       val: wsTasks.length,  cls: "text-foreground"    },
             { label: "Complete",    val: complete,         cls: "text-green-600"     },
             { label: "In Progress", val: inProg,           cls: "text-blue-600"      },
-            { label: "Blocked",     val: blocked.length,   cls: "text-red-600"       },
+            { label: "Blocked",     val: blocked.length,   cls: "text-rose-600"       },
           ].map(({ label, val, cls }) => (
             <div key={label}>
               <p className="text-muted-foreground">{label}</p>
@@ -700,7 +882,7 @@ function WorkstreamPreBriefTab() {
       {(overdue.length > 0 || blocked.length > 0 || wsAbsences.length > 0) && (
         <div className="space-y-1.5">
           {overdue.length > 0 && (
-            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 dark:bg-red-950/20 px-3 py-2 text-xs text-red-700">
+            <div className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 dark:bg-rose-950/20 px-3 py-2 text-xs text-rose-700">
               <AlertTriangle className="h-3.5 w-3.5 mt-px shrink-0" />
               <span>
                 <span className="font-semibold">{overdue.length} task{overdue.length > 1 ? "s" : ""} overdue: </span>
@@ -754,7 +936,7 @@ function WorkstreamPreBriefTab() {
                   <span className="flex-1 font-medium text-foreground">{m.name}</span>
                   <span className="text-muted-foreground tabular-nums">{m.forecastDate}</span>
                   {slip > 0 && (
-                    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">
+                    <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700">
                       +{slip}d
                     </span>
                   )}
@@ -799,7 +981,7 @@ function WorkstreamPreBriefTab() {
                     <td className="px-3 py-2 text-center text-muted-foreground">{t.owner}</td>
                     <td className={cn(
                       "px-3 py-2 text-center tabular-nums",
-                      t.dueDate < TODAY ? "font-bold text-red-600" : "text-muted-foreground"
+                      t.dueDate < TODAY ? "font-bold text-rose-600" : "text-muted-foreground"
                     )}>
                       {t.dueDate}
                     </td>
@@ -831,8 +1013,29 @@ const tabs = [
 
 export function ResourcesPanel() {
   const [tab, setTab] = useState<Tab>("availability");
+  const [absences, setAbsences] = useState<Absence[]>(initialAbsences);
+
+  function addAbsence(a: Omit<Absence, "id">) {
+    const id = `ab${Date.now()}`;
+    setAbsences((prev) => [...prev, { ...a, id }]);
+    const member = teamMembers.find((m) => m.id === a.memberId);
+    toast.success(`Absence added`, {
+      description: `${member?.name ?? a.memberId} · ${a.startDate} → ${a.endDate} · ${a.reason}`,
+    });
+  }
+
+  function removeAbsence(id: string) {
+    const ab = absences.find((x) => x.id === id);
+    if (!ab) return;
+    setAbsences((prev) => prev.filter((x) => x.id !== id));
+    const member = teamMembers.find((m) => m.id === ab.memberId);
+    toast.success("Absence removed", {
+      description: `${member?.name ?? ab.memberId} · ${ab.startDate} → ${ab.endDate}`,
+    });
+  }
 
   return (
+    <AbsencesContext.Provider value={{ absences, addAbsence, removeAbsence }}>
     <div className="space-y-4">
       {/* Tab bar */}
       <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/40 p-1">
@@ -858,5 +1061,6 @@ export function ResourcesPanel() {
       {tab === "steerco"      && <SteerCoPreBriefTab />}
       {tab === "workstream"   && <WorkstreamPreBriefTab />}
     </div>
+    </AbsencesContext.Provider>
   );
 }

@@ -1,6 +1,7 @@
+import Link from "next/link";
 import {
   TrendingUp, TrendingDown, AlertTriangle, DollarSign, Clock, Milestone,
-  FileText, CheckCircle2, Circle, AlertCircle, ArrowUpRight,
+  FileText, CheckCircle2, Circle, AlertCircle, ArrowUpRight, ChevronRight,
 } from "lucide-react";
 import { getKpis, budgetTrend, riskTrend } from "@/lib/mockData";
 import { PhaseProgress } from "@/components/dashboard/phase-progress";
@@ -179,7 +180,9 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3">
             <Milestone className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-semibold text-foreground">Upcoming Milestones</p>
-            <span className="ml-auto text-xs text-muted-foreground">next 5</span>
+            <Link href="/milestones" className="ml-auto flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              View all <ChevronRight className="h-3 w-3" />
+            </Link>
           </div>
           <ul className="divide-y divide-border">
             {kpis.upcomingMilestones.map((m) => {
@@ -188,23 +191,29 @@ export default function DashboardPage() {
                 (new Date(m.forecastDate).getTime() - new Date(m.plannedDate).getTime()) / 86_400_000
               );
               return (
-                <li key={m.id} className="flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-muted/20">
-                  <Icon className={cn("h-4 w-4 shrink-0", cls)} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.phase}</p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs font-medium text-foreground tabular-nums">{formatDate(m.forecastDate)}</p>
-                    {variance !== 0 && (
-                      <p className={cn(
-                        "mt-0.5 text-[11px] font-semibold tabular-nums",
-                        variance > 0 ? "text-rose-600" : "text-emerald-600",
-                      )}>
-                        {variance > 0 ? `+${variance}d` : `${variance}d`}
-                      </p>
-                    )}
-                  </div>
+                <li key={m.id}>
+                  <Link
+                    href="/milestones"
+                    className="group flex items-center gap-3 px-5 py-3.5 transition-colors hover:bg-muted/30"
+                  >
+                    <Icon className={cn("h-4 w-4 shrink-0", cls)} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-foreground group-hover:text-primary">{m.name}</p>
+                      <p className="text-xs text-muted-foreground">{m.phase}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-xs font-medium text-foreground tabular-nums">{formatDate(m.forecastDate)}</p>
+                      {variance !== 0 && (
+                        <p className={cn(
+                          "mt-0.5 text-[11px] font-semibold tabular-nums",
+                          variance > 0 ? "text-rose-600" : "text-emerald-600",
+                        )}>
+                          {variance > 0 ? `+${variance}d` : `${variance}d`}
+                        </p>
+                      )}
+                    </div>
+                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                  </Link>
                 </li>
               );
             })}
@@ -216,46 +225,53 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm font-semibold text-foreground">Decisions Needed</p>
-            <span className="ml-auto text-xs text-muted-foreground">pending review</span>
+            <Link href="/documents" className="ml-auto flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+              View all <ChevronRight className="h-3 w-3" />
+            </Link>
           </div>
           <ul className="divide-y divide-border">
             {kpis.pendingDocs.map((doc) => {
               const all = [...doc.reviewers, ...doc.approvers];
               const pendingCount = all.filter((d) => d.status === "pending").length;
               return (
-                <li key={doc.id} className="px-5 py-3.5 transition-colors hover:bg-muted/20">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">{doc.name}</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {doc.type} · v{doc.version} · due {formatDate(doc.dueDate)}
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                      {pendingCount} pending
-                    </span>
-                  </div>
-                  {/* Decision avatars */}
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {all.map((d, i) => (
-                      <div key={i} className="relative" title={`${d.person} (${d.role}): ${d.status}`}>
-                        <span className={cn(
-                          "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white",
-                          d.status === "pending" ? "bg-slate-300" : avatarColor(d.initials),
-                        )}>
-                          {d.initials}
-                        </span>
-                        <span className={cn(
-                          "absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-card text-[8px] font-black",
-                          d.status === "approved" ? "bg-emerald-500 text-white"
-                          : d.status === "rejected" ? "bg-rose-500 text-white"
-                          : "bg-slate-200 text-slate-600",
-                        )}>
-                          {d.status === "approved" ? "✓" : d.status === "rejected" ? "✗" : "·"}
-                        </span>
+                <li key={doc.id}>
+                  <Link
+                    href="/documents"
+                    className="group block px-5 py-3.5 transition-colors hover:bg-muted/30"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground group-hover:text-primary">{doc.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {doc.type} · v{doc.version} · due {formatDate(doc.dueDate)}
+                        </p>
                       </div>
-                    ))}
-                  </div>
+                      <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                        {pendingCount} pending
+                      </span>
+                    </div>
+                    {/* Decision avatars */}
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {all.map((d, i) => (
+                        <div key={i} className="relative" title={`${d.person} (${d.role}): ${d.status}`}>
+                          <span className={cn(
+                            "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white",
+                            d.status === "pending" ? "bg-slate-300" : avatarColor(d.initials),
+                          )}>
+                            {d.initials}
+                          </span>
+                          <span className={cn(
+                            "absolute -bottom-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full border-2 border-card text-[8px] font-black",
+                            d.status === "approved" ? "bg-emerald-500 text-white"
+                            : d.status === "rejected" ? "bg-rose-500 text-white"
+                            : "bg-slate-200 text-slate-600",
+                          )}>
+                            {d.status === "approved" ? "✓" : d.status === "rejected" ? "✗" : "·"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </Link>
                 </li>
               );
             })}
@@ -263,7 +279,7 @@ export default function DashboardPage() {
           <div className="border-t border-border bg-muted/20 px-5 py-2 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <ArrowUpRight className="h-3 w-3" />
-              Click any document on the Documents page to cycle decisions
+              Open the Documents page to cycle decisions per person
             </span>
           </div>
         </div>

@@ -97,9 +97,9 @@ function buildReportData() {
 // ─── Score band ───────────────────────────────────────────────────────────────
 
 function scoreBandStyles(score: number) {
-  if (score >= 15) return "bg-red-100 text-red-700";
-  if (score >= 8)  return "bg-amber-100 text-amber-700";
-  return "bg-green-100 text-green-700";
+  if (score >= 15) return "bg-rose-50 text-rose-700 border border-rose-200";
+  if (score >= 8)  return "bg-amber-50 text-amber-700 border border-amber-200";
+  return "bg-emerald-50 text-emerald-700 border border-emerald-200";
 }
 
 // ─── Excel export ─────────────────────────────────────────────────────────────
@@ -172,9 +172,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
 const msStatusStyles: Record<string, string> = {
-  "complete":    "bg-green-100 text-green-700",
-  "in-progress": "bg-blue-100 text-blue-700",
-  "at-risk":     "bg-red-100 text-red-700",
+  "complete":    "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  "in-progress": "bg-blue-50 text-blue-700 border border-blue-200",
+  "at-risk":     "bg-rose-50 text-rose-700 border border-rose-200",
   "pending":     "bg-muted text-muted-foreground",
 };
 
@@ -186,7 +186,7 @@ export function WeeklyReport() {
   const healthColor =
     data.scheduleHealth === "Green" ? "text-green-600" :
     data.scheduleHealth === "Amber" ? "text-amber-600" :
-    "text-red-600";
+    "text-rose-600";
 
   return (
     <div className="space-y-4">
@@ -240,8 +240,8 @@ export function WeeklyReport() {
             {[
               { label: "Schedule Health", value: data.scheduleHealth, sub: "RAG status", color: healthColor },
               { label: "Days to Go-Live",  value: data.kpis.daysToGoLive,  sub: fmtDate(project.goLiveDate), color: "text-foreground" },
-              { label: "Open Risks",       value: data.openRisks.length,    sub: `${data.kpis.highRisks} high`, color: data.openRisks.length > 3 ? "text-red-600" : "text-foreground" },
-              { label: "Budget Utilised",  value: `${data.burnPct}%`,        sub: `$${data.totalActualK}k / $${data.totalBudgetK}k`, color: data.burnPct > 85 ? "text-red-600" : data.burnPct > 60 ? "text-amber-600" : "text-foreground" },
+              { label: "Open Risks",       value: data.openRisks.length,    sub: `${data.kpis.highRisks} high`, color: data.openRisks.length > 3 ? "text-rose-600" : "text-foreground" },
+              { label: "Budget Utilised",  value: `${data.burnPct}%`,        sub: `$${data.totalActualK}k / $${data.totalBudgetK}k`, color: data.burnPct > 85 ? "text-rose-600" : data.burnPct > 60 ? "text-amber-600" : "text-foreground" },
               { label: "Decisions Pending",value: data.pendingDecisions.length, sub: "across all docs", color: data.pendingDecisions.length > 0 ? "text-amber-600" : "text-foreground" },
               { label: "Tasks In Flight",  value: tasks.filter((t) => t.status === "In Progress").length, sub: `${tasks.filter((t) => t.status === "Blocked").length} blocked`, color: "text-foreground" },
             ].map((k) => (
@@ -323,8 +323,8 @@ export function WeeklyReport() {
                     </div>
                     <span className={cn(
                       "ml-auto rounded-full px-1.5 py-0.5 text-[9px] font-semibold shrink-0",
-                      t.priority === "Critical" ? "bg-red-100 text-red-700" :
-                      t.priority === "High"     ? "bg-amber-100 text-amber-700" :
+                      t.priority === "Critical" ? "bg-rose-50 text-rose-700 border border-rose-200" :
+                      t.priority === "High"     ? "bg-amber-50 text-amber-700 border border-amber-200" :
                       "bg-muted text-muted-foreground"
                     )}>
                       {t.priority}
@@ -395,7 +395,7 @@ export function WeeklyReport() {
                         <td className="px-3 py-2">
                           <span className={cn(
                             "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
-                            d.role === "Approver" ? "bg-blue-100 text-blue-700" : "bg-muted text-muted-foreground"
+                            d.role === "Approver" ? "bg-blue-50 text-blue-700 border border-blue-200" : "bg-muted text-muted-foreground"
                           )}>
                             {d.role}
                           </span>

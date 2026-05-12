@@ -29,23 +29,23 @@ const ALL_WORKSTREAMS = Array.from(new Set(tasks.map((t) => t.workstream)));
 // ─── Status styles ────────────────────────────────────────────────────────────
 
 const statusStyles: Record<TaskStatus, string> = {
-  "Complete":    "bg-green-100 text-green-700",
-  "In Progress": "bg-blue-100 text-blue-700",
+  "Complete":    "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  "In Progress": "bg-blue-50 text-blue-700 border border-blue-200",
   "Not Started": "bg-muted text-muted-foreground",
-  "Blocked":     "bg-red-100 text-red-700",
-  "On Hold":     "bg-purple-100 text-purple-700",
+  "Blocked":     "bg-rose-50 text-rose-700 border border-rose-200",
+  "On Hold":     "bg-violet-50 text-violet-700 border border-violet-200",
 };
 
 const priorityDot: Record<string, string> = {
-  Critical: "bg-red-500",
+  Critical: "bg-rose-500",
   High:     "bg-amber-500",
   Medium:   "bg-yellow-400",
   Low:      "bg-muted-foreground/40",
 };
 
 const priorityPill: Record<string, string> = {
-  Critical: "bg-red-100 text-red-700",
-  High:     "bg-amber-100 text-amber-700",
+  Critical: "bg-rose-50 text-rose-700 border border-rose-200",
+  High:     "bg-amber-50 text-amber-700 border border-amber-200",
   Medium:   "bg-yellow-50 text-yellow-700",
   Low:      "bg-muted text-muted-foreground",
 };
@@ -180,7 +180,7 @@ function TaskTable({ tasks: tList, allTasks }: { tasks: Task[]; allTasks: Task[]
           {tList.map((t) => {
             const isOverdue = t.dueDate < TODAY_ISO && t.status !== "Complete";
             return (
-              <tr key={t.id} className={cn(t.status === "Blocked" ? "bg-red-50/40" : "")}>
+              <tr key={t.id} className={cn(t.status === "Blocked" ? "bg-rose-50/40" : "")}>
                 <td className="px-3 py-2 text-center">
                   <span className={cn("block h-2 w-2 rounded-full mx-auto", priorityDot[t.priority])} />
                 </td>
@@ -209,7 +209,7 @@ function TaskTable({ tasks: tList, allTasks }: { tasks: Task[]; allTasks: Task[]
                   </span>
                 </td>
                 <td className="px-3 py-2 text-center text-muted-foreground">{t.owner}</td>
-                <td className={cn("px-3 py-2 text-[10px]", isOverdue ? "text-red-600 font-semibold" : "text-muted-foreground")}>
+                <td className={cn("px-3 py-2 text-[10px]", isOverdue ? "text-rose-600 font-semibold" : "text-muted-foreground")}>
                   {fmtDate(t.dueDate)}{isOverdue ? " !" : ""}
                 </td>
                 <td className="px-3 py-2">
@@ -218,7 +218,7 @@ function TaskTable({ tasks: tList, allTasks }: { tasks: Task[]; allTasks: Task[]
                       <div
                         className={cn("h-full rounded-full",
                           t.status === "Complete" ? "bg-green-500" :
-                          t.status === "Blocked"  ? "bg-red-500" : "bg-primary"
+                          t.status === "Blocked"  ? "bg-rose-500" : "bg-primary"
                         )}
                         style={{ width: `${t.progress}%` }}
                       />
@@ -309,8 +309,8 @@ export function WorkstreamReport() {
               { label: "Total Tasks",  value: data.total,      color: "text-foreground" },
               { label: "Complete",     value: data.complete,   color: "text-green-600" },
               { label: "In Progress",  value: data.inProgress, color: "text-blue-600" },
-              { label: "Blocked",      value: data.blocked,    color: data.blocked > 0 ? "text-red-600" : "text-foreground" },
-              { label: "Overdue",      value: data.overdue.length, color: data.overdue.length > 0 ? "text-red-600" : "text-foreground" },
+              { label: "Blocked",      value: data.blocked,    color: data.blocked > 0 ? "text-rose-600" : "text-foreground" },
+              { label: "Overdue",      value: data.overdue.length, color: data.overdue.length > 0 ? "text-rose-600" : "text-foreground" },
             ].map((k) => (
               <div key={k.label} className="rounded-md border border-border bg-muted/20 px-3 py-2.5 text-center">
                 <p className={cn("text-2xl font-bold tabular-nums", k.color)}>{k.value}</p>
@@ -364,9 +364,9 @@ export function WorkstreamReport() {
                         </td>
                         <td className="px-3 py-2 text-center">
                           <span className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
-                            m.status === "complete"    ? "bg-green-100 text-green-700" :
-                            m.status === "in-progress" ? "bg-blue-100 text-blue-700" :
-                            m.status === "at-risk"     ? "bg-red-100 text-red-700" :
+                            m.status === "complete"    ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                            m.status === "in-progress" ? "bg-blue-50 text-blue-700 border border-blue-200" :
+                            m.status === "at-risk"     ? "bg-rose-50 text-rose-700 border border-rose-200" :
                             "bg-muted text-muted-foreground"
                           )}>
                             {m.status}
@@ -388,12 +388,12 @@ export function WorkstreamReport() {
               {data.uniqueExternal.map((t) => (
                 <div key={t.id} className={cn(
                   "flex items-center gap-3 rounded-md border px-3 py-2",
-                  t.status === "Blocked"  ? "border-red-200 bg-red-50" :
+                  t.status === "Blocked"  ? "border-rose-200 bg-rose-50" :
                   t.status === "Complete" ? "border-green-200 bg-green-50" :
                   "border-amber-200 bg-amber-50"
                 )}>
                   <AlertTriangle className={cn("h-3.5 w-3.5 shrink-0",
-                    t.status === "Blocked"  ? "text-red-500" :
+                    t.status === "Blocked"  ? "text-rose-500" :
                     t.status === "Complete" ? "text-green-500" : "text-amber-500"
                   )} />
                   <div className="min-w-0 flex-1">
@@ -434,9 +434,9 @@ export function WorkstreamReport() {
                     <tr key={r.id}>
                       <td className="px-3 py-2 text-center">
                         <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold",
-                          r.score >= 15 ? "bg-red-100 text-red-700" :
-                          r.score >= 8  ? "bg-amber-100 text-amber-700" :
-                          "bg-green-100 text-green-700"
+                          r.score >= 15 ? "bg-rose-50 text-rose-700 border border-rose-200" :
+                          r.score >= 8  ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                          "bg-emerald-50 text-emerald-700 border border-emerald-200"
                         )}>
                           {r.score}
                         </span>

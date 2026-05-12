@@ -7,6 +7,7 @@ import type {
   RecurringMeeting, MeetingFrequency, AttendeeRole, MeetingAttendee, TeamMember,
 } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { SelectWithCustom } from "@/components/ui/select-with-custom";
 import { isIsoDate, inProjectRange, PROJECT_DATE_MIN, PROJECT_DATE_MAX } from "@/lib/validation";
 
 const TYPES: RecurringMeeting["type"][]   = ["steerco", "workstream", "governance"];
@@ -136,11 +137,7 @@ export function MeetingFormDrawer({
             </Field>
             {type === "workstream" ? (
               <Field label="Workstream">
-                <input type="text" value={workstream} onChange={(e) => setWorkstream(e.target.value)}
-                  list="mtg-ws" className={inputCls} />
-                <datalist id="mtg-ws">
-                  {knownWorkstreams.map((w) => <option key={w} value={w} />)}
-                </datalist>
+                <SelectWithCustom value={workstream} onChange={setWorkstream} options={knownWorkstreams} />
               </Field>
             ) : <div />}
           </div>

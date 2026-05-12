@@ -92,7 +92,27 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M15 — Projects list + create + switcher**.
+**Module:** M14.1 — Pre-flight fixes  →  M15 — Projects list + create + switcher
+**Goal (M14.1):** Three small fixes the dogfood walkthrough surfaced:
+1. **Category pickers**: datalist UX hides options — users see "Technical" and think it's the only one. Replace datalists in all 6 forms with a proper select + "Other..." pattern via a new `<SelectWithCustom>` component.
+2. **Duplicate task prevention**: soft-warn (`toast.warning`) when adding/saving a task whose name (case-insensitive) already exists in the same workstream.
+3. **Document RACI**: add `owner` field to `Document` type — "Responsible" for delivery. Approvers stay as "Accountable" (single point of sign-off). Reviewers stay as "Consulted". Surface `owner` on document cards and in the document form.
+
+**Goal (M15):** Make the app multi-project.
+- Add `Project` type; add `projectId` to all major entity types (Milestone, Task, Risk, Document, CostLine, TeamMember, RecurringMeeting, Absence)
+- Seed 2nd project (e.g. "Veeva PromoMats Migration") — metadata only, no entities (empty state to verify isolation)
+- `<ProjectContext>` with localStorage persistence of active project ID
+- `/projects` page: list of projects + Create Project form
+- Sidebar: project switcher dropdown replacing the current static project card
+- Each grid filters entities by current `projectId`; switching project re-scopes the entire app
+- `getKpis()` and derived helpers become project-aware
+
+**DoD:** all 13+1 routes pass build clean; switching projects in the sidebar produces visibly different dashboards / grids; creating a new project produces empty grids (no other-project leakage).
+
+**Out of scope:** project archive, project clone, project templates (M18), per-project settings (settings stays global for now).
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M14 Completion summary (2026-05-11)
 

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Trash2, Plus, X } from "lucide-react";
 import type { Document, DocumentPhase, DocumentStatus, Decision } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { SelectWithCustom } from "@/components/ui/select-with-custom";
 import { isIsoDate, inProjectRange, PROJECT_DATE_MIN, PROJECT_DATE_MAX } from "@/lib/validation";
 
 const PHASES: DocumentPhase[] = ["Planning", "Configuration", "Validation", "Training", "Go-Live"];
@@ -100,6 +101,7 @@ export function DocumentFormDrawer({
   const [status,       setStatus]       = useState<DocumentStatus>("draft");
   const [dueDate,      setDueDate]      = useState("");
   const [description,  setDescription]  = useState("");
+  const [owner,        setOwner]        = useState("VP");
   const [reviewers,    setReviewers]    = useState<Decision[]>([]);
   const [approvers,    setApprovers]    = useState<Decision[]>([]);
   const [confirming,   setConfirming]   = useState(false);
@@ -115,6 +117,7 @@ export function DocumentFormDrawer({
     setStatus(initial?.status             ?? "draft");
     setDueDate(initial?.dueDate           ?? "");
     setDescription(initial?.description   ?? "");
+    setOwner(initial?.owner               ?? "VP");
     setReviewers(initial?.reviewers       ?? []);
     setApprovers(initial?.approvers       ?? []);
     setConfirming(false);
@@ -141,6 +144,7 @@ export function DocumentFormDrawer({
       type: type.trim(), phase, version: version.trim() || "1.0",
       status, dueDate,
       ...(description.trim() ? { description: description.trim() } : {}),
+      owner: owner.trim() || "VP",
       reviewers, approvers,
     });
   }
@@ -184,16 +188,18 @@ export function DocumentFormDrawer({
                 placeholder="FRS" className={inputCls} />
             </Field>
             <Field label="Type" required>
-              <input type="text" value={type} onChange={(e) => setType(e.target.value)}
-                list="doc-types" className={inputCls} />
-              <datalist id="doc-types">
-                {knownTypes.map((t) => <option key={t} value={t} />)}
-              </datalist>
+              <SelectWithCustom value={type} onChange={setType} options={knownTypes} />
             </Field>
             <Field label="Version">
               <input type="text" value={version} onChange={(e) => setVersion(e.target.value)} className={inputCls} />
             </Field>
           </div>
+
+          <Field label="Owner (Responsible)" required hint="initials — who is delivering this document">
+            <input type="text" value={owner}
+              onChange={(e) => setOwner(e.target.value.toUpperCase().slice(0, 4))}
+              className={inputCls} />
+          </Field>
 
           <div className="grid grid-cols-3 gap-3">
             <Field label="Phase">
@@ -216,8 +222,8 @@ export function DocumentFormDrawer({
               placeholder="e.g. Detailed functional behaviour the configured system must satisfy." className={inputCls} />
           </Field>
 
-          <PeopleList label="Reviewers" people={reviewers} onChange={setReviewers} />
-          <PeopleList label="Approvers" people={approvers} onChange={setApprovers} />
+          <PeopleList label="Reviewers (Consulted)" people={reviewers} onChange={setReviewers} />
+          <PeopleList label="Approvers (Accountable)" people={approvers} onChange={setApprovers} />
 
           {error && (
             <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30">{error}</p>

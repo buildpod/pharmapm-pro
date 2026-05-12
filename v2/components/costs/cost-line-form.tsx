@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import type { CostLine, ContractType } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { SelectWithCustom } from "@/components/ui/select-with-custom";
 
 const CONTRACTS: ContractType[] = ["T&M", "Fixed", "Internal"];
 
@@ -102,11 +103,7 @@ export function CostLineFormDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Category" required>
-              <input type="text" value={category} onChange={(e) => setCategory(e.target.value)}
-                list="cost-categories" className={inputCls} />
-              <datalist id="cost-categories">
-                {knownCategories.map((c) => <option key={c} value={c} />)}
-              </datalist>
+              <SelectWithCustom value={category} onChange={setCategory} options={knownCategories} />
             </Field>
             <Field label="Owner" hint="initials">
               <input type="text" value={owner} onChange={(e) => setOwner(e.target.value.toUpperCase().slice(0, 4))} className={inputCls} />

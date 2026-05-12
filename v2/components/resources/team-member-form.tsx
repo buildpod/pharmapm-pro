@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import type { TeamMember, SteerCoRole } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { SelectWithCustom } from "@/components/ui/select-with-custom";
 
 function nextTmId(all: TeamMember[]): string {
   const nums = all
@@ -118,12 +119,11 @@ export function TeamMemberFormDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Workstream" required>
-              <input type="text" value={workstream} onChange={(e) => setWorkstream(e.target.value)}
-                list="ws-list" className={inputCls} />
-              <datalist id="ws-list">
-                {knownWorkstreams.map((w) => <option key={w} value={w} />)}
-                <option value="Executive" />
-              </datalist>
+              <SelectWithCustom
+                value={workstream}
+                onChange={setWorkstream}
+                options={Array.from(new Set([...knownWorkstreams, "Executive"]))}
+              />
             </Field>
             <Field label="SteerCo role">
               <select value={steercoRole} onChange={(e) => setSteercoRole(e.target.value as SteerCoRole | "")} className={inputCls}>

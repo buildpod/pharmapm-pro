@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority, Milestone } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { SelectWithCustom } from "@/components/ui/select-with-custom";
 import { isIsoDate, inProjectRange, PROJECT_DATE_MIN, PROJECT_DATE_MAX } from "@/lib/validation";
 
 const PRIORITIES: TaskPriority[] = ["Critical", "High", "Medium", "Low"];
@@ -75,6 +76,19 @@ export function TaskFormDrawer({
       setError(`Due date must be between ${PROJECT_DATE_MIN} and ${PROJECT_DATE_MAX}`); return;
     }
     setError(null);
+
+    // Duplicate-name detection (same workstream, case-insensitive, excluding self)
+    const dup = allTasks.find(
+      (t) =>
+        t.id !== initial?.id &&
+        t.workstream === workstream.trim() &&
+        t.name.trim().toLowerCase() === name.trim().toLowerCase()
+    );
+    if (dup) {
+      toast.warning("Duplicate task name in workstream", {
+        description: `"${dup.name}" already exists in ${workstream}. Saving anyway.`,
+      });
+    }
 
     // Soft warnings — don't block save, just nudge
     if (milestoneId) {
@@ -196,16 +210,7 @@ export function TaskFormDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Workstream" required>
-              <input
-                type="text"
-                value={workstream}
-                onChange={(e) => setWorkstream(e.target.value)}
-                list="workstreams"
-                className={inputCls}
-              />
-              <datalist id="workstreams">
-                {knownWorkstreams.map((w) => <option key={w} value={w} />)}
-              </datalist>
+              <SelectWithCustom value={workstream} onChange={setWorkstream} options={knownWorkstreams} />
             </Field>
 
             <Field label="Owner" hint="initials">

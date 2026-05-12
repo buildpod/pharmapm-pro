@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import type { Risk, RiskStatus } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { SelectWithCustom } from "@/components/ui/select-with-custom";
 
 const STATUSES: RiskStatus[] = ["open", "mitigated", "closed"];
 const SCALE = [1, 2, 3, 4, 5];
@@ -105,11 +106,7 @@ export function RiskFormDrawer({
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Category" required>
-              <input type="text" value={category} onChange={(e) => setCategory(e.target.value)}
-                list="risk-categories" className={inputCls} />
-              <datalist id="risk-categories">
-                {knownCategories.map((c) => <option key={c} value={c} />)}
-              </datalist>
+              <SelectWithCustom value={category} onChange={setCategory} options={knownCategories} />
             </Field>
             <Field label="Owner" hint="initials">
               <input type="text" value={owner} onChange={(e) => setOwner(e.target.value.toUpperCase().slice(0, 4))} className={inputCls} />

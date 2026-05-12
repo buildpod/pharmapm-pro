@@ -259,6 +259,15 @@ function DocumentCard({
               {isOverdue ? <AlertCircle className="h-3.5 w-3.5" /> : <Clock className="h-3.5 w-3.5" />}
               {due.text} · {formatDate(doc.dueDate)}
             </span>
+            <span className="flex items-center gap-1.5 text-muted-foreground" title="Responsible — who's delivering the document">
+              <span className={cn(
+                "flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold text-white",
+                avatarColor(doc.owner),
+              )}>
+                {doc.owner}
+              </span>
+              <span className="text-[11px]">owner</span>
+            </span>
             {total > 0 && (
               <span className="text-muted-foreground">
                 <span className="font-semibold text-foreground">{completed}</span> of <span className="font-semibold text-foreground">{total}</span> decisions

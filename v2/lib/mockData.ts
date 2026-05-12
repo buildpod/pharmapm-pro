@@ -115,8 +115,9 @@ export type Document = {
   status: DocumentStatus;
   dueDate: string;
   description?: string;      // short plain-language description, surfaced on the card
-  reviewers: Decision[];
-  approvers: Decision[];
+  owner: string;             // RACI Responsible — who is delivering this document (initials)
+  reviewers: Decision[];     // RACI Consulted — provide input / feedback
+  approvers: Decision[];     // RACI Accountable — sign off
 };
 
 export const documents: Document[] = [
@@ -131,6 +132,7 @@ export const documents: Document[] = [
     status: "approved",
     dueDate: "2026-02-28",
     description: "Master governing document for the CSV / GAMP 5 validation strategy.",
+    owner: "VP",
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-02-15" },
       { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "approved", date: "2026-02-20" },
@@ -149,6 +151,7 @@ export const documents: Document[] = [
     status: "approved",
     dueDate: "2026-01-30",
     description: "Business-level requirements driving the Veeva RIM configuration.",
+    owner: "SL",
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-01-22" },
     ],
@@ -166,6 +169,7 @@ export const documents: Document[] = [
     status: "in-review",
     dueDate: "2026-05-18",
     description: "Project-wide risk identification, scoring, and mitigation framework.",
+    owner: "SL",
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-05-09" },
       { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
@@ -186,6 +190,7 @@ export const documents: Document[] = [
     status: "in-review",
     dueDate: "2026-05-20",
     description: "Detailed functional behaviour the configured system must satisfy.",
+    owner: "AR",
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-05-10" },
       { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
@@ -205,6 +210,7 @@ export const documents: Document[] = [
     status: "in-review",
     dueDate: "2026-05-25",
     description: "Architecture, integrations, and configuration topology for the Vault instance.",
+    owner: "AR",
     reviewers: [
       { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
       { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
@@ -223,6 +229,7 @@ export const documents: Document[] = [
     status: "in-review",
     dueDate: "2026-05-30",
     description: "Source-to-target mapping, cutover sequencing, and reconciliation strategy.",
+    owner: "AR",
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-05-08" },
     ],
@@ -242,6 +249,7 @@ export const documents: Document[] = [
     status: "draft",
     dueDate: "2026-06-10",
     description: "Analytical procedures, statistical methods, and reporting rules for in-system data.",
+    owner: "AR",
     reviewers: [
       { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "pending"  },
@@ -262,6 +270,7 @@ export const documents: Document[] = [
     status: "draft",
     dueDate: "2026-07-01",
     description: "Evidence that the system is installed correctly in the production environment.",
+    owner: "QA",
     reviewers: [],
     approvers: [],
   },
@@ -275,6 +284,7 @@ export const documents: Document[] = [
     status: "draft",
     dueDate: "2026-07-10",
     description: "Evidence that the system operates per FRS across functional ranges.",
+    owner: "QA",
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "pending"  },
     ],
@@ -290,6 +300,7 @@ export const documents: Document[] = [
     status: "draft",
     dueDate: "2026-07-30",
     description: "Evidence that the system performs as required under real-world workflows.",
+    owner: "QA",
     reviewers: [],
     approvers: [],
   },
@@ -303,6 +314,7 @@ export const documents: Document[] = [
     status: "in-review",
     dueDate: "2026-06-25",
     description: "End-to-end trace from URS requirements through to IQ/OQ/PQ test evidence.",
+    owner: "QA",
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "pending"  },
       { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
@@ -323,6 +335,7 @@ export const documents: Document[] = [
     status: "draft",
     dueDate: "2026-07-20",
     description: "Role-based training curriculum, materials, and completion tracking approach.",
+    owner: "HR",
     reviewers: [
       { person: "Hannah Ross",   initials: "HR", role: "Training Lead", status: "pending" },
     ],
@@ -342,6 +355,7 @@ export const documents: Document[] = [
     status: "draft",
     dueDate: "2026-08-25",
     description: "Cut-over criteria, hypercare staffing, rollback triggers, and exec sign-off.",
+    owner: "VP",
     reviewers: [],
     approvers: [],
   },

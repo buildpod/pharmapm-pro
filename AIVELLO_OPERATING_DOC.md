@@ -92,28 +92,22 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M13 — Universal Add + Edit + Delete (milestones + tasks first)
-**Goal:** Today the app is a viewer. Mock data shows up but no row can be added, no field can be edited (except the few inline click-cycles), no row can be deleted. The dogfood walkthrough showed this is the single biggest blocker to actual PM use. Build a consistent slide-over drawer pattern and wire it for the two most-clicked entities first: milestones and tasks. Risks / documents / cost lines / team members / meetings follow in M14.
+**Module:** _none — awaiting next session goal from Vineet_
 
-**Definition of done:**
-- Reusable `<EntityDrawer>` component (right-anchored slide-over with backdrop, ESC-to-close, focus trap), single file, no new dependencies
-- Milestones grid has: `+ Add Milestone` button, every row clickable → opens drawer in edit mode, `Delete` button inside drawer with confirm
-- Tasks grid has: `+ Add Task` button, every row clickable → opens drawer in edit mode, `Delete` button inside drawer
-- Forms cover all editable fields (Milestone: name + phase + owner + predecessor + duration + lag + plannedDate + forecastDate + status + locked; Task: name + workstream + priority + status + progress + milestoneId + owner + dueDate + dependsOn)
-- Save / Cancel / Delete buttons consistent across both
-- Sonner toast on add / update / delete
-- All existing inline-click behaviour preserved (status cycle, progress slider, date inline edit)
-- Build clean, lint clean
+Next up per §5.1 plan: **M14 — extend the M13 drawer pattern to risks, documents, cost lines, team members, recurring meetings**
 
-**Out of scope (deferred to M14):**
-- Risks / documents / cost lines / team members / meetings add+edit+delete (same pattern, just more entities)
-- Description / markdown fields (we don't store them yet — comes with M14)
-- Attachments / file storage (needs backend — Path C territory)
-- Comments / @mentions (M19)
-- Undo (Sonner supports it; defer until pattern is proven)
+### M13 Completion summary (2026-05-11)
 
-**Started:** (this session)
-**Status:** in progress
+**Module:** M13 — Universal Add + Edit + Delete (milestones + tasks)
+**Status:** ✅ Complete (commit `2c94410`)
+**Outcome:**
+- New reusable `<EntityDrawer>` component (`components/ui/entity-drawer.tsx`) — right-anchored slide-over, ESC + backdrop-click close, body-scroll lock, single file, no new deps. Also exports `<ConfirmDelete>` and `<Field>` + `inputCls` for form consistency.
+- New `<MilestoneFormDrawer>` (`components/milestones/milestone-form.tsx`) — 10 editable fields including predecessor dropdown (excluding self), validation (name + planned date required, no self-reference)
+- New `<TaskFormDrawer>` (`components/tasks/task-form.tsx`) — 9 editable fields including dependsOn checkbox list, datalist for workstream, status auto-derived from progress=100 → Complete
+- `milestones-grid.tsx`: `+ Add Milestone` button, milestone names click-to-edit, Sonner toasts on add/update/delete
+- `tasks-grid.tsx`: `+ Add Task` button, task names click-to-edit, onEdit threaded through WorkstreamGroup, Sonner toasts
+- All existing inline affordances preserved (status cycle, progress slider, date inline edit, lock toggle)
+- Build clean. `/milestones` 6.36 → 8.85 kB, `/tasks` 3.54 → 6.42 kB
 
 ### M12 Completion summary (2026-05-11)
 
@@ -432,6 +426,60 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M13 — Universal Add + Edit + Delete for milestones + tasks)
+
+**Worked on (commit `2c94410`):**
+
+Trigger: Vineet's dogfood walkthrough surfaced that the app was a viewer — no row could be added, edited, or deleted for any entity. Path C confirmed (focus core PM features, pair with Veeva for validated layer, internal-only docs for cert prep). Modules M13–M20 added to §5.1 of operating doc as the post-launch plan.
+
+- Created `components/ui/entity-drawer.tsx` — reusable slide-over drawer:
+  - Right-anchored, max-width 28rem (max-w-md), full height
+  - Backdrop click + Escape key both close
+  - Body scroll locked while open
+  - Exports `<EntityDrawer>` (open/onClose/title/subtitle/children/footer), `<ConfirmDelete>` (label/onConfirm/onCancel), `<Field>` (label/hint/required wrapper), and `inputCls` constant for consistent input styling
+  - No new dependencies — uses existing Lucide `X` icon + Tailwind animations
+
+- Created `components/milestones/milestone-form.tsx` — `<MilestoneFormDrawer>`:
+  - 10 fields: name + phase + owner + predecessor (dropdown of all milestones excluding self) + duration + lag + plannedDate + forecastDate + status + locked
+  - Validation: name required, planned date required + ISO format, predecessor cannot reference self
+  - Generates next milestone ID as `m{max+1}` to keep mockData prefix convention
+  - Inline delete confirm (no nested modal); falls back to ConfirmDelete component
+  - Form re-initialises on open via useEffect
+
+- Created `components/tasks/task-form.tsx` — `<TaskFormDrawer>`:
+  - 9 fields: name + workstream (datalist of existing) + priority + status + progress (range slider) + milestoneId (dropdown) + owner + dueDate + dependsOn (checkbox list scoped to other tasks)
+  - Auto-derives status from progress: progress=100 → Complete; progress>0 from "Not Started" → "In Progress"
+  - Same validation pattern (name + due date required, ISO format)
+  - Generates next task ID as `t{max+1}`
+
+- Wired drawer into `milestones-grid.tsx`:
+  - New `DrawerState` discriminated union: closed | new | edit
+  - `+ Add Milestone` button added to toolbar (Plus icon, primary colour)
+  - Milestone name converted to a button → opens drawer in edit mode
+  - "Schedule from Go-Live" demoted to a secondary button so primary action is now the new Add
+  - `handleDrawerSave` upserts (matches by id), `handleDrawerDelete` removes
+  - Sonner toasts on every mutation with milestone name in description
+
+- Wired drawer into `tasks-grid.tsx`:
+  - Same `DrawerState` pattern
+  - `+ Add Task` button added to toolbar
+  - Task name converted to a button → opens drawer in edit mode
+  - `onEdit` prop threaded through `WorkstreamGroup` → `TaskRow`
+  - Sonner toasts on every mutation
+
+**Decided:**
+- Single `<EntityDrawer>` shared across both forms (and reusable for M14) rather than two separate Sheet implementations
+- Self-contained `<MilestoneFormDrawer>` and `<TaskFormDrawer>` (state lives inside each) rather than splitting form-body from form-actions — earlier attempt at the split made parent/child state plumbing ugly
+- Delete uses an inline `<ConfirmDelete>` block inside the drawer body rather than a nested modal — simpler UX, no risk of stacked overlays
+- Click the entity name (not the whole row) to enter edit mode — preserves existing inline interactions (status cycle, progress slider, date edit, lock toggle) which all use the row body
+- Status auto-derivation in the Task form matches the existing inline-slider behaviour so the two surfaces don't disagree
+
+**Built:** /milestones and /tasks are now genuinely editable. Build clean. /milestones 6.36 → 8.85 kB, /tasks 3.54 → 6.42 kB.
+
+**Next session goal:** M14 — apply the same drawer pattern to risks, documents, cost lines, team members, recurring meetings. Then M15 (Projects list + create + switcher) is the next major lift.
+
+---
 
 ### Session — 2026-05-11 (M12 — Wire M8 settings into the cascade engine)
 

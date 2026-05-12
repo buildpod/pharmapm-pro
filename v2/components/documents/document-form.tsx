@@ -146,6 +146,7 @@ export function DocumentFormDrawer({
       ...(description.trim() ? { description: description.trim() } : {}),
       owner: owner.trim() || "VP",
       reviewers, approvers,
+      projectId: initial?.projectId ?? "",
     });
   }
 

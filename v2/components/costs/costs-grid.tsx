@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { DollarSign, TrendingDown, Wallet, Layers, Plus } from "lucide-react";
 import { costLines as initialCostLines, budgetTrend, type CostLine } from "@/lib/mockData";
 import { CostLineFormDrawer } from "./cost-line-form";
+import { useProject } from "@/components/projects/project-provider";
 import { cn } from "@/lib/utils";
 
 const TOTAL_BUDGET_K = 2000;
@@ -77,21 +78,24 @@ function KpiCard({
 type CostDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; line: CostLine };
 
 export function CostsGrid() {
+  const { activeProjectId } = useProject();
   const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
   const [drawer, setDrawer]       = useState<CostDrawerState>({ mode: "closed" });
 
-  const knownCategories = Array.from(new Set(costLines.map((c) => c.category)));
+  const projectCostLines = costLines.filter((c) => c.projectId === activeProjectId);
+  const knownCategories  = Array.from(new Set(projectCostLines.map((c) => c.category)));
 
   function handleDrawerSave(c: CostLine) {
+    const withProj: CostLine = { ...c, projectId: c.projectId || activeProjectId };
     setCostLines((prev) => {
-      const idx = prev.findIndex((x) => x.id === c.id);
+      const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
-        const next = [...prev]; next[idx] = c;
-        toast.success("Cost line updated", { description: c.description });
+        const next = [...prev]; next[idx] = withProj;
+        toast.success("Cost line updated", { description: withProj.description });
         return next;
       }
-      toast.success("Cost line added", { description: c.description });
-      return [...prev, c];
+      toast.success("Cost line added", { description: withProj.description });
+      return [...prev, withProj];
     });
     setDrawer({ mode: "closed" });
   }
@@ -102,9 +106,11 @@ export function CostsGrid() {
     setDrawer({ mode: "closed" });
   }
 
-  const totalActualK  = costLines.reduce((s, c) => s + c.actualK, 0);
-  const totalBurnPct  = Math.round((totalActualK / TOTAL_BUDGET_K) * 100);
-  const remainingK    = TOTAL_BUDGET_K - totalActualK;
+  // Totals computed from the project's own cost lines (not a hardcoded ceiling)
+  const totalBudgetK  = projectCostLines.reduce((s, c) => s + c.budgetK, 0) || TOTAL_BUDGET_K;
+  const totalActualK  = projectCostLines.reduce((s, c) => s + c.actualK, 0);
+  const totalBurnPct  = totalBudgetK > 0 ? Math.round((totalActualK / totalBudgetK) * 100) : 0;
+  const remainingK    = totalBudgetK - totalActualK;
 
   const withDelta = budgetTrend.map((row, i) => {
     const prevPlanned = i > 0 ? budgetTrend[i - 1].planned : 0;
@@ -120,12 +126,12 @@ export function CostsGrid() {
     <div className="space-y-6">
       {/* KPI summary */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Total Budget"  value={`$${(TOTAL_BUDGET_K / 1000).toFixed(1)}M`} sub="project ceiling" Icon={Wallet} tone="neutral" />
+        <KpiCard label="Total Budget"  value={`$${(totalBudgetK / 1000).toFixed(1)}M`} sub="project ceiling" Icon={Wallet} tone="neutral" />
         <KpiCard label="Spent to Date" value={`$${(totalActualK / 1000).toFixed(2)}M`}  sub={`${totalBurnPct}% utilised`}
           Icon={DollarSign} tone={totalBurnPct >= 85 ? "bad" : totalBurnPct >= 60 ? "warn" : "neutral"} />
         <KpiCard label="Remaining"     value={`$${(remainingK / 1000).toFixed(2)}M`}    sub={`${100 - totalBurnPct}% available`}
           Icon={TrendingDown} tone="good" />
-        <KpiCard label="Cost Lines"    value={String(costLines.length)} sub="categories tracked" Icon={Layers} tone="neutral" />
+        <KpiCard label="Cost Lines"    value={String(projectCostLines.length)} sub="categories tracked" Icon={Layers} tone="neutral" />
       </div>
 
       {/* Overall burn bar */}
@@ -134,7 +140,7 @@ export function CostsGrid() {
           <div>
             <p className="text-sm font-semibold text-foreground">Overall Budget Burn</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground tabular-nums">${totalActualK}k</span> of ${TOTAL_BUDGET_K}k
+              <span className="font-semibold text-foreground tabular-nums">${totalActualK}k</span> of ${totalBudgetK}k
             </p>
           </div>
           <span className={cn(
@@ -189,7 +195,7 @@ export function CostsGrid() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {costLines.map((c) => {
+            {projectCostLines.map((c) => {
               const pct  = c.budgetK > 0 ? Math.round((c.actualK / c.budgetK) * 100) : 0;
               const warn = pct > 60 && pct <= 85;
               const danger = pct > 85;
@@ -237,7 +243,7 @@ export function CostsGrid() {
               <td className="px-3 py-3.5" />
               <td className="px-3 py-3.5" />
               <td className="px-3 py-3.5 text-right tabular-nums text-foreground">
-                ${TOTAL_BUDGET_K}k
+                ${totalBudgetK}k
               </td>
               <td className="px-3 py-3.5 text-right tabular-nums text-foreground">
                 ${totalActualK}k

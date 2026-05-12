@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   TrendingUp, TrendingDown, AlertTriangle, DollarSign, Clock, Milestone,
@@ -6,6 +8,7 @@ import {
 import { getKpis, budgetTrend, riskTrend } from "@/lib/mockData";
 import { PhaseProgress } from "@/components/dashboard/phase-progress";
 import { Sparkline } from "@/components/dashboard/sparkline";
+import { useProject } from "@/components/projects/project-provider";
 import { cn } from "@/lib/utils";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -77,7 +80,8 @@ function KpiCard({
 // ─── Page ───────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const kpis = getKpis();
+  const { activeProjectId, activeProject } = useProject();
+  const kpis = getKpis(activeProjectId);
   const scheduleOnTrack = kpis.scheduleVariance <= 0;
   const varianceLabel = kpis.scheduleVariance === 0
     ? "On schedule"
@@ -87,11 +91,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
+      {/* Header — context from the active project */}
       <header className="space-y-1">
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Project Dashboard</h1>
         <p className="text-sm text-muted-foreground">
-          Veeva RIM Implementation · Phase 2 — Configuration &amp; Testing · Go-Live target 02 Sep 2026
+          {activeProject.name} · {activeProject.phase} · Go-Live target {activeProject.goLiveDate}
         </p>
       </header>
 
@@ -121,7 +125,7 @@ export default function DashboardPage() {
         <KpiCard
           label="Days to Go-Live"
           value={kpis.daysToGoLive}
-          sub="Target 02 Sep 2026"
+          sub={`Target ${activeProject.goLiveDate}`}
           Icon={Clock}
           tone="neutral"
         />

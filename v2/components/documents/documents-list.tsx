@@ -15,6 +15,7 @@ import {
   type DocumentPhase,
 } from "@/lib/mockData";
 import { DocumentFormDrawer } from "./document-form";
+import { useProject } from "@/components/projects/project-provider";
 import { cn } from "@/lib/utils";
 
 const TODAY = "2026-05-11";
@@ -397,21 +398,25 @@ type StatusFilter = "All" | DocumentStatus;
 type DocDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; doc: Document };
 
 export function DocumentsList() {
+  const { activeProjectId } = useProject();
   const [docs, setDocs] = useState<Document[]>(initialDocuments);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState<DocDrawerState>({ mode: "closed" });
 
+  const projectDocs = docs.filter((d) => d.projectId === activeProjectId);
+
   function handleDrawerSave(d: Document) {
+    const withProj: Document = { ...d, projectId: d.projectId || activeProjectId };
     setDocs((prev) => {
-      const idx = prev.findIndex((x) => x.id === d.id);
+      const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
-        const next = [...prev]; next[idx] = d;
-        toast.success("Document updated", { description: d.name });
+        const next = [...prev]; next[idx] = withProj;
+        toast.success("Document updated", { description: withProj.name });
         return next;
       }
-      toast.success("Document added", { description: d.name });
-      return [...prev, d];
+      toast.success("Document added", { description: withProj.name });
+      return [...prev, withProj];
     });
     setDrawer({ mode: "closed" });
   }
@@ -422,7 +427,7 @@ export function DocumentsList() {
     setDrawer({ mode: "closed" });
   }
 
-  const knownTypes = Array.from(new Set(docs.map((d) => d.type)));
+  const knownTypes = Array.from(new Set(projectDocs.map((d) => d.type)));
 
   function handleDecisionToggle(docId: string, kind: "reviewers" | "approvers", idx: number) {
     setDocs((prev) =>
@@ -441,8 +446,8 @@ export function DocumentsList() {
     );
   }
 
-  // Filtering
-  const filtered = docs.filter((d) => {
+  // Filtering — start from project-scoped docs
+  const filtered = projectDocs.filter((d) => {
     const s = deriveStatus(d);
     if (filterStatus !== "All" && s !== filterStatus) return false;
     if (query.trim()) {
@@ -456,17 +461,17 @@ export function DocumentsList() {
     return true;
   });
 
-  // Counts (always from full list — so the filter pills show grand totals)
+  // Counts — for the active project only
   const counts: Record<StatusFilter, number> = {
-    All:         docs.length,
-    "in-review": docs.filter((d) => deriveStatus(d) === "in-review").length,
-    reviewed:    docs.filter((d) => deriveStatus(d) === "reviewed").length,
-    approved:    docs.filter((d) => deriveStatus(d) === "approved").length,
-    draft:       docs.filter((d) => deriveStatus(d) === "draft").length,
-    rejected:    docs.filter((d) => deriveStatus(d) === "rejected").length,
+    All:         projectDocs.length,
+    "in-review": projectDocs.filter((d) => deriveStatus(d) === "in-review").length,
+    reviewed:    projectDocs.filter((d) => deriveStatus(d) === "reviewed").length,
+    approved:    projectDocs.filter((d) => deriveStatus(d) === "approved").length,
+    draft:       projectDocs.filter((d) => deriveStatus(d) === "draft").length,
+    rejected:    projectDocs.filter((d) => deriveStatus(d) === "rejected").length,
   };
 
-  const pendingTotal = docs
+  const pendingTotal = projectDocs
     .flatMap((d) => [...d.reviewers, ...d.approvers])
     .filter((d) => d.status === "pending").length;
 
@@ -561,7 +566,7 @@ export function DocumentsList() {
       <DocumentFormDrawer
         open={drawer.mode !== "closed"}
         initial={drawer.mode === "edit" ? drawer.doc : null}
-        allDocuments={docs}
+        allDocuments={projectDocs}
         knownTypes={knownTypes}
         onSave={handleDrawerSave}
         onDelete={handleDrawerDelete}

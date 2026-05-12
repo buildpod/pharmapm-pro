@@ -94,6 +94,7 @@ export function MeetingFormDrawer({
       durationMins,
       nextDate,
       attendees,
+      projectId: initial?.projectId ?? "",
     });
   }
 

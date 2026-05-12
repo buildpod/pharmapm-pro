@@ -11,6 +11,7 @@ import {
   type TaskPriority,
 } from "@/lib/mockData";
 import { TaskFormDrawer } from "./task-form";
+import { useProject } from "@/components/projects/project-provider";
 import { cn } from "@/lib/utils";
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -350,25 +351,28 @@ function WorkstreamGroup({
 type TaskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
 
 export function TasksGrid() {
+  const { activeProjectId } = useProject();
   const [tasks, setTasks]                       = useState<Task[]>(initialTasks);
   const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
   const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
   const [filterWorkstream, setFilterWorkstream] = useState<string>("All");
   const [drawer, setDrawer]                     = useState<TaskDrawerState>({ mode: "closed" });
 
-  const allWorkstreams = Array.from(new Set(tasks.map((t) => t.workstream)));
+  const projectTasks   = tasks.filter((t) => t.projectId === activeProjectId);
+  const allWorkstreams = Array.from(new Set(projectTasks.map((t) => t.workstream)));
 
   function handleDrawerSave(t: Task) {
+    const withProj: Task = { ...t, projectId: t.projectId || activeProjectId };
     setTasks((prev) => {
-      const idx = prev.findIndex((x) => x.id === t.id);
+      const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = t;
-        toast.success("Task updated", { description: t.name });
+        next[idx] = withProj;
+        toast.success("Task updated", { description: withProj.name });
         return next;
       }
-      toast.success("Task added", { description: t.name });
-      return [...prev, t];
+      toast.success("Task added", { description: withProj.name });
+      return [...prev, withProj];
     });
     setDrawer({ mode: "closed" });
   }
@@ -400,15 +404,15 @@ export function TasksGrid() {
     );
   }
 
-  // Apply filters then group by workstream
-  const filtered = tasks.filter((t) => {
+  // Apply filters then group by workstream — scoped to active project
+  const filtered = projectTasks.filter((t) => {
     if (filterPriority   !== "All" && t.priority   !== filterPriority)   return false;
     if (filterStatus     !== "All" && t.status     !== filterStatus)     return false;
     if (filterWorkstream !== "All" && t.workstream !== filterWorkstream) return false;
     return true;
   });
 
-  const workstreams = Array.from(new Set(tasks.map((t) => t.workstream)));
+  const workstreams = Array.from(new Set(projectTasks.map((t) => t.workstream)));
   const groups = workstreams
     .map((ws) => ({
       name: ws,
@@ -419,11 +423,11 @@ export function TasksGrid() {
     }))
     .filter((g) => g.tasks.length > 0);
 
-  // Summary counts
-  const totalTasks    = tasks.length;
-  const completeTasks = tasks.filter((t) => t.status === "Complete").length;
-  const blockedTasks  = tasks.filter((t) => t.status === "Blocked").length;
-  const inProgress    = tasks.filter((t) => t.status === "In Progress").length;
+  // Summary counts — for the active project only
+  const totalTasks    = projectTasks.length;
+  const completeTasks = projectTasks.filter((t) => t.status === "Complete").length;
+  const blockedTasks  = projectTasks.filter((t) => t.status === "Blocked").length;
+  const inProgress    = projectTasks.filter((t) => t.status === "In Progress").length;
 
   return (
     <div className="space-y-4">
@@ -506,7 +510,7 @@ export function TasksGrid() {
               key={g.name}
               name={g.name}
               tasks={g.tasks}
-              allTasks={tasks}
+              allTasks={projectTasks}
               onStatusToggle={handleStatusToggle}
               onProgressChange={handleProgressChange}
               onEdit={(t) => setDrawer({ mode: "edit", task: t })}
@@ -515,12 +519,12 @@ export function TasksGrid() {
         </div>
       )}
 
-      {/* Add / Edit drawer */}
+      {/* Add / Edit drawer — pickers scoped to current project */}
       <TaskFormDrawer
         open={drawer.mode !== "closed"}
         initial={drawer.mode === "edit" ? drawer.task : null}
-        allTasks={tasks}
-        allMilestones={milestones}
+        allTasks={projectTasks}
+        allMilestones={milestones.filter((m) => m.projectId === activeProjectId)}
         knownWorkstreams={allWorkstreams}
         onSave={handleDrawerSave}
         onDelete={handleDrawerDelete}

@@ -10,6 +10,42 @@ export const project = {
   methodology: "GAMP 5 / CSV",
 };
 
+// ─── Projects ────────────────────────────────────────────────────────────────
+
+export type ProjectPhase = "Initiation" | "Design" | "Config" | "Testing" | "Training" | "Go-Live";
+
+export type Project = {
+  id: string;
+  name: string;
+  client: string;
+  phase: string;
+  startDate: string;
+  goLiveDate: string;
+  methodology: string;
+};
+
+export const projects: Project[] = [
+  {
+    id: "proj-veeva-rim",
+    name: "Veeva RIM Implementation",
+    client: "AivelloStudio Demo Corp",
+    phase: "Phase 2 — Configuration & Testing",
+    startDate: "2026-01-06",
+    goLiveDate: "2026-09-02",
+    methodology: "GAMP 5 / CSV",
+  },
+  {
+    id: "proj-promomats",
+    name: "Veeva PromoMats Migration",
+    client: "AivelloStudio Demo Corp",
+    phase: "Phase 0 — Discovery",
+    startDate: "2026-06-01",
+    goLiveDate: "2027-02-15",
+    methodology: "GAMP 5 / CSV",
+  },
+];
+
+
 // ─── Phases ───────────────────────────────────────────────────────────────────
 
 export type Phase = {
@@ -46,22 +82,23 @@ export type Milestone = {
   predecessor?: string;  // id of predecessor milestone, e.g. "m2"
   duration?: number;     // working days (inclusive: 1 = single day)
   lag?: number;          // extra working-day gap after predecessor.plannedEnd
+  projectId: string;      // FK → Project.id
 };
 
 export const milestones: Milestone[] = [
-  { id: "m1",  name: "Project Kick-off",                   phase: "Initiation",  plannedDate: "2026-01-12", forecastDate: "2026-01-12", status: "complete",    locked: true,  owner: "VP", duration: 1                                   },
-  { id: "m2",  name: "Functional Requirements Approved",   phase: "Design",      plannedDate: "2026-02-14", forecastDate: "2026-02-14", status: "complete",    locked: true,  owner: "VP", duration: 20, predecessor: "m1", lag: 0          },
-  { id: "m3",  name: "System Design Document Signed",      phase: "Design",      plannedDate: "2026-03-10", forecastDate: "2026-03-12", status: "complete",    locked: true,  owner: "SL", duration: 10, predecessor: "m2", lag: 2          },
-  { id: "m4",  name: "Data Migration Plan Approved",       phase: "Design",      plannedDate: "2026-03-28", forecastDate: "2026-04-04", status: "complete",    locked: false, owner: "AR", duration: 15, predecessor: "m2", lag: 0          },
-  { id: "m5",  name: "Vault Configuration — Sprint 1",     phase: "Config",      plannedDate: "2026-04-30", forecastDate: "2026-04-30", status: "complete",    locked: false, owner: "KM", duration: 20, predecessor: "m3", lag: 1          },
-  { id: "m6",  name: "Vault Configuration — Sprint 2",     phase: "Config",      plannedDate: "2026-05-30", forecastDate: "2026-06-06", status: "in-progress", locked: false, owner: "KM", duration: 20, predecessor: "m5", lag: 0          },
-  { id: "m7",  name: "Design Specification Approval",      phase: "Config",      plannedDate: "2026-06-02", forecastDate: "2026-06-09", status: "at-risk",     locked: false, owner: "VP", duration:  5, predecessor: "m6", lag: 0          },
-  { id: "m8",  name: "Configuration Complete",             phase: "Config",      plannedDate: "2026-06-30", forecastDate: "2026-07-07", status: "pending",     locked: false, owner: "KM", duration:  5, predecessor: "m7", lag: 1          },
-  { id: "m9",  name: "IQ Protocol Approved",               phase: "Testing",     plannedDate: "2026-07-15", forecastDate: "2026-07-15", status: "pending",     locked: false, owner: "QA", duration: 10, predecessor: "m8", lag: 1          },
-  { id: "m10", name: "UAT Start",                          phase: "Testing",     plannedDate: "2026-08-01", forecastDate: "2026-08-01", status: "pending",     locked: false, owner: "VP", duration:  1, predecessor: "m9", lag: 0          },
-  { id: "m11", name: "Training Materials Ready",           phase: "Training",    plannedDate: "2026-08-20", forecastDate: "2026-08-20", status: "pending",     locked: false, owner: "HR", duration: 15, predecessor: "m8", lag: 0          },
-  { id: "m12", name: "UAT Sign-off",                       phase: "Testing",     plannedDate: "2026-08-28", forecastDate: "2026-08-28", status: "pending",     locked: false, owner: "VP", duration: 20, predecessor: "m10", lag: 0         },
-  { id: "m13", name: "Go-Live",                            phase: "Go-Live",     plannedDate: "2026-09-02", forecastDate: "2026-09-02", status: "pending",     locked: true,  owner: "VP", duration:  1, predecessor: "m12", lag: 1         },
+  { id: "m1",  name: "Project Kick-off",                   phase: "Initiation",  plannedDate: "2026-01-12", forecastDate: "2026-01-12", status: "complete",    locked: true,  owner: "VP", duration: 1, projectId: "proj-veeva-rim" },
+  { id: "m2",  name: "Functional Requirements Approved",   phase: "Design",      plannedDate: "2026-02-14", forecastDate: "2026-02-14", status: "complete",    locked: true,  owner: "VP", duration: 20, predecessor: "m1", lag: 0, projectId: "proj-veeva-rim" },
+  { id: "m3",  name: "System Design Document Signed",      phase: "Design",      plannedDate: "2026-03-10", forecastDate: "2026-03-12", status: "complete",    locked: true,  owner: "SL", duration: 10, predecessor: "m2", lag: 2, projectId: "proj-veeva-rim" },
+  { id: "m4",  name: "Data Migration Plan Approved",       phase: "Design",      plannedDate: "2026-03-28", forecastDate: "2026-04-04", status: "complete",    locked: false, owner: "AR", duration: 15, predecessor: "m2", lag: 0, projectId: "proj-veeva-rim" },
+  { id: "m5",  name: "Vault Configuration — Sprint 1",     phase: "Config",      plannedDate: "2026-04-30", forecastDate: "2026-04-30", status: "complete",    locked: false, owner: "KM", duration: 20, predecessor: "m3", lag: 1, projectId: "proj-veeva-rim" },
+  { id: "m6",  name: "Vault Configuration — Sprint 2",     phase: "Config",      plannedDate: "2026-05-30", forecastDate: "2026-06-06", status: "in-progress", locked: false, owner: "KM", duration: 20, predecessor: "m5", lag: 0, projectId: "proj-veeva-rim" },
+  { id: "m7",  name: "Design Specification Approval",      phase: "Config",      plannedDate: "2026-06-02", forecastDate: "2026-06-09", status: "at-risk",     locked: false, owner: "VP", duration:  5, predecessor: "m6", lag: 0, projectId: "proj-veeva-rim" },
+  { id: "m8",  name: "Configuration Complete",             phase: "Config",      plannedDate: "2026-06-30", forecastDate: "2026-07-07", status: "pending",     locked: false, owner: "KM", duration:  5, predecessor: "m7", lag: 1, projectId: "proj-veeva-rim" },
+  { id: "m9",  name: "IQ Protocol Approved",               phase: "Testing",     plannedDate: "2026-07-15", forecastDate: "2026-07-15", status: "pending",     locked: false, owner: "QA", duration: 10, predecessor: "m8", lag: 1, projectId: "proj-veeva-rim" },
+  { id: "m10", name: "UAT Start",                          phase: "Testing",     plannedDate: "2026-08-01", forecastDate: "2026-08-01", status: "pending",     locked: false, owner: "VP", duration:  1, predecessor: "m9", lag: 0, projectId: "proj-veeva-rim" },
+  { id: "m11", name: "Training Materials Ready",           phase: "Training",    plannedDate: "2026-08-20", forecastDate: "2026-08-20", status: "pending",     locked: false, owner: "HR", duration: 15, predecessor: "m8", lag: 0, projectId: "proj-veeva-rim" },
+  { id: "m12", name: "UAT Sign-off",                       phase: "Testing",     plannedDate: "2026-08-28", forecastDate: "2026-08-28", status: "pending",     locked: false, owner: "VP", duration: 20, predecessor: "m10", lag: 0, projectId: "proj-veeva-rim" },
+  { id: "m13", name: "Go-Live",                            phase: "Go-Live",     plannedDate: "2026-09-02", forecastDate: "2026-09-02", status: "pending",     locked: true,  owner: "VP", duration:  1, predecessor: "m12", lag: 1, projectId: "proj-veeva-rim" },
 ];
 
 // ─── Risks ────────────────────────────────────────────────────────────────────
@@ -78,15 +115,16 @@ export type Risk = {
   status: RiskStatus;
   owner: string;
   mitigation: string;
+  projectId: string;      // FK → Project.id
 };
 
 export const risks: Risk[] = [
-  { id: "r1", title: "Data migration complexity exceeds estimate",   category: "Technical",     probability: 4, impact: 5, score: 20, status: "open",      owner: "AR", mitigation: "Engage specialist DM vendor; add 2-week buffer" },
-  { id: "r2", title: "Validation timeline slippage",                 category: "Compliance",    probability: 3, impact: 4, score: 12, status: "open",      owner: "QA", mitigation: "Front-load IQ protocol drafting in Sprint 2" },
-  { id: "r3", title: "End-user adoption resistance",                 category: "Change Mgmt",   probability: 3, impact: 3, score: 9,  status: "open",      owner: "HR", mitigation: "Run change champions programme from Sprint 3" },
-  { id: "r4", title: "Veeva Vault upgrade mid-project",              category: "Technical",     probability: 2, impact: 4, score: 8,  status: "mitigated", owner: "KM", mitigation: "Locked to v24R2; change freeze confirmed with vendor" },
-  { id: "r5", title: "Integration testing scope creep",              category: "Scope",         probability: 2, impact: 3, score: 6,  status: "open",      owner: "VP", mitigation: "Strict change control board from Sprint 2 onwards" },
-  { id: "r6", title: "Key SME availability during UAT",              category: "Resource",      probability: 3, impact: 3, score: 9,  status: "open",      owner: "VP", mitigation: "Reserve SME calendars 8 weeks ahead" },
+  { id: "r1", title: "Data migration complexity exceeds estimate",   category: "Technical",     probability: 4, impact: 5, score: 20, status: "open",      owner: "AR", mitigation: "Engage specialist DM vendor; add 2-week buffer", projectId: "proj-veeva-rim" },
+  { id: "r2", title: "Validation timeline slippage",                 category: "Compliance",    probability: 3, impact: 4, score: 12, status: "open",      owner: "QA", mitigation: "Front-load IQ protocol drafting in Sprint 2", projectId: "proj-veeva-rim" },
+  { id: "r3", title: "End-user adoption resistance",                 category: "Change Mgmt",   probability: 3, impact: 3, score: 9,  status: "open",      owner: "HR", mitigation: "Run change champions programme from Sprint 3", projectId: "proj-veeva-rim" },
+  { id: "r4", title: "Veeva Vault upgrade mid-project",              category: "Technical",     probability: 2, impact: 4, score: 8,  status: "mitigated", owner: "KM", mitigation: "Locked to v24R2; change freeze confirmed with vendor", projectId: "proj-veeva-rim" },
+  { id: "r5", title: "Integration testing scope creep",              category: "Scope",         probability: 2, impact: 3, score: 6,  status: "open",      owner: "VP", mitigation: "Strict change control board from Sprint 2 onwards", projectId: "proj-veeva-rim" },
+  { id: "r6", title: "Key SME availability during UAT",              category: "Resource",      probability: 3, impact: 3, score: 9,  status: "open",      owner: "VP", mitigation: "Reserve SME calendars 8 weeks ahead", projectId: "proj-veeva-rim" },
 ];
 
 // ─── Documents ────────────────────────────────────────────────────────────────
@@ -118,6 +156,7 @@ export type Document = {
   owner: string;             // RACI Responsible — who is delivering this document (initials)
   reviewers: Decision[];     // RACI Consulted — provide input / feedback
   approvers: Decision[];     // RACI Accountable — sign off
+  projectId: string;         // FK → Project.id
 };
 
 export const documents: Document[] = [
@@ -139,8 +178,7 @@ export const documents: Document[] = [
     ],
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "approved", date: "2026-02-28" },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "d6",
     name: "User Requirements Specification",
@@ -157,8 +195,7 @@ export const documents: Document[] = [
     ],
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "approved", date: "2026-01-30" },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "d7",
     name: "Risk Management Plan",
@@ -176,8 +213,7 @@ export const documents: Document[] = [
     ],
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
 
   // ── Configuration phase ────────────────────────────────────────────
   {
@@ -198,8 +234,7 @@ export const documents: Document[] = [
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
       { person: "Karen Mills",   initials: "KM", role: "QA Director", status: "pending"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "d2",
     name: "System Design Document",
@@ -217,8 +252,7 @@ export const documents: Document[] = [
     ],
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "d3",
     name: "Data Migration Plan",
@@ -237,8 +271,7 @@ export const documents: Document[] = [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
       { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
       { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "d8",
     name: "Data Analysis Plan",
@@ -256,8 +289,7 @@ export const documents: Document[] = [
     ],
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
 
   // ── Validation phase ───────────────────────────────────────────────
   {
@@ -272,8 +304,7 @@ export const documents: Document[] = [
     description: "Evidence that the system is installed correctly in the production environment.",
     owner: "QA",
     reviewers: [],
-    approvers: [],
-  },
+    approvers: [], projectId: "proj-veeva-rim" },
   {
     id: "d9",
     name: "Operational Qualification Protocol",
@@ -288,8 +319,7 @@ export const documents: Document[] = [
     reviewers: [
       { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "pending"  },
     ],
-    approvers: [],
-  },
+    approvers: [], projectId: "proj-veeva-rim" },
   {
     id: "d10",
     name: "Performance Qualification Protocol",
@@ -302,8 +332,7 @@ export const documents: Document[] = [
     description: "Evidence that the system performs as required under real-world workflows.",
     owner: "QA",
     reviewers: [],
-    approvers: [],
-  },
+    approvers: [], projectId: "proj-veeva-rim" },
   {
     id: "d11",
     name: "Traceability Matrix",
@@ -321,8 +350,7 @@ export const documents: Document[] = [
     ],
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
 
   // ── Training phase ─────────────────────────────────────────────────
   {
@@ -341,8 +369,7 @@ export const documents: Document[] = [
     ],
     approvers: [
       { person: "Vineet Pathak", initials: "VP", role: "PM",            status: "pending" },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
 
   // ── Go-Live phase ──────────────────────────────────────────────────
   {
@@ -357,8 +384,7 @@ export const documents: Document[] = [
     description: "Cut-over criteria, hypercare staffing, rollback triggers, and exec sign-off.",
     owner: "VP",
     reviewers: [],
-    approvers: [],
-  },
+    approvers: [], projectId: "proj-veeva-rim" },
 ];
 
 // ─── Tasks ────────────────────────────────────────────────────────────────────
@@ -377,36 +403,37 @@ export type Task = {
   owner: string;
   dueDate: string;
   dependsOn?: string[];  // task ids this task is blocked by
+  projectId: string;     // FK → Project.id
 };
 
 export const tasks: Task[] = [
   // ── Configuration ──────────────────────────────────────────────────
-  { id: "t1",  workstream: "Configuration",    name: "Set up user roles & permission profiles",     priority: "Critical", status: "In Progress",  progress: 75, milestoneId: "m6",  owner: "VP",  dueDate: "2026-05-25" },
-  { id: "t2",  workstream: "Configuration",    name: "Configure submission workspace settings",      priority: "High",     status: "In Progress",  progress: 60, milestoneId: "m6",  owner: "KM",  dueDate: "2026-05-30", dependsOn: ["t1"] },
-  { id: "t3",  workstream: "Configuration",    name: "Set up workflow lifecycle rules",              priority: "High",     status: "In Progress",  progress: 40, milestoneId: "m6",  owner: "KM",  dueDate: "2026-05-30", dependsOn: ["t1"] },
-  { id: "t4",  workstream: "Configuration",    name: "Configure document templates & renditions",   priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m7",  owner: "KM",  dueDate: "2026-06-02", dependsOn: ["t2", "t3"] },
+  { id: "t1",  workstream: "Configuration",    name: "Set up user roles & permission profiles",     priority: "Critical", status: "In Progress",  progress: 75, milestoneId: "m6",  owner: "VP",  dueDate: "2026-05-25", projectId: "proj-veeva-rim" },
+  { id: "t2",  workstream: "Configuration",    name: "Configure submission workspace settings",      priority: "High",     status: "In Progress",  progress: 60, milestoneId: "m6",  owner: "KM",  dueDate: "2026-05-30", dependsOn: ["t1"], projectId: "proj-veeva-rim" },
+  { id: "t3",  workstream: "Configuration",    name: "Set up workflow lifecycle rules",              priority: "High",     status: "In Progress",  progress: 40, milestoneId: "m6",  owner: "KM",  dueDate: "2026-05-30", dependsOn: ["t1"], projectId: "proj-veeva-rim" },
+  { id: "t4",  workstream: "Configuration",    name: "Configure document templates & renditions",   priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m7",  owner: "KM",  dueDate: "2026-06-02", dependsOn: ["t2", "t3"], projectId: "proj-veeva-rim" },
 
   // ── Validation ─────────────────────────────────────────────────────
-  { id: "t5",  workstream: "Validation",       name: "Draft IQ protocol document",                  priority: "Critical", status: "In Progress",  progress: 30, milestoneId: "m9",  owner: "QA",  dueDate: "2026-06-15", dependsOn: ["t1"] },
-  { id: "t6",  workstream: "Validation",       name: "Prepare OQ test scripts",                     priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m9",  owner: "QA",  dueDate: "2026-07-01", dependsOn: ["t5"] },
-  { id: "t7",  workstream: "Validation",       name: "UAT test case design & traceability matrix",  priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m10", owner: "QA",  dueDate: "2026-07-20", dependsOn: ["t6"] },
-  { id: "t8",  workstream: "Validation",       name: "Validation summary report template",          priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m12", owner: "QA",  dueDate: "2026-08-15", dependsOn: ["t7"] },
+  { id: "t5",  workstream: "Validation",       name: "Draft IQ protocol document",                  priority: "Critical", status: "In Progress",  progress: 30, milestoneId: "m9",  owner: "QA",  dueDate: "2026-06-15", dependsOn: ["t1"], projectId: "proj-veeva-rim" },
+  { id: "t6",  workstream: "Validation",       name: "Prepare OQ test scripts",                     priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m9",  owner: "QA",  dueDate: "2026-07-01", dependsOn: ["t5"], projectId: "proj-veeva-rim" },
+  { id: "t7",  workstream: "Validation",       name: "UAT test case design & traceability matrix",  priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m10", owner: "QA",  dueDate: "2026-07-20", dependsOn: ["t6"], projectId: "proj-veeva-rim" },
+  { id: "t8",  workstream: "Validation",       name: "Validation summary report template",          priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m12", owner: "QA",  dueDate: "2026-08-15", dependsOn: ["t7"], projectId: "proj-veeva-rim" },
 
   // ── Data Migration ─────────────────────────────────────────────────
-  { id: "t9",  workstream: "Data Migration",   name: "Source data extraction & field mapping",      priority: "Critical", status: "In Progress",  progress: 50, milestoneId: "m4",  owner: "AR",  dueDate: "2026-05-15" },
-  { id: "t10", workstream: "Data Migration",   name: "Data cleansing & transformation rules",       priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m8",  owner: "AR",  dueDate: "2026-06-15", dependsOn: ["t9"] },
-  { id: "t11", workstream: "Data Migration",   name: "Migration dry-run execution & reconciliation",priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m8",  owner: "AR",  dueDate: "2026-06-30", dependsOn: ["t10"] },
-  { id: "t12", workstream: "Data Migration",   name: "Data integrity verification scripts",         priority: "Medium",   status: "Blocked",      progress:  0, milestoneId: "m8",  owner: "AR",  dueDate: "2026-06-20", dependsOn: ["t9"] },
+  { id: "t9",  workstream: "Data Migration",   name: "Source data extraction & field mapping",      priority: "Critical", status: "In Progress",  progress: 50, milestoneId: "m4",  owner: "AR",  dueDate: "2026-05-15", projectId: "proj-veeva-rim" },
+  { id: "t10", workstream: "Data Migration",   name: "Data cleansing & transformation rules",       priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m8",  owner: "AR",  dueDate: "2026-06-15", dependsOn: ["t9"], projectId: "proj-veeva-rim" },
+  { id: "t11", workstream: "Data Migration",   name: "Migration dry-run execution & reconciliation",priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m8",  owner: "AR",  dueDate: "2026-06-30", dependsOn: ["t10"], projectId: "proj-veeva-rim" },
+  { id: "t12", workstream: "Data Migration",   name: "Data integrity verification scripts",         priority: "Medium",   status: "Blocked",      progress:  0, milestoneId: "m8",  owner: "AR",  dueDate: "2026-06-20", dependsOn: ["t9"], projectId: "proj-veeva-rim" },
 
   // ── Training ───────────────────────────────────────────────────────
-  { id: "t13", workstream: "Training",         name: "Develop end-user training materials",         priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m11", owner: "HR",  dueDate: "2026-07-15", dependsOn: ["t4"] },
-  { id: "t14", workstream: "Training",         name: "Record system walkthrough videos",            priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m11", owner: "HR",  dueDate: "2026-07-30", dependsOn: ["t13"] },
-  { id: "t15", workstream: "Training",         name: "Schedule & confirm training sessions",        priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m11", owner: "HR",  dueDate: "2026-08-10", dependsOn: ["t13", "t14"] },
+  { id: "t13", workstream: "Training",         name: "Develop end-user training materials",         priority: "High",     status: "Not Started",  progress:  0, milestoneId: "m11", owner: "HR",  dueDate: "2026-07-15", dependsOn: ["t4"], projectId: "proj-veeva-rim" },
+  { id: "t14", workstream: "Training",         name: "Record system walkthrough videos",            priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m11", owner: "HR",  dueDate: "2026-07-30", dependsOn: ["t13"], projectId: "proj-veeva-rim" },
+  { id: "t15", workstream: "Training",         name: "Schedule & confirm training sessions",        priority: "Medium",   status: "Not Started",  progress:  0, milestoneId: "m11", owner: "HR",  dueDate: "2026-08-10", dependsOn: ["t13", "t14"], projectId: "proj-veeva-rim" },
 
   // ── Project Management ─────────────────────────────────────────────
-  { id: "t16", workstream: "Project Mgmt",     name: "Weekly steering committee status reports",    priority: "Medium",   status: "In Progress",  progress: 80,                      owner: "VP",  dueDate: "2026-09-02" },
-  { id: "t17", workstream: "Project Mgmt",     name: "Risk register review & maintenance",          priority: "High",     status: "In Progress",  progress: 65,                      owner: "VP",  dueDate: "2026-09-02" },
-  { id: "t18", workstream: "Project Mgmt",     name: "Change control log & CCB minutes",           priority: "Low",      status: "In Progress",  progress: 70,                      owner: "VP",  dueDate: "2026-09-02" },
+  { id: "t16", workstream: "Project Mgmt",     name: "Weekly steering committee status reports",    priority: "Medium",   status: "In Progress",  progress: 80,                      owner: "VP",  dueDate: "2026-09-02", projectId: "proj-veeva-rim" },
+  { id: "t17", workstream: "Project Mgmt",     name: "Risk register review & maintenance",          priority: "High",     status: "In Progress",  progress: 65,                      owner: "VP",  dueDate: "2026-09-02", projectId: "proj-veeva-rim" },
+  { id: "t18", workstream: "Project Mgmt",     name: "Change control log & CCB minutes",           priority: "Low",      status: "In Progress",  progress: 70,                      owner: "VP",  dueDate: "2026-09-02", projectId: "proj-veeva-rim" },
 ];
 
 // ─── Cost lines ───────────────────────────────────────────────────────────────
@@ -421,16 +448,17 @@ export type CostLine = {
   actualK: number;    // $k spent to date
   contractType: ContractType;
   owner: string;
+  projectId: string;      // FK → Project.id
 };
 
 export const costLines: CostLine[] = [
-  { id: "c1", category: "Implementation", description: "Veeva Vault configuration & development", budgetK: 650, actualK: 340, contractType: "Fixed",    owner: "KM" },
-  { id: "c2", category: "Validation",     description: "CSV / GAMP 5 validation services",        budgetK: 320, actualK: 140, contractType: "T&M",      owner: "QA" },
-  { id: "c3", category: "Migration",      description: "Data migration specialist vendor",         budgetK: 280, actualK:  85, contractType: "Fixed",    owner: "AR" },
-  { id: "c4", category: "Integration",    description: "ERP & eTMF integration development",       budgetK: 220, actualK:  65, contractType: "T&M",      owner: "AR" },
-  { id: "c5", category: "Training",       description: "End-user training & change management",    budgetK: 180, actualK:   0, contractType: "T&M",      owner: "HR" },
-  { id: "c6", category: "License",        description: "Veeva Vault annual licence (pro-rated)",   budgetK: 200, actualK: 110, contractType: "Fixed",    owner: "VP" },
-  { id: "c7", category: "Internal",       description: "Internal PM & governance overhead",        budgetK: 150, actualK:  40, contractType: "Internal", owner: "VP" },
+  { id: "c1", category: "Implementation", description: "Veeva Vault configuration & development", budgetK: 650, actualK: 340, contractType: "Fixed",    owner: "KM", projectId: "proj-veeva-rim" },
+  { id: "c2", category: "Validation",     description: "CSV / GAMP 5 validation services",        budgetK: 320, actualK: 140, contractType: "T&M",      owner: "QA", projectId: "proj-veeva-rim" },
+  { id: "c3", category: "Migration",      description: "Data migration specialist vendor",         budgetK: 280, actualK:  85, contractType: "Fixed",    owner: "AR", projectId: "proj-veeva-rim" },
+  { id: "c4", category: "Integration",    description: "ERP & eTMF integration development",       budgetK: 220, actualK:  65, contractType: "T&M",      owner: "AR", projectId: "proj-veeva-rim" },
+  { id: "c5", category: "Training",       description: "End-user training & change management",    budgetK: 180, actualK:   0, contractType: "T&M",      owner: "HR", projectId: "proj-veeva-rim" },
+  { id: "c6", category: "License",        description: "Veeva Vault annual licence (pro-rated)",   budgetK: 200, actualK: 110, contractType: "Fixed",    owner: "VP", projectId: "proj-veeva-rim" },
+  { id: "c7", category: "Internal",       description: "Internal PM & governance overhead",        budgetK: 150, actualK:  40, contractType: "Internal", owner: "VP", projectId: "proj-veeva-rim" },
   // Total budget: 2 000 $k  ·  Total actual: 780 $k (39%) — matches budgetTrend May figure
 ];
 
@@ -479,20 +507,21 @@ export type TeamMember = {
   role: string;
   workstream: string;         // primary workstream; "Executive" for SteerCo-only members
   steercoRole?: SteerCoRole;
+  projectId: string;          // FK → Project.id
 };
 
 export const teamMembers: TeamMember[] = [
   // Project operators (match initials used across milestones/tasks/risks/docs)
-  { id: "tm1", initials: "VP", name: "Vineet Pathak",   role: "Project Manager",        workstream: "Project Mgmt",   steercoRole: "mandatory" },
-  { id: "tm2", initials: "KM", name: "Karen Mills",     role: "Config Lead / QA Dir",   workstream: "Configuration",  steercoRole: "optional"  },
-  { id: "tm3", initials: "QA", name: "Priya Sharma",    role: "Validation Lead",        workstream: "Validation",     steercoRole: "optional"  },
-  { id: "tm4", initials: "AR", name: "Arjun Rao",       role: "Data Migration Lead",    workstream: "Data Migration", steercoRole: "optional"  },
-  { id: "tm5", initials: "SL", name: "Sarah Lee",       role: "QA Lead",                workstream: "Validation"                               },
-  { id: "tm6", initials: "HR", name: "Hannah Ross",     role: "Training Lead",          workstream: "Training",       steercoRole: "optional"  },
+  { id: "tm1", initials: "VP", name: "Vineet Pathak",   role: "Project Manager",        workstream: "Project Mgmt",   steercoRole: "mandatory", projectId: "proj-veeva-rim" },
+  { id: "tm2", initials: "KM", name: "Karen Mills",     role: "Config Lead / QA Dir",   workstream: "Configuration",  steercoRole: "optional", projectId: "proj-veeva-rim" },
+  { id: "tm3", initials: "QA", name: "Priya Sharma",    role: "Validation Lead",        workstream: "Validation",     steercoRole: "optional", projectId: "proj-veeva-rim" },
+  { id: "tm4", initials: "AR", name: "Arjun Rao",       role: "Data Migration Lead",    workstream: "Data Migration", steercoRole: "optional", projectId: "proj-veeva-rim" },
+  { id: "tm5", initials: "SL", name: "Sarah Lee",       role: "QA Lead",                workstream: "Validation", projectId: "proj-veeva-rim" },
+  { id: "tm6", initials: "HR", name: "Hannah Ross",     role: "Training Lead",          workstream: "Training",       steercoRole: "optional", projectId: "proj-veeva-rim" },
   // SteerCo executives (no operational tasks in mock data)
-  { id: "tm7", initials: "JO", name: "James Okonkwo",   role: "Project Sponsor",        workstream: "Executive",      steercoRole: "mandatory" },
-  { id: "tm8", initials: "AM", name: "Dr. Anna Müller", role: "Business Owner",         workstream: "Executive",      steercoRole: "mandatory" },
-  { id: "tm9", initials: "RT", name: "Robert Tan",      role: "IT Director",            workstream: "Executive",      steercoRole: "mandatory" },
+  { id: "tm7", initials: "JO", name: "James Okonkwo",   role: "Project Sponsor",        workstream: "Executive",      steercoRole: "mandatory", projectId: "proj-veeva-rim" },
+  { id: "tm8", initials: "AM", name: "Dr. Anna Müller", role: "Business Owner",         workstream: "Executive",      steercoRole: "mandatory", projectId: "proj-veeva-rim" },
+  { id: "tm9", initials: "RT", name: "Robert Tan",      role: "IT Director",            workstream: "Executive",      steercoRole: "mandatory", projectId: "proj-veeva-rim" },
 ];
 
 // ─── Absences ────────────────────────────────────────────────────────────────
@@ -506,14 +535,15 @@ export type Absence = {
   endDate: string;    // ISO date (Fri)
   reason: AbsenceReason;
   note?: string;
+  projectId: string;      // FK → Project.id
 };
 
 export const absences: Absence[] = [
-  { id: "ab1", memberId: "tm3", startDate: "2026-05-18", endDate: "2026-05-20", reason: "Sick Leave" },
-  { id: "ab2", memberId: "tm4", startDate: "2026-05-25", endDate: "2026-05-29", reason: "Vacation" },
-  { id: "ab3", memberId: "tm2", startDate: "2026-06-01", endDate: "2026-06-05", reason: "Conference", note: "Veeva Summit 2026" },
-  { id: "ab4", memberId: "tm6", startDate: "2026-06-08", endDate: "2026-06-12", reason: "Vacation" },
-  { id: "ab5", memberId: "tm7", startDate: "2026-06-22", endDate: "2026-07-03", reason: "Vacation" },
+  { id: "ab1", memberId: "tm3", startDate: "2026-05-18", endDate: "2026-05-20", reason: "Sick Leave", projectId: "proj-veeva-rim" },
+  { id: "ab2", memberId: "tm4", startDate: "2026-05-25", endDate: "2026-05-29", reason: "Vacation", projectId: "proj-veeva-rim" },
+  { id: "ab3", memberId: "tm2", startDate: "2026-06-01", endDate: "2026-06-05", reason: "Conference", note: "Veeva Summit 2026", projectId: "proj-veeva-rim" },
+  { id: "ab4", memberId: "tm6", startDate: "2026-06-08", endDate: "2026-06-12", reason: "Vacation", projectId: "proj-veeva-rim" },
+  { id: "ab5", memberId: "tm7", startDate: "2026-06-22", endDate: "2026-07-03", reason: "Vacation", projectId: "proj-veeva-rim" },
 ];
 
 // ─── Recurring Meetings ──────────────────────────────────────────────────────
@@ -536,6 +566,7 @@ export type RecurringMeeting = {
   durationMins: number;
   attendees: MeetingAttendee[];
   nextDate: string;
+  projectId: string;       // FK → Project.id
 };
 
 export const recurringMeetings: RecurringMeeting[] = [
@@ -556,8 +587,7 @@ export const recurringMeetings: RecurringMeeting[] = [
       { memberId: "tm3", role: "optional"  },
       { memberId: "tm4", role: "optional"  },
       { memberId: "tm6", role: "optional"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "mtg2",
     name: "Configuration Sync",
@@ -570,8 +600,7 @@ export const recurringMeetings: RecurringMeeting[] = [
     attendees: [
       { memberId: "tm1", role: "mandatory" },
       { memberId: "tm2", role: "mandatory" },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "mtg3",
     name: "Validation Sync",
@@ -585,8 +614,7 @@ export const recurringMeetings: RecurringMeeting[] = [
       { memberId: "tm1", role: "mandatory" },
       { memberId: "tm3", role: "mandatory" },
       { memberId: "tm5", role: "mandatory" },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "mtg4",
     name: "Data Migration Sync",
@@ -599,8 +627,7 @@ export const recurringMeetings: RecurringMeeting[] = [
     attendees: [
       { memberId: "tm1", role: "mandatory" },
       { memberId: "tm4", role: "mandatory" },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "mtg5",
     name: "Training Sync",
@@ -613,8 +640,7 @@ export const recurringMeetings: RecurringMeeting[] = [
     attendees: [
       { memberId: "tm1", role: "mandatory" },
       { memberId: "tm6", role: "mandatory" },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
   {
     id: "mtg6",
     name: "Change Control Board",
@@ -629,26 +655,34 @@ export const recurringMeetings: RecurringMeeting[] = [
       { memberId: "tm3", role: "mandatory" },
       { memberId: "tm4", role: "optional"  },
       { memberId: "tm9", role: "optional"  },
-    ],
-  },
+    ], projectId: "proj-veeva-rim" },
 ];
 
 // ─── Derived KPIs ─────────────────────────────────────────────────────────────
 
-export function getKpis() {
+export function getKpis(projectId?: string) {
   const today = new Date("2026-05-11");
-  const goLive = new Date(project.goLiveDate);
+  // Project-aware filters; falls back to all data if no projectId is given (back-compat).
+  const projMilestones = projectId ? milestones.filter((m) => m.projectId === projectId) : milestones;
+  const projRisks      = projectId ? risks.filter((r) => r.projectId === projectId)      : risks;
+  const projDocs       = projectId ? documents.filter((d) => d.projectId === projectId)  : documents;
+  const projCostLines  = projectId ? costLines.filter((c) => c.projectId === projectId)  : costLines;
+
+  // Active project's go-live for the countdown (fall back to default project)
+  const activeProj = projects.find((p) => p.id === projectId) ?? projects[0] ?? project;
+  const goLive = new Date(activeProj.goLiveDate);
   const daysToGoLive = Math.ceil((goLive.getTime() - today.getTime()) / 86_400_000);
 
-  const openRisks = risks.filter((r) => r.status === "open");
+  const openRisks = projRisks.filter((r) => r.status === "open");
   const highRisks = openRisks.filter((r) => r.score >= 15);
   const medRisks  = openRisks.filter((r) => r.score >= 8 && r.score < 15);
 
-  const latestActual = budgetTrend.filter((b) => b.actual > 0).at(-1)?.actual ?? 0;
-  const totalBudget = 2000; // $k
-  const budgetPct = Math.round((latestActual / totalBudget) * 100);
+  // Cost totals derive from this project's cost lines (was a hardcoded $2000k before)
+  const totalBudget = projCostLines.reduce((s, c) => s + c.budgetK, 0) || 2000;
+  const latestActual = projCostLines.reduce((s, c) => s + c.actualK, 0);
+  const budgetPct = totalBudget > 0 ? Math.round((latestActual / totalBudget) * 100) : 0;
 
-  const upcoming = milestones
+  const upcoming = projMilestones
     .filter((m) => m.status !== "complete")
     .sort((a, b) => a.forecastDate.localeCompare(b.forecastDate))
     .slice(0, 5);
@@ -661,7 +695,7 @@ export function getKpis() {
       )
     : 0;
 
-  const pendingDocs = documents
+  const pendingDocs = projDocs
     .filter((d) => d.status === "in-review")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
     .slice(0, 3);

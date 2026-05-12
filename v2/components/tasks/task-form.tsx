@@ -129,6 +129,7 @@ export function TaskFormDrawer({
       dueDate,
       ...(milestoneId ? { milestoneId } : {}),
       ...(dependsOn.length > 0 ? { dependsOn } : {}),
+      projectId: initial?.projectId ?? "",
     };
     onSave(built);
   }

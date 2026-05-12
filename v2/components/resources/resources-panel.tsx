@@ -12,6 +12,7 @@ import {
 } from "@/lib/mockData";
 import { TeamMemberFormDrawer } from "./team-member-form";
 import { MeetingFormDrawer } from "./meeting-form";
+import { useProject } from "@/components/projects/project-provider";
 import { cn } from "@/lib/utils";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -130,6 +131,7 @@ function AddAbsenceForm({
     onSubmit({
       memberId, startDate, endDate, reason,
       ...(note.trim() ? { note: note.trim() } : {}),
+      projectId: "", // parent panel overwrites with activeProjectId
     });
   }
 
@@ -1037,6 +1039,7 @@ type MemberDrawer  = { mode: "closed" } | { mode: "new" } | { mode: "edit"; memb
 type MeetingDrawer = { mode: "closed" } | { mode: "new" } | { mode: "edit"; meeting: RecurringMeeting };
 
 export function ResourcesPanel() {
+  const { activeProjectId } = useProject();
   const [tab, setTab] = useState<Tab>("availability");
   const [absences, setAbsences]                   = useState<Absence[]>(initialAbsences);
   const [teamMembers, setTeamMembers]             = useState<TeamMember[]>(initialTeamMembers);
@@ -1044,9 +1047,15 @@ export function ResourcesPanel() {
   const [memberDrawer,  setMemberDrawer]          = useState<MemberDrawer>({ mode: "closed" });
   const [meetingDrawer, setMeetingDrawer]         = useState<MeetingDrawer>({ mode: "closed" });
 
+  // Scope everything to the active project
+  const projectAbsences = absences.filter((a) => a.projectId === activeProjectId);
+  const projectMembers  = teamMembers.filter((m) => m.projectId === activeProjectId);
+  const projectMeetings = recurringMeetings.filter((m) => m.projectId === activeProjectId);
+
   function addAbsence(a: Omit<Absence, "id">) {
     const id = `ab${Date.now()}`;
-    setAbsences((prev) => [...prev, { ...a, id }]);
+    const withProj: Absence = { ...a, id, projectId: activeProjectId };
+    setAbsences((prev) => [...prev, withProj]);
     const member = teamMembers.find((m) => m.id === a.memberId);
     toast.success(`Absence added`, {
       description: `${member?.name ?? a.memberId} · ${a.startDate} → ${a.endDate} · ${a.reason}`,
@@ -1064,15 +1073,16 @@ export function ResourcesPanel() {
   }
 
   function saveMember(m: TeamMember) {
+    const withProj: TeamMember = { ...m, projectId: m.projectId || activeProjectId };
     setTeamMembers((prev) => {
-      const idx = prev.findIndex((x) => x.id === m.id);
+      const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
-        const next = [...prev]; next[idx] = m;
-        toast.success("Member updated", { description: m.name });
+        const next = [...prev]; next[idx] = withProj;
+        toast.success("Member updated", { description: withProj.name });
         return next;
       }
-      toast.success("Member added", { description: m.name });
-      return [...prev, m];
+      toast.success("Member added", { description: withProj.name });
+      return [...prev, withProj];
     });
     setMemberDrawer({ mode: "closed" });
   }
@@ -1084,15 +1094,16 @@ export function ResourcesPanel() {
   }
 
   function saveMeeting(m: RecurringMeeting) {
+    const withProj: RecurringMeeting = { ...m, projectId: m.projectId || activeProjectId };
     setRecurringMeetings((prev) => {
-      const idx = prev.findIndex((x) => x.id === m.id);
+      const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
-        const next = [...prev]; next[idx] = m;
-        toast.success("Meeting updated", { description: m.name });
+        const next = [...prev]; next[idx] = withProj;
+        toast.success("Meeting updated", { description: withProj.name });
         return next;
       }
-      toast.success("Meeting added", { description: m.name });
-      return [...prev, m];
+      toast.success("Meeting added", { description: withProj.name });
+      return [...prev, withProj];
     });
     setMeetingDrawer({ mode: "closed" });
   }
@@ -1103,14 +1114,14 @@ export function ResourcesPanel() {
     setMeetingDrawer({ mode: "closed" });
   }
 
-  // Workstreams from members + meetings, deduped
+  // Workstreams from this project's members + meetings, deduped
   const knownWorkstreams = Array.from(new Set([
-    ...teamMembers.map((m) => m.workstream),
-    ...recurringMeetings.map((m) => m.workstream).filter((w): w is string => !!w),
+    ...projectMembers.map((m) => m.workstream),
+    ...projectMeetings.map((m) => m.workstream).filter((w): w is string => !!w),
   ])).filter((w) => w !== "Executive");
 
   return (
-    <ResourcesContext.Provider value={{ absences, addAbsence, removeAbsence, teamMembers, recurringMeetings }}>
+    <ResourcesContext.Provider value={{ absences: projectAbsences, addAbsence, removeAbsence, teamMembers: projectMembers, recurringMeetings: projectMeetings }}>
     <div className="space-y-4">
       {/* Tab bar with Add buttons inline */}
       <div className="flex flex-wrap items-center gap-2">
@@ -1158,7 +1169,7 @@ export function ResourcesPanel() {
       <TeamMemberFormDrawer
         open={memberDrawer.mode !== "closed"}
         initial={memberDrawer.mode === "edit" ? memberDrawer.member : null}
-        allMembers={teamMembers}
+        allMembers={projectMembers}
         knownWorkstreams={knownWorkstreams}
         onSave={saveMember}
         onDelete={deleteMember}
@@ -1168,8 +1179,8 @@ export function ResourcesPanel() {
       <MeetingFormDrawer
         open={meetingDrawer.mode !== "closed"}
         initial={meetingDrawer.mode === "edit" ? meetingDrawer.meeting : null}
-        allMeetings={recurringMeetings}
-        teamMembers={teamMembers}
+        allMeetings={projectMeetings}
+        teamMembers={projectMembers}
         knownWorkstreams={knownWorkstreams}
         onSave={saveMeeting}
         onDelete={deleteMeeting}

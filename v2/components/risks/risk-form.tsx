@@ -69,6 +69,7 @@ export function RiskFormDrawer({
       status,
       owner: owner.trim() || "VP",
       mitigation: mitigation.trim(),
+      projectId: initial?.projectId ?? "", // parent grid overwrites with activeProjectId
     });
   }
 

@@ -70,6 +70,7 @@ export function TeamMemberFormDrawer({
       role: role.trim(),
       workstream: workstream.trim(),
       ...(steercoRole ? { steercoRole } : {}),
+      projectId: initial?.projectId ?? "",
     });
   }
 

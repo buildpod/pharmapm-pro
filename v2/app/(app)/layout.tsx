@@ -2,11 +2,13 @@ import { SidebarContent } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CommandPalette } from "@/components/command-palette";
+import { ProjectProvider } from "@/components/projects/project-provider";
 import { Toaster } from "sonner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
+    <ProjectProvider>
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Desktop sidebar — hidden on mobile, hidden when printing */}
         <aside data-sidebar className="hidden md:flex md:w-56 md:shrink-0 md:flex-col border-r border-border print:hidden">
@@ -25,6 +27,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Global overlays */}
       <CommandPalette />
       <Toaster position="bottom-right" richColors closeButton />
+    </ProjectProvider>
     </ThemeProvider>
   );
 }

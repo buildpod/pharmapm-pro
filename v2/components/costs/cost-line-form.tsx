@@ -66,6 +66,7 @@ export function CostLineFormDrawer({
     onSave({
       id, category: category.trim(), description: description.trim(),
       budgetK, actualK, contractType, owner: owner.trim() || "VP",
+      projectId: initial?.projectId ?? "", // parent grid overwrites with activeProjectId
     });
   }
 

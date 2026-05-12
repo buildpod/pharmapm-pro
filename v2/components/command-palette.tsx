@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
   LayoutDashboard, Milestone, CheckSquare, AlertTriangle,
-  DollarSign, FileText, BarChart2, Settings, Search, Users,
+  DollarSign, FileText, BarChart2, Settings, Search, Users, FolderKanban,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const PAGES = [
   { label: "Dashboard",   href: "/",          icon: LayoutDashboard, group: "Navigate" },
+  { label: "Projects",    href: "/projects",  icon: FolderKanban,    group: "Navigate" },
   { label: "Milestones",  href: "/milestones", icon: Milestone,       group: "Navigate" },
   { label: "Tasks",       href: "/tasks",      icon: CheckSquare,     group: "Navigate" },
   { label: "Risks",       href: "/risks",      icon: AlertTriangle,   group: "Navigate" },

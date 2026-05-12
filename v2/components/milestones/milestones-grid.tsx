@@ -13,7 +13,7 @@ import {
   RotateCcw,
   Plus,
 } from "lucide-react";
-import { milestones as initialMilestones, project, type Milestone, type MilestoneStatus } from "@/lib/mockData";
+import { milestones as initialMilestones, type Milestone, type MilestoneStatus } from "@/lib/mockData";
 import {
   computeRAG,
   computeDependencyStatus,
@@ -24,6 +24,7 @@ import {
 } from "@/lib/domain/scheduling";
 import { addWorkingDays } from "@/lib/domain/dates";
 import { useSettings } from "@/lib/settingsStore";
+import { useProject } from "@/components/projects/project-provider";
 import {
   Dialog,
   DialogContent,
@@ -277,6 +278,7 @@ function StatusCell({
 type DrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; milestone: Milestone };
 
 export function MilestonesGrid() {
+  const { activeProjectId, activeProject } = useProject();
   const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
   const [filterPhase, setFilterPhase] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
@@ -288,7 +290,9 @@ export function MilestonesGrid() {
   const { settings } = useSettings();
   const { workingDays, holidays, ragThresholds } = settings;
 
-  const domainMilestones = milestones.map(toScheduleMs);
+  // Scope to current project for cascade + dependency engine
+  const projectMilestones = milestones.filter((m) => m.projectId === activeProjectId);
+  const domainMilestones = projectMilestones.map(toScheduleMs);
 
   // Apply a planned-date change: run cascade preview, show modal if needed
   function handlePlannedDateChange(id: string, newDate: string) {
@@ -327,11 +331,16 @@ export function MilestonesGrid() {
     setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, status } : m));
   }
 
-  // Schedule from Go-Live — respects configured working days + holidays
+  // Schedule from Go-Live — uses the active project's go-live, respects working days + holidays
   function handleScheduleFromGoLive() {
-    const result = scheduleBackward(domainMilestones, project.goLiveDate, workingDays, holidays);
+    const result = scheduleBackward(domainMilestones, activeProject.goLiveDate, workingDays, holidays);
     if (result.error) return;
-    setMilestones(applyDomainResult(milestones, result.milestones));
+    // Apply result back into the full milestones list (cascade only touched this project's ms)
+    const updatedById = new Map(result.milestones.map((sm) => [sm.id, sm]));
+    setMilestones((prev) => prev.map((m) => {
+      const sm = updatedById.get(toId(m.id));
+      return sm ? { ...m, plannedDate: sm.plannedEnd ?? m.plannedDate } : m;
+    }));
   }
 
   // Reset to original mock data
@@ -339,18 +348,19 @@ export function MilestonesGrid() {
     setMilestones(initialMilestones);
   }
 
-  // Drawer save/delete handlers
+  // Drawer save/delete handlers — always attach the active project's id
   function handleDrawerSave(m: Milestone) {
+    const withProj: Milestone = { ...m, projectId: m.projectId || activeProjectId };
     setMilestones((prev) => {
-      const idx = prev.findIndex((x) => x.id === m.id);
+      const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = m;
-        toast.success("Milestone updated", { description: m.name });
+        next[idx] = withProj;
+        toast.success("Milestone updated", { description: withProj.name });
         return next;
       }
-      toast.success("Milestone added", { description: m.name });
-      return [...prev, m];
+      toast.success("Milestone added", { description: withProj.name });
+      return [...prev, withProj];
     });
     setDrawer({ mode: "closed" });
   }
@@ -363,6 +373,7 @@ export function MilestonesGrid() {
   }
 
   const filtered = milestones
+    .filter((m) => m.projectId === activeProjectId)
     .filter((m) => {
       if (filterPhase !== "All" && m.phase !== filterPhase) return false;
       if (filterStatus !== "All" && m.status !== filterStatus) return false;
@@ -574,11 +585,11 @@ export function MilestonesGrid() {
         />
       )}
 
-      {/* Add / Edit drawer */}
+      {/* Add / Edit drawer — predecessor picker scoped to current project */}
       <MilestoneFormDrawer
         open={drawer.mode !== "closed"}
         initial={drawer.mode === "edit" ? drawer.milestone : null}
-        allMilestones={milestones}
+        allMilestones={projectMilestones}
         onSave={handleDrawerSave}
         onDelete={handleDrawerDelete}
         onClose={() => setDrawer({ mode: "closed" })}

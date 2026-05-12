@@ -99,6 +99,7 @@ export function MilestoneFormDrawer({
       duration,
       lag,
       ...(predecessor ? { predecessor } : {}),
+      projectId: initial?.projectId ?? "", // parent grid overwrites with activeProjectId
     };
     onSave(built);
   }

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { AlertTriangle, Shield, CheckCircle2, ArrowUpRight, Plus } from "lucide-react";
 import { risks as initialRisks, type Risk, type RiskStatus } from "@/lib/mockData";
 import { RiskFormDrawer } from "./risk-form";
+import { useProject } from "@/components/projects/project-provider";
 import { cn } from "@/lib/utils";
 
 // ─── Score bands (from v1 config/rules.js) ───────────────────────────────────
@@ -275,6 +276,7 @@ type SortKey = "score" | "probability" | "impact";
 type RiskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; risk: Risk };
 
 export function RisksGrid() {
+  const { activeProjectId } = useProject();
   const [risks, setRisks] = useState<Risk[]>(initialRisks);
   const [filterStatus, setFilterStatus] = useState<RiskStatus | "All">("All");
   const [filterCategory, setFilterCategory] = useState("All");
@@ -282,7 +284,8 @@ export function RisksGrid() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<RiskDrawerState>({ mode: "closed" });
 
-  const allCategories = Array.from(new Set(risks.map((r) => r.category)));
+  const projectRisks  = risks.filter((r) => r.projectId === activeProjectId);
+  const allCategories = Array.from(new Set(projectRisks.map((r) => r.category)));
 
   function handleStatusToggle(id: string) {
     setRisks((prev) => prev.map((r) => r.id === id ? { ...r, status: nextStatus[r.status] } : r));
@@ -296,15 +299,16 @@ export function RisksGrid() {
   }
 
   function handleDrawerSave(r: Risk) {
+    const withProj: Risk = { ...r, projectId: r.projectId || activeProjectId };
     setRisks((prev) => {
-      const idx = prev.findIndex((x) => x.id === r.id);
+      const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
-        const next = [...prev]; next[idx] = r;
-        toast.success("Risk updated", { description: r.title });
+        const next = [...prev]; next[idx] = withProj;
+        toast.success("Risk updated", { description: withProj.title });
         return next;
       }
-      toast.success("Risk added", { description: r.title });
-      return [...prev, r];
+      toast.success("Risk added", { description: withProj.title });
+      return [...prev, withProj];
     });
     setDrawer({ mode: "closed" });
   }
@@ -315,23 +319,23 @@ export function RisksGrid() {
     setDrawer({ mode: "closed" });
   }
 
-  const filtered = risks
+  const filtered = projectRisks
     .filter((r) => filterStatus === "All" || r.status === filterStatus)
     .filter((r) => filterCategory === "All" || r.category === filterCategory)
     .sort((a, b) => b[sortBy] - a[sortBy]);
 
   const counts = {
-    All:       risks.length,
-    open:      risks.filter((r) => r.status === "open").length,
-    mitigated: risks.filter((r) => r.status === "mitigated").length,
-    closed:    risks.filter((r) => r.status === "closed").length,
+    All:       projectRisks.length,
+    open:      projectRisks.filter((r) => r.status === "open").length,
+    mitigated: projectRisks.filter((r) => r.status === "mitigated").length,
+    closed:    projectRisks.filter((r) => r.status === "closed").length,
   };
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(340px,420px)_1fr]">
-      {/* Matrix — sticky on desktop */}
+      {/* Matrix — sticky on desktop, scoped to active project */}
       <div className="self-start lg:sticky lg:top-4">
-        <RiskMatrix risks={risks} selectedId={selectedId} onSelect={handleSelectFromMatrix} />
+        <RiskMatrix risks={projectRisks} selectedId={selectedId} onSelect={handleSelectFromMatrix} />
       </div>
 
       {/* Right column */}
@@ -414,7 +418,7 @@ export function RisksGrid() {
       <RiskFormDrawer
         open={drawer.mode !== "closed"}
         initial={drawer.mode === "edit" ? drawer.risk : null}
-        allRisks={risks}
+        allRisks={projectRisks}
         knownCategories={allCategories}
         onSave={handleDrawerSave}
         onDelete={handleDrawerDelete}

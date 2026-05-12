@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { ProjectSwitcher } from "@/components/projects/project-switcher";
 
 const navGroups = [
   {
@@ -80,12 +81,9 @@ export function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         </div>
       </div>
 
-      {/* Project context */}
+      {/* Project switcher */}
       <div className="px-4 py-3">
-        <div className="rounded-md bg-muted px-3 py-2">
-          <p className="text-xs font-medium text-foreground">Veeva RIM Implementation</p>
-          <p className="text-xs text-muted-foreground">Phase 2 · Q3 2026</p>
-        </div>
+        <ProjectSwitcher />
       </div>
 
       <Separator />

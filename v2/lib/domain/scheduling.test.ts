@@ -34,11 +34,29 @@ describe("scheduling.computeRAG", () => {
   it("Blocked = Red", () => {
     expect(computeRAG({ status: "Blocked", plannedEnd: "2027-01-01" }, "2026-04-19")).toBe("Red");
   });
-  it("overdue > 5 days = Red", () => {
+  it("overdue > 5 days = Red (default thresholds)", () => {
     expect(computeRAG({ status: "In Progress", plannedEnd: "2026-04-10" }, "2026-04-19")).toBe("Red");
   });
-  it("overdue 1–5 days = Amber", () => {
+  it("overdue 1–5 days = Amber (default thresholds)", () => {
     expect(computeRAG({ status: "In Progress", plannedEnd: "2026-04-17" }, "2026-04-19")).toBe("Amber");
+  });
+  it("custom thresholds: stricter red boundary (red=2) flips amber→red", () => {
+    // 3 days overdue would be Amber under defaults (red>5), Red under tightened (red>2)
+    const ms = { status: "In Progress", plannedEnd: "2026-04-16" };
+    expect(computeRAG(ms, "2026-04-19")).toBe("Amber");
+    expect(computeRAG(ms, "2026-04-19", { redDelayDays: 2, amberDelayDays: 0 })).toBe("Red");
+  });
+  it("custom thresholds: looser red boundary (red=14) keeps overdue Amber", () => {
+    // 9 days overdue would be Red under defaults (>5), Amber under loosened (>14)
+    const ms = { status: "In Progress", plannedEnd: "2026-04-10" };
+    expect(computeRAG(ms, "2026-04-19")).toBe("Red");
+    expect(computeRAG(ms, "2026-04-19", { redDelayDays: 14, amberDelayDays: 0 })).toBe("Amber");
+  });
+  it("custom thresholds: raised amber boundary (amber=3) keeps small overdue Green", () => {
+    // 2 days overdue would be Amber under defaults (>0), Green under raised (>3)
+    const ms = { status: "In Progress", plannedEnd: "2026-04-17" };
+    expect(computeRAG(ms, "2026-04-19")).toBe("Amber");
+    expect(computeRAG(ms, "2026-04-19", { redDelayDays: 5, amberDelayDays: 3 })).toBe("Green");
   });
 });
 

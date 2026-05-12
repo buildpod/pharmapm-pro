@@ -21,6 +21,7 @@ import {
   type ScheduleMilestone,
 } from "@/lib/domain/scheduling";
 import { addWorkingDays } from "@/lib/domain/dates";
+import { useSettings } from "@/lib/settingsStore";
 import {
   Dialog,
   DialogContent,
@@ -276,17 +277,24 @@ export function MilestonesGrid() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [cascadePreview, setCascadePreview] = useState<CascadePreviewState | null>(null);
 
+  // Live settings from M8 — pass through to every domain call so working days,
+  // holidays, and RAG thresholds actually drive the schedule.
+  const { settings } = useSettings();
+  const { workingDays, holidays, ragThresholds } = settings;
+
   const domainMilestones = milestones.map(toScheduleMs);
 
   // Apply a planned-date change: run cascade preview, show modal if needed
   function handlePlannedDateChange(id: string, newDate: string) {
     const numId = toId(id);
     const edit = { id: numId, field: "plannedEnd" as const, value: newDate };
-    const preview = previewCascade(domainMilestones, edit);
+    const preview = previewCascade(domainMilestones, edit, workingDays, holidays);
 
     // Build the "already-applied" milestone state so we can hand it to the modal
     const cascadeResult = cascade(
-      domainMilestones.map((sm) => sm.id === numId ? { ...sm, plannedEnd: newDate } : sm)
+      domainMilestones.map((sm) => sm.id === numId ? { ...sm, plannedEnd: newDate } : sm),
+      workingDays,
+      holidays,
     );
     const pending = applyDomainResult(milestones, cascadeResult.milestones);
 
@@ -313,9 +321,9 @@ export function MilestonesGrid() {
     setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, status } : m));
   }
 
-  // Schedule from Go-Live
+  // Schedule from Go-Live — respects configured working days + holidays
   function handleScheduleFromGoLive() {
-    const result = scheduleBackward(domainMilestones, project.goLiveDate);
+    const result = scheduleBackward(domainMilestones, project.goLiveDate, workingDays, holidays);
     if (result.error) return;
     setMilestones(applyDomainResult(milestones, result.milestones));
   }
@@ -395,7 +403,7 @@ export function MilestonesGrid() {
         <ul className="divide-y divide-border">
           {filtered.map((m) => {
             const dm = toScheduleMs(m);
-            const rag = computeRAG(dm, TODAY);
+            const rag = computeRAG(dm, TODAY, ragThresholds);
             const dep = computeDependencyStatus(dm, domainMilestones, TODAY);
             const variance = Math.ceil(
               (new Date(m.forecastDate).getTime() - new Date(m.plannedDate).getTime()) / 86_400_000

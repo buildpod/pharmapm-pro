@@ -8,10 +8,17 @@ import {
   today as todayFn,
 } from "./dates";
 
-const RAG_CONFIG = {
+// Default RAG thresholds — match v1's src/config/rules.js. These are overridable
+// per call via the optional `thresholds` arg on computeRAG().
+export const DEFAULT_RAG_THRESHOLDS = {
   redDelayDays: 5,
   amberDelayDays: 0,
-};
+} as const;
+
+export interface RagThresholds {
+  redDelayDays?: number;
+  amberDelayDays?: number;
+}
 
 export interface ScheduleMilestone {
   id: number;
@@ -126,15 +133,18 @@ export function cascade(
 
 export function computeRAG(
   milestone: Pick<ScheduleMilestone, "status" | "plannedEnd">,
-  todayStr?: string
+  todayStr?: string,
+  thresholds?: RagThresholds
 ): RAG {
   const t = todayStr ?? todayFn();
+  const redDelay   = thresholds?.redDelayDays   ?? DEFAULT_RAG_THRESHOLDS.redDelayDays;
+  const amberDelay = thresholds?.amberDelayDays ?? DEFAULT_RAG_THRESHOLDS.amberDelayDays;
   if (milestone.status === "Complete") return "Green";
   if (milestone.status === "Blocked") return "Red";
   if (!milestone.plannedEnd) return "Green";
   const delay = Math.max(0, daysBetween(milestone.plannedEnd, t));
-  if (delay > RAG_CONFIG.redDelayDays) return "Red";
-  if (delay > RAG_CONFIG.amberDelayDays) return "Amber";
+  if (delay > redDelay)   return "Red";
+  if (delay > amberDelay) return "Amber";
   return "Green";
 }
 

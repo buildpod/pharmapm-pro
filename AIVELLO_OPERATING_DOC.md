@@ -92,13 +92,25 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next session goal from Vineet_
+**Module:** M12 — Wire M8 settings into the domain engine
+**Goal:** Settings page (M8) lets users configure working days, holidays, RAG thresholds, and budget bands, but the milestones cascade engine ignores all of it — it hardcodes Mon–Fri working days, has no holiday awareness, and uses fixed RAG thresholds (red=5, amber=0). Make Settings actually drive the schedule and RAG computation.
 
-Backlog candidates (still open):
-- Deep-link anchors from dashboard rows (`/milestones#m6` etc.)
-- Per-resource detail panel on the Resources page
-- Entity search across the command palette (currently only navigates pages)
-- Domain integration of M8 settings (working days, holidays, RAG thresholds) into the milestones cascade engine and risk RAG computation
+**Definition of done:**
+- `lib/domain/dates.ts` `addWorkingDays(iso, days, opts?)` accepts optional `{ workingDays?: number[]; holidays?: string[] }` and respects both — skipping non-working days AND holiday dates
+- `lib/domain/scheduling.ts` `cascade()`, `previewCascade()`, `scheduleBackward()` accept and forward an optional `opts` parameter to all date arithmetic
+- `computeRAG()` accepts optional `{ redDelayDays?: number; amberDelayDays?: number }` and uses configured thresholds instead of hardcoded `{red: 5, amber: 0}`
+- `components/milestones/milestones-grid.tsx` reads `useSettings()` on the client and threads working days + holidays + RAG thresholds through every domain call (cascade, scheduleBackward, computeRAG)
+- All 43 existing Vitest tests still pass (signature backwards-compatible via optional opts)
+- New tests added covering: holiday skipping, custom working-days arrays, RAG threshold overrides
+- Build clean
+
+**Out of scope (deferred):**
+- Task scheduling (tasks have no date dependencies in the domain layer yet)
+- Budget bands integration (costs are static, not scheduled — bands only affect Settings UI for now)
+- Risk RAG (uses P×I score bands, not delay-day thresholds — different abstraction)
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M11 Completion summary (2026-05-11)
 

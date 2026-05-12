@@ -92,25 +92,23 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M12 — Wire M8 settings into the domain engine
-**Goal:** Settings page (M8) lets users configure working days, holidays, RAG thresholds, and budget bands, but the milestones cascade engine ignores all of it — it hardcodes Mon–Fri working days, has no holiday awareness, and uses fixed RAG thresholds (red=5, amber=0). Make Settings actually drive the schedule and RAG computation.
+**Module:** _none — awaiting next session goal from Vineet_
 
-**Definition of done:**
-- `lib/domain/dates.ts` `addWorkingDays(iso, days, opts?)` accepts optional `{ workingDays?: number[]; holidays?: string[] }` and respects both — skipping non-working days AND holiday dates
-- `lib/domain/scheduling.ts` `cascade()`, `previewCascade()`, `scheduleBackward()` accept and forward an optional `opts` parameter to all date arithmetic
-- `computeRAG()` accepts optional `{ redDelayDays?: number; amberDelayDays?: number }` and uses configured thresholds instead of hardcoded `{red: 5, amber: 0}`
-- `components/milestones/milestones-grid.tsx` reads `useSettings()` on the client and threads working days + holidays + RAG thresholds through every domain call (cascade, scheduleBackward, computeRAG)
-- All 43 existing Vitest tests still pass (signature backwards-compatible via optional opts)
-- New tests added covering: holiday skipping, custom working-days arrays, RAG threshold overrides
-- Build clean
+Backlog candidates (still open):
+- Deep-link anchors from dashboard rows (`/milestones#m6` etc.)
+- Per-resource detail panel on the Resources page
+- Entity search across the command palette (currently only navigates pages)
 
-**Out of scope (deferred):**
-- Task scheduling (tasks have no date dependencies in the domain layer yet)
-- Budget bands integration (costs are static, not scheduled — bands only affect Settings UI for now)
-- Risk RAG (uses P×I score bands, not delay-day thresholds — different abstraction)
+### M12 Completion summary (2026-05-11)
 
-**Started:** (this session)
-**Status:** in progress
+**Module:** M12 — Wire M8 settings into the cascade engine
+**Status:** ✅ Complete (commit `fd3ca8e`)
+**Outcome:**
+- Discovered that `addWorkingDays`, `cascade`, `previewCascade`, `scheduleBackward`, `computeEndFromDuration`, `computeDurationFromDates` already accepted `workingDays` + `holidays` as optional params — call sites just weren't passing them. Only `computeRAG` was hardcoded to `{red: 5, amber: 0}`.
+- `computeRAG()` gained an optional `thresholds?: { redDelayDays?, amberDelayDays? }` arg; exported `DEFAULT_RAG_THRESHOLDS` const and `RagThresholds` type for consumers
+- `milestones-grid.tsx` now calls `useSettings()` and threads `workingDays`, `holidays` into every cascade/preview/backward-schedule call, and `ragThresholds` into every `computeRAG` call — Settings page now actually drives the schedule + RAG
+- Added 3 new Vitest cases on `computeRAG` covering tighter-red, looser-red, and raised-amber thresholds. All 46 tests pass (was 43).
+- Build clean; `/milestones` grew 5.79kB → 6.36kB from settings-hook threading
 
 ### M11 Completion summary (2026-05-11)
 
@@ -352,6 +350,30 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M12 — Wire M8 settings into the cascade engine)
+
+**Worked on (commit `fd3ca8e`):**
+- Audited the domain layer: discovered `addWorkingDays`, `cascade`, `previewCascade`, `scheduleBackward`, `computeEndFromDuration`, `computeDurationFromDates` were already plumbed for `workingDays` + `holidays` opts (defaults `[1,2,3,4,5]` and `[]`) — the gap was that no call site ever passed the configured values
+- `lib/domain/scheduling.ts`: replaced hardcoded `RAG_CONFIG` with exported `DEFAULT_RAG_THRESHOLDS` + `RagThresholds` interface; added optional `thresholds?` arg to `computeRAG()` with fallback to defaults
+- `components/milestones/milestones-grid.tsx`: imported `useSettings`, destructured `{ workingDays, holidays, ragThresholds }` from settings, threaded them through every domain call site:
+  - `previewCascade(domainMilestones, edit, workingDays, holidays)`
+  - `cascade(..., workingDays, holidays)` inside `handlePlannedDateChange`
+  - `scheduleBackward(..., workingDays, holidays)` in `handleScheduleFromGoLive`
+  - `computeRAG(dm, TODAY, ragThresholds)` in the row renderer
+- `lib/domain/scheduling.test.ts`: added 3 new cases on `computeRAG` thresholds — tightened red (red=2) flips Amber→Red, loosened red (red=14) flips Red→Amber, raised amber (amber=3) keeps small overdues Green
+
+**Decided:**
+- Existing 43 tests left untouched — opts are all optional with v1-equivalent defaults, so backwards-compatible
+- Task scheduling deferred (tasks don't have date arithmetic in the domain layer yet)
+- Budget bands deferred (costs aren't scheduled; bands only affect Settings UI for now)
+- Risk RAG deferred (uses P×I score bands, not delay-day thresholds — different abstraction, would muddle to combine)
+
+**Built:** Settings page now actually drives the schedule. Configure 4-day weeks or add Q3 bank holidays and the cascade engine respects both. RAG badges flip green↔amber↔red according to the configured thresholds. 46/46 Vitest tests pass. Build clean, 13 static pages.
+
+**Next session goal:** Open — proposals welcome. Remaining backlog: deep-link anchors from dashboard, per-resource detail panel, entity search in command palette.
+
+---
 
 ### Session — 2026-05-11 (M11 — Reports polish + editable absences + Dashboard click-throughs)
 

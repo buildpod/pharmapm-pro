@@ -92,12 +92,23 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M10 — Resources module
-**Goal:** Team member availability view, vacation/absence calendar, impact highlighting on tasks/milestones/documents when a resource is unavailable, SteerCo pre-brief per-member digest.
-**Definition of done:** Resources page shows team members + calendar of absences, affected items are highlighted in their respective grids, SteerCo pre-brief tab shows what each participant needs to know before the meeting.
+**Module:** M10A — Enterprise UX polish + complete document set
+**Goal:** Lift the v2 UI from "competent template" to "enterprise-grade." Refine design tokens (typography scale, color palette, spacing rhythm), expand the mock document set to a realistic pharma RIM lifecycle (~12 docs incl. VMP/URS/OQ/PQ/DAP/RMP/TM/Training Plan), redesign Documents and Risks pages — the two views Vineet flagged as weakest.
+**Definition of done:**
+- Design tokens shifted to muted/neutral enterprise palette (slate/zinc base, sophisticated primary, refined dark mode)
+- Typography scale: `text-sm` body baseline, clear heading hierarchy, `text-xs` reserved for metadata
+- Mock document set expanded to 10–12 docs, grouped by lifecycle phase
+- Documents page: phase-grouped, urgency-weighted cards, larger avatars, clearer hierarchy
+- Risks page: larger P×I matrix with risk titles inside cells (not just numbered dots), detail-on-select pattern
+- Spacing rhythm consistent (4/8/12/16/24/32) on touched pages
+- Build clean, deployed
 
-**Started:** (next session)
-**Status:** not started
+**Started:** (this session)
+**Status:** in progress
+
+### M10B — Resources module (queued, foundation already laid)
+
+The Resources module work begun earlier is preserved (mockData additions for team members, absences, meetings; `components/resources/resources-panel.tsx` with 4 tabs built but not yet wired to a route). Resumes after M10A. Goal unchanged: team availability + meeting cadence + SteerCo pre-brief + per-workstream pre-brief.
 
 ### M9 Completion summary (2026-05-11)
 

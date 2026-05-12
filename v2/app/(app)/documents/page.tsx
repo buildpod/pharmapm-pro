@@ -2,13 +2,13 @@ import { DocumentsList } from "@/components/documents/documents-list";
 
 export default function DocumentsPage() {
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Documents</h2>
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Documents</h1>
         <p className="text-sm text-muted-foreground">
-          Per-person reviewer/approver chips · click to record decisions · status auto-derives
+          GxP-aligned lifecycle artefacts. Cards are grouped by validation phase. Click a person chip to record their decision — document status auto-derives.
         </p>
-      </div>
+      </header>
       <DocumentsList />
     </div>
   );

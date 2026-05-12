@@ -103,72 +103,245 @@ export type Decision = {
 
 export type DocumentStatus = "draft" | "in-review" | "reviewed" | "approved" | "rejected";
 
+export type DocumentPhase = "Planning" | "Configuration" | "Validation" | "Training" | "Go-Live";
+
 export type Document = {
   id: string;
   name: string;
+  abbreviation?: string;     // e.g. "VMP", "URS", "DAP"
   type: string;
+  phase: DocumentPhase;
   version: string;
   status: DocumentStatus;
   dueDate: string;
+  description?: string;      // short plain-language description, surfaced on the card
   reviewers: Decision[];
   approvers: Decision[];
 };
 
 export const documents: Document[] = [
+  // ── Planning phase ─────────────────────────────────────────────────
+  {
+    id: "d5",
+    name: "Validation Master Plan",
+    abbreviation: "VMP",
+    type: "Compliance",
+    phase: "Planning",
+    version: "1.0",
+    status: "approved",
+    dueDate: "2026-02-28",
+    description: "Master governing document for the CSV / GAMP 5 validation strategy.",
+    reviewers: [
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-02-15" },
+      { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "approved", date: "2026-02-20" },
+    ],
+    approvers: [
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "approved", date: "2026-02-28" },
+    ],
+  },
+  {
+    id: "d6",
+    name: "User Requirements Specification",
+    abbreviation: "URS",
+    type: "Business",
+    phase: "Planning",
+    version: "2.0",
+    status: "approved",
+    dueDate: "2026-01-30",
+    description: "Business-level requirements driving the Veeva RIM configuration.",
+    reviewers: [
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-01-22" },
+    ],
+    approvers: [
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "approved", date: "2026-01-30" },
+    ],
+  },
+  {
+    id: "d7",
+    name: "Risk Management Plan",
+    abbreviation: "RMP",
+    type: "Compliance",
+    phase: "Planning",
+    version: "1.1",
+    status: "in-review",
+    dueDate: "2026-05-18",
+    description: "Project-wide risk identification, scoring, and mitigation framework.",
+    reviewers: [
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-05-09" },
+      { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
+    ],
+    approvers: [
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
+    ],
+  },
+
+  // ── Configuration phase ────────────────────────────────────────────
   {
     id: "d1",
     name: "Functional Requirements Specification",
+    abbreviation: "FRS",
     type: "Validation",
+    phase: "Configuration",
     version: "2.1",
     status: "in-review",
     dueDate: "2026-05-20",
+    description: "Detailed functional behaviour the configured system must satisfy.",
     reviewers: [
-      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",       status: "approved", date: "2026-05-10" },
-      { person: "Arjun Rao",   initials: "AR", role: "Tech Lead",      status: "pending" },
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-05-10" },
+      { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
     ],
     approvers: [
-      { person: "Vineet Pathak", initials: "VP", role: "PM",           status: "pending" },
-      { person: "Karen Mills",   initials: "KM", role: "QA Director",  status: "pending" },
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
+      { person: "Karen Mills",   initials: "KM", role: "QA Director", status: "pending"  },
     ],
   },
   {
     id: "d2",
     name: "System Design Document",
+    abbreviation: "SDD",
     type: "Technical",
+    phase: "Configuration",
     version: "1.3",
     status: "in-review",
     dueDate: "2026-05-25",
+    description: "Architecture, integrations, and configuration topology for the Vault instance.",
     reviewers: [
-      { person: "Arjun Rao",   initials: "AR", role: "Tech Lead",      status: "pending" },
-      { person: "Karen Mills", initials: "KM", role: "QA Director",    status: "pending" },
+      { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
+      { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
     ],
     approvers: [
-      { person: "Vineet Pathak", initials: "VP", role: "PM",           status: "pending" },
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
     ],
   },
   {
     id: "d3",
     name: "Data Migration Plan",
+    abbreviation: "DMP",
     type: "Technical",
+    phase: "Configuration",
     version: "1.0",
     status: "in-review",
     dueDate: "2026-05-30",
+    description: "Source-to-target mapping, cutover sequencing, and reconciliation strategy.",
     reviewers: [
-      { person: "Sarah Lee",  initials: "SL", role: "QA Lead",         status: "approved", date: "2026-05-08" },
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "approved", date: "2026-05-08" },
     ],
     approvers: [
-      { person: "Vineet Pathak", initials: "VP", role: "PM",           status: "pending" },
-      { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",     status: "pending" },
-      { person: "Karen Mills",  initials: "KM", role: "QA Director",   status: "pending" },
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
+      { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
+      { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
     ],
   },
   {
+    id: "d8",
+    name: "Data Analysis Plan",
+    abbreviation: "DAP",
+    type: "Technical",
+    phase: "Configuration",
+    version: "0.2",
+    status: "draft",
+    dueDate: "2026-06-10",
+    description: "Analytical procedures, statistical methods, and reporting rules for in-system data.",
+    reviewers: [
+      { person: "Arjun Rao",    initials: "AR", role: "Tech Lead",    status: "pending"  },
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "pending"  },
+    ],
+    approvers: [
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
+    ],
+  },
+
+  // ── Validation phase ───────────────────────────────────────────────
+  {
     id: "d4",
-    name: "IQ Protocol",
+    name: "Installation Qualification Protocol",
+    abbreviation: "IQ Protocol",
     type: "Validation",
+    phase: "Validation",
     version: "0.1",
     status: "draft",
     dueDate: "2026-07-01",
+    description: "Evidence that the system is installed correctly in the production environment.",
+    reviewers: [],
+    approvers: [],
+  },
+  {
+    id: "d9",
+    name: "Operational Qualification Protocol",
+    abbreviation: "OQ Protocol",
+    type: "Validation",
+    phase: "Validation",
+    version: "0.3",
+    status: "draft",
+    dueDate: "2026-07-10",
+    description: "Evidence that the system operates per FRS across functional ranges.",
+    reviewers: [
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "pending"  },
+    ],
+    approvers: [],
+  },
+  {
+    id: "d10",
+    name: "Performance Qualification Protocol",
+    abbreviation: "PQ Protocol",
+    type: "Validation",
+    phase: "Validation",
+    version: "0.1",
+    status: "draft",
+    dueDate: "2026-07-30",
+    description: "Evidence that the system performs as required under real-world workflows.",
+    reviewers: [],
+    approvers: [],
+  },
+  {
+    id: "d11",
+    name: "Traceability Matrix",
+    abbreviation: "TM",
+    type: "Validation",
+    phase: "Validation",
+    version: "1.0",
+    status: "in-review",
+    dueDate: "2026-06-25",
+    description: "End-to-end trace from URS requirements through to IQ/OQ/PQ test evidence.",
+    reviewers: [
+      { person: "Sarah Lee",    initials: "SL", role: "QA Lead",      status: "pending"  },
+      { person: "Karen Mills",  initials: "KM", role: "QA Director",  status: "pending"  },
+    ],
+    approvers: [
+      { person: "Vineet Pathak", initials: "VP", role: "PM",          status: "pending"  },
+    ],
+  },
+
+  // ── Training phase ─────────────────────────────────────────────────
+  {
+    id: "d12",
+    name: "Training Plan",
+    abbreviation: "TP",
+    type: "Training",
+    phase: "Training",
+    version: "0.5",
+    status: "draft",
+    dueDate: "2026-07-20",
+    description: "Role-based training curriculum, materials, and completion tracking approach.",
+    reviewers: [
+      { person: "Hannah Ross",   initials: "HR", role: "Training Lead", status: "pending" },
+    ],
+    approvers: [
+      { person: "Vineet Pathak", initials: "VP", role: "PM",            status: "pending" },
+    ],
+  },
+
+  // ── Go-Live phase ──────────────────────────────────────────────────
+  {
+    id: "d13",
+    name: "Go-Live Readiness Checklist",
+    abbreviation: "GLC",
+    type: "Go-Live",
+    phase: "Go-Live",
+    version: "0.1",
+    status: "draft",
+    dueDate: "2026-08-25",
+    description: "Cut-over criteria, hypercare staffing, rollback triggers, and exec sign-off.",
     reviewers: [],
     approvers: [],
   },
@@ -279,6 +452,171 @@ export const riskTrend: RiskTrendMonth[] = [
   { month: "Apr", open: 6, mitigated: 2 },
   { month: "May", open: 5, mitigated: 3 },
   { month: "Jun", open: 4, mitigated: 3 },
+];
+
+// ─── Team Members ────────────────────────────────────────────────────────────
+
+export type SteerCoRole = "mandatory" | "optional";
+
+export type TeamMember = {
+  id: string;
+  initials: string;
+  name: string;
+  role: string;
+  workstream: string;         // primary workstream; "Executive" for SteerCo-only members
+  steercoRole?: SteerCoRole;
+};
+
+export const teamMembers: TeamMember[] = [
+  // Project operators (match initials used across milestones/tasks/risks/docs)
+  { id: "tm1", initials: "VP", name: "Vineet Pathak",   role: "Project Manager",        workstream: "Project Mgmt",   steercoRole: "mandatory" },
+  { id: "tm2", initials: "KM", name: "Karen Mills",     role: "Config Lead / QA Dir",   workstream: "Configuration",  steercoRole: "optional"  },
+  { id: "tm3", initials: "QA", name: "Priya Sharma",    role: "Validation Lead",        workstream: "Validation",     steercoRole: "optional"  },
+  { id: "tm4", initials: "AR", name: "Arjun Rao",       role: "Data Migration Lead",    workstream: "Data Migration", steercoRole: "optional"  },
+  { id: "tm5", initials: "SL", name: "Sarah Lee",       role: "QA Lead",                workstream: "Validation"                               },
+  { id: "tm6", initials: "HR", name: "Hannah Ross",     role: "Training Lead",          workstream: "Training",       steercoRole: "optional"  },
+  // SteerCo executives (no operational tasks in mock data)
+  { id: "tm7", initials: "JO", name: "James Okonkwo",   role: "Project Sponsor",        workstream: "Executive",      steercoRole: "mandatory" },
+  { id: "tm8", initials: "AM", name: "Dr. Anna Müller", role: "Business Owner",         workstream: "Executive",      steercoRole: "mandatory" },
+  { id: "tm9", initials: "RT", name: "Robert Tan",      role: "IT Director",            workstream: "Executive",      steercoRole: "mandatory" },
+];
+
+// ─── Absences ────────────────────────────────────────────────────────────────
+
+export type AbsenceReason = "Vacation" | "Public Holiday" | "Conference" | "Sick Leave" | "Other";
+
+export type Absence = {
+  id: string;
+  memberId: string;   // TeamMember.id
+  startDate: string;  // ISO date (Mon)
+  endDate: string;    // ISO date (Fri)
+  reason: AbsenceReason;
+  note?: string;
+};
+
+export const absences: Absence[] = [
+  { id: "ab1", memberId: "tm3", startDate: "2026-05-18", endDate: "2026-05-20", reason: "Sick Leave" },
+  { id: "ab2", memberId: "tm4", startDate: "2026-05-25", endDate: "2026-05-29", reason: "Vacation" },
+  { id: "ab3", memberId: "tm2", startDate: "2026-06-01", endDate: "2026-06-05", reason: "Conference", note: "Veeva Summit 2026" },
+  { id: "ab4", memberId: "tm6", startDate: "2026-06-08", endDate: "2026-06-12", reason: "Vacation" },
+  { id: "ab5", memberId: "tm7", startDate: "2026-06-22", endDate: "2026-07-03", reason: "Vacation" },
+];
+
+// ─── Recurring Meetings ──────────────────────────────────────────────────────
+
+export type MeetingFrequency = "weekly" | "bi-weekly" | "monthly";
+export type AttendeeRole = "mandatory" | "optional";
+
+export type MeetingAttendee = {
+  memberId: string;
+  role: AttendeeRole;
+};
+
+export type RecurringMeeting = {
+  id: string;
+  name: string;
+  type: "steerco" | "workstream" | "governance";
+  workstream?: string;
+  frequency: MeetingFrequency;
+  dayOfWeek: string;
+  durationMins: number;
+  attendees: MeetingAttendee[];
+  nextDate: string;
+};
+
+export const recurringMeetings: RecurringMeeting[] = [
+  {
+    id: "mtg1",
+    name: "Steering Committee",
+    type: "steerco",
+    frequency: "bi-weekly",
+    dayOfWeek: "Monday",
+    durationMins: 60,
+    nextDate: "2026-05-18",
+    attendees: [
+      { memberId: "tm1", role: "mandatory" },
+      { memberId: "tm7", role: "mandatory" },
+      { memberId: "tm8", role: "mandatory" },
+      { memberId: "tm9", role: "mandatory" },
+      { memberId: "tm2", role: "optional"  },
+      { memberId: "tm3", role: "optional"  },
+      { memberId: "tm4", role: "optional"  },
+      { memberId: "tm6", role: "optional"  },
+    ],
+  },
+  {
+    id: "mtg2",
+    name: "Configuration Sync",
+    type: "workstream",
+    workstream: "Configuration",
+    frequency: "weekly",
+    dayOfWeek: "Tuesday",
+    durationMins: 30,
+    nextDate: "2026-05-12",
+    attendees: [
+      { memberId: "tm1", role: "mandatory" },
+      { memberId: "tm2", role: "mandatory" },
+    ],
+  },
+  {
+    id: "mtg3",
+    name: "Validation Sync",
+    type: "workstream",
+    workstream: "Validation",
+    frequency: "weekly",
+    dayOfWeek: "Wednesday",
+    durationMins: 30,
+    nextDate: "2026-05-13",
+    attendees: [
+      { memberId: "tm1", role: "mandatory" },
+      { memberId: "tm3", role: "mandatory" },
+      { memberId: "tm5", role: "mandatory" },
+    ],
+  },
+  {
+    id: "mtg4",
+    name: "Data Migration Sync",
+    type: "workstream",
+    workstream: "Data Migration",
+    frequency: "weekly",
+    dayOfWeek: "Thursday",
+    durationMins: 30,
+    nextDate: "2026-05-14",
+    attendees: [
+      { memberId: "tm1", role: "mandatory" },
+      { memberId: "tm4", role: "mandatory" },
+    ],
+  },
+  {
+    id: "mtg5",
+    name: "Training Sync",
+    type: "workstream",
+    workstream: "Training",
+    frequency: "bi-weekly",
+    dayOfWeek: "Friday",
+    durationMins: 30,
+    nextDate: "2026-05-15",
+    attendees: [
+      { memberId: "tm1", role: "mandatory" },
+      { memberId: "tm6", role: "mandatory" },
+    ],
+  },
+  {
+    id: "mtg6",
+    name: "Change Control Board",
+    type: "governance",
+    frequency: "monthly",
+    dayOfWeek: "Wednesday",
+    durationMins: 45,
+    nextDate: "2026-06-03",
+    attendees: [
+      { memberId: "tm1", role: "mandatory" },
+      { memberId: "tm2", role: "mandatory" },
+      { memberId: "tm3", role: "mandatory" },
+      { memberId: "tm4", role: "optional"  },
+      { memberId: "tm9", role: "optional"  },
+    ],
+  },
 ];
 
 // ─── Derived KPIs ─────────────────────────────────────────────────────────────

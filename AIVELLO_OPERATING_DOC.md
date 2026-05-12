@@ -92,26 +92,23 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** _none — awaiting next session goal from Vineet_
+
+Backlog candidates (still open):
+- Deep-link anchors from dashboard rows (`/milestones#m6` etc.)
+- Per-resource detail panel on the Resources page
+- Entity search across the command palette (currently only navigates pages)
+- Domain integration of M8 settings (working days, holidays, RAG thresholds) into the milestones cascade engine and risk RAG computation
+
+### M11 Completion summary (2026-05-11)
+
 **Module:** M11 — Reports polish + editable absences + Dashboard cross-links
-**Goal:** Three small high-utility lifts agreed with Vineet 2026-05-11:
-1. Apply M10A design vocabulary to the three report views (Weekly Status, SteerCo, Workstream) — currently still on pre-polish tokens
-2. Make the absences list on the Resources page user-editable (add new absence form, remove existing absence) with Sonner toasts
-3. Wire dashboard click-throughs: upcoming-milestone rows → `/milestones`, pending-decision rows → `/documents`
-
-**Definition of done:**
-- `components/reports/weekly-report.tsx`, `steerco-report.tsx`, `workstream-report.tsx` and the report-selector header in `app/(app)/reports/page.tsx` use bordered enterprise pills (bg-X-50 + border-X-200 + text-X-700), tabular-nums, M10A KPI-card pattern, and a `text-2xl` page header
-- Resources → Team Availability tab has an "Add absence" button that opens a form/dialog; existing absences each have a remove button; mutations fire a Sonner toast; mutations persist in component state (no backend)
-- Dashboard upcoming-milestone list items become `<Link>` to `/milestones`; pending-decision list items become `<Link>` to `/documents` (no deep-link anchors yet — out of scope for M11)
-- Build clean, all 13 routes still pass type-check + lint, deployed
-
-**Out of scope (deferred to backlog):**
-- Deep-link anchors (`/milestones#m6`) from dashboard rows
-- Per-resource detail panel
-- Entity search inside the command palette
-- Domain integration of M8 settings into the cascade engine
-
-**Started:** (this session)
-**Status:** in progress
+**Status:** ✅ Complete (commit `ffd7311`)
+**Outcome:**
+1. Reports sweep — all three report components (`weekly-report.tsx`, `steerco-report.tsx`, `workstream-report.tsx`) had their saturated pills converted to M10A bordered enterprise tokens (rose replaces red, emerald replaces green, violet replaces purple). Reports page header rebuilt: text-2xl bold, explanatory subtitle, and a 3-column card-grid tab selector with icon badges + active-state shadow.
+2. Editable absences — Absences lifted from module-level constant to component state in `ResourcesPanel`, distributed to the four tabs via a React Context (`AbsencesContext`). TeamAvailabilityTab gained an "Add Absence" button that opens an inline form card (member dropdown / start / end / reason / optional note, with validation). Every absence card gained a remove button (Trash2 icon). Both mutations fire Sonner toasts. `getMemberAbsencesInWeek` was refactored to take absences as a parameter.
+3. Dashboard click-throughs — Upcoming-milestone rows are now `<Link href="/milestones">` and pending-decision rows are `<Link href="/documents">`. Each panel header gained a "View all →" link. Rows show a ChevronRight on hover, and the row title lights up in primary on group-hover.
+Build clean, 13 static pages.
 
 ### M10B Completion summary (2026-05-11)
 
@@ -343,6 +340,44 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M11 — Reports polish + editable absences + Dashboard click-throughs)
+
+**Worked on (commit `ffd7311`):**
+
+1. **Reports design sweep** — Brought the three report components in line with M10A:
+   - `components/reports/weekly-report.tsx`, `steerco-report.tsx`, `workstream-report.tsx` had every saturated `bg-X-100 text-X-700` pill swept to `bg-X-50 text-X-700 border border-X-200`
+   - red → rose, green → emerald, purple → violet across all three files (consistent with M10A semantic palette)
+   - `app/(app)/reports/page.tsx`: header lifted from `text-lg semibold` to `text-2xl bold tracking-tight` with explanatory subtitle; tab buttons rebuilt as a 3-column card grid with icon badges, active-state shadow + primary tint, matching the M10A card pattern
+
+2. **Editable absences on Resources page**:
+   - `components/resources/resources-panel.tsx`: introduced `AbsencesContext` with `{ absences, addAbsence, removeAbsence }`; `ResourcesPanel` now holds `useState<Absence[]>(initialAbsences)` and provides the context
+   - Each of the four tabs (`TeamAvailabilityTab`, `MeetingCadenceTab`, `SteerCoPreBriefTab`, `WorkstreamPreBriefTab`) destructures absences from the hook instead of reading the module import
+   - `getMemberAbsencesInWeek` refactored to take absences as a parameter (was reading module-level constant)
+   - New `AddAbsenceForm` component: inline card with member dropdown, start/end date inputs, reason picker, optional note, validation, Cancel + Save buttons
+   - Each absence card now has a Trash2-icon remove button
+   - Both `addAbsence` and `removeAbsence` fire Sonner toasts with member name + dates
+   - Stale `red-*` Tailwind classes left over from M10B were also swept to `rose-*` for consistency
+
+3. **Dashboard click-throughs**:
+   - `app/(app)/page.tsx`: imported `Link` from next/link and `ChevronRight` icon
+   - Upcoming-milestone `<li>` rows wrapped in `<Link href="/milestones">`
+   - Pending-decision `<li>` rows wrapped in `<Link href="/documents">`
+   - Each panel header gained a `View all →` link in primary
+   - Row hover lights up the title in primary and reveals a ChevronRight indicator
+   - Footer hint refreshed
+
+**Decided:**
+- Three items shipped together as one module M11 because they're all small polish/wiring, not new surface area. Per anti-drift §9.1, the operating doc was updated FIRST with explicit DoD and an out-of-scope list before code was written
+- Deep-link anchors from dashboard (`/milestones#m6`) deferred — would require anchor-targetable rows on each grid which is a separate piece of work
+- Absence persistence stays in component state (no backend, no localStorage) — consistent with ADR-006 mock-data-first; M11 just makes the mutations real for the session, not persistent
+- Sweep of stale `red-*` classes done opportunistically because the same files were already open
+
+**Built:** v2 now visually consistent across all 14 surfaces (10 routes + 3 report tabs + 4 resources tabs). Build clean, 13 static pages, `/resources` 6.24 kB → 7.5 kB (form + state plumbing), other routes unchanged.
+
+**Next session goal:** Open — proposals welcome. Backlog candidates: deep-link anchors from dashboard, per-resource detail panel, entity search in command palette, domain integration of M8 settings into the cascade engine.
+
+---
 
 ### Session — 2026-05-11 (M10A — Enterprise UX polish + M10B — Resources module)
 

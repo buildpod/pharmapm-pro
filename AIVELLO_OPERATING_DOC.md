@@ -92,12 +92,28 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next session goal from Vineet_
+**Module:** M13 — Universal Add + Edit + Delete (milestones + tasks first)
+**Goal:** Today the app is a viewer. Mock data shows up but no row can be added, no field can be edited (except the few inline click-cycles), no row can be deleted. The dogfood walkthrough showed this is the single biggest blocker to actual PM use. Build a consistent slide-over drawer pattern and wire it for the two most-clicked entities first: milestones and tasks. Risks / documents / cost lines / team members / meetings follow in M14.
 
-Backlog candidates (still open):
-- Deep-link anchors from dashboard rows (`/milestones#m6` etc.)
-- Per-resource detail panel on the Resources page
-- Entity search across the command palette (currently only navigates pages)
+**Definition of done:**
+- Reusable `<EntityDrawer>` component (right-anchored slide-over with backdrop, ESC-to-close, focus trap), single file, no new dependencies
+- Milestones grid has: `+ Add Milestone` button, every row clickable → opens drawer in edit mode, `Delete` button inside drawer with confirm
+- Tasks grid has: `+ Add Task` button, every row clickable → opens drawer in edit mode, `Delete` button inside drawer
+- Forms cover all editable fields (Milestone: name + phase + owner + predecessor + duration + lag + plannedDate + forecastDate + status + locked; Task: name + workstream + priority + status + progress + milestoneId + owner + dueDate + dependsOn)
+- Save / Cancel / Delete buttons consistent across both
+- Sonner toast on add / update / delete
+- All existing inline-click behaviour preserved (status cycle, progress slider, date inline edit)
+- Build clean, lint clean
+
+**Out of scope (deferred to M14):**
+- Risks / documents / cost lines / team members / meetings add+edit+delete (same pattern, just more entities)
+- Description / markdown fields (we don't store them yet — comes with M14)
+- Attachments / file storage (needs backend — Path C territory)
+- Comments / @mentions (M19)
+- Undo (Sonner supports it; defer until pattern is proven)
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M12 Completion summary (2026-05-11)
 
@@ -312,6 +328,72 @@ Total estimate: **11 sessions** at one focused module per session.
 ### Buffer
 
 **+1 session** allowed across the project for unexpected fixes. If we exceed by more than 1 session, we re-plan section 5.
+
+---
+
+## 5.1 — Post-launch modules (M10A → present)
+
+After the original 11-module plan shipped, v2 was extended with three rounds of polish (M10A enterprise UX, M10B Resources, M11 reports/absences/dashboard cross-links) and one domain integration (M12). All complete and logged in §8.
+
+Following the 2026-05-11 dogfood walkthrough (logged below as the "what's missing" analysis), the path forward is **Path C** — focus on core PM features, pair with Veeva Vault for validated document + e-signature handling rather than build our own GxP layer. Documentation is internal (build / architecture / cert-prep), not user-facing how-to.
+
+### M13 — Universal Add + Edit + Delete (milestones + tasks)
+
+**Goal:** Turn the app from a viewer into a tool by giving milestones and tasks add / edit / delete affordances via a reusable slide-over drawer.
+
+**Definition of done:** see §4.
+
+### M14 — Universal Add + Edit + Delete (risks, documents, cost lines, team members, meetings)
+
+**Goal:** Extend the M13 drawer pattern to the remaining five entities. Includes the ability to start a new document review cycle, add risk mitigation history entries, and CRUD team members + recurring meetings on the Resources page.
+
+**Definition of done:** every entity in the app has + Add / row-click-to-edit / Delete with the same drawer pattern. Sonner toasts everywhere. No mock-data fields stay hidden behind a code-only edit.
+
+### M15 — Projects list, create, switcher
+
+**Goal:** Make the app multi-project. Sidebar currently hardcodes "Veeva RIM Implementation"; build a `/projects` list, a Create Project form, a sidebar dropdown switcher, and per-project data isolation in component state.
+
+**Definition of done:** user can create a second project, switch between them, and the dashboard / milestones / tasks / etc. all scope to the selected project.
+
+### M16 — Gantt + critical path
+
+**Goal:** Add a Gantt timeline view on the Milestones page with predecessor lines and critical-path highlighting. Re-use the existing cascade engine for CP computation.
+
+**Definition of done:** toggle on Milestones page between "Grid" and "Gantt"; Gantt shows bars by plannedStart→plannedEnd with predecessor arrows; critical-path milestones outlined or coloured distinctly.
+
+### M17 — Global search in ⌘K + "My Items" view + filter by owner-is-me
+
+**Goal:** ⌘K currently only navigates pages; extend it to search milestones, tasks, risks, documents, cost lines. Add a top-level "My Items" route aggregating everything owned by the current "logged-in" user (mock — Vineet). Add `owner = me` quick-filter on each grid.
+
+**Definition of done:** typing "FRS" in ⌘K finds the document; "data migration" finds the risk + milestone + tasks. `/my-items` lists overdue / due-this-week / blocked rows across entities.
+
+### M18 — CSV / Excel import + project templates
+
+**Goal:** Today users would have to add 30–50 milestones one by one. Add CSV import for milestones / tasks / risks. Seed a "Veeva RIM standard implementation" template that creates a starter project in one click.
+
+**Definition of done:** Import button on each grid opens a CSV mapper; Create Project form has a "Start from template" option with at least one Veeva RIM template seeded.
+
+### M19 — Comments + activity feed (in-app only, no email yet)
+
+**Goal:** Per-entity comments (no @mentions or email yet — that's M20). Per-entity activity feed showing every change (add / edit / status cycle / decision recorded).
+
+**Definition of done:** Drawer for any entity has a Comments tab and an Activity tab; comments are stored in component state; activity log records mutations automatically.
+
+### M20 — Report executive commentary + report snapshots
+
+**Goal:** Two governance polish items the SteerCo pre-brief needs: (a) free-text executive commentary block at the top of each report, persisted; (b) "Snapshot for this SteerCo" button that freezes the report state to an immutable record listed under `/reports/history`.
+
+**Definition of done:** Reports page has a commentary field that persists per report-type; snapshot history accessible and viewable.
+
+### Beyond M20 — Path C platform decisions (not scoped yet)
+
+These are not modules yet — they're the architectural decisions Path C requires before any pharma can put real data in the tool. Each is its own multi-session effort with an ADR:
+- Backend choice (Supabase / self-hosted Postgres) — needs new ADR replacing ADR-006
+- Auth + SSO (Supabase Auth or Clerk + SAML/OIDC) — needs new ADR
+- Veeva Vault API integration (for validated doc + e-sig handoff) — feasibility study first
+- Audit trail (immutable change log) — schema design
+- SOC 2 + cert-prep documentation (internal, not user-facing) — separate doc trail
+- GxP validation package authoring (IQ/OQ/PQ for the tool itself if anyone uses it for GxP data) — separate doc trail
 
 ---
 

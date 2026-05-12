@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { toast } from "sonner";
 import {
   Lock,
   Unlock,
@@ -10,6 +11,7 @@ import {
   Clock,
   Calendar,
   RotateCcw,
+  Plus,
 } from "lucide-react";
 import { milestones as initialMilestones, project, type Milestone, type MilestoneStatus } from "@/lib/mockData";
 import {
@@ -31,6 +33,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { MilestoneFormDrawer } from "./milestone-form";
 import { cn } from "@/lib/utils";
 
 const TODAY = "2026-05-11";
@@ -271,11 +274,14 @@ function StatusCell({
 
 // ─── Main grid ───────────────────────────────────────────────────────────────
 
+type DrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; milestone: Milestone };
+
 export function MilestonesGrid() {
   const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
   const [filterPhase, setFilterPhase] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [cascadePreview, setCascadePreview] = useState<CascadePreviewState | null>(null);
+  const [drawer, setDrawer] = useState<DrawerState>({ mode: "closed" });
 
   // Live settings from M8 — pass through to every domain call so working days,
   // holidays, and RAG thresholds actually drive the schedule.
@@ -333,6 +339,29 @@ export function MilestonesGrid() {
     setMilestones(initialMilestones);
   }
 
+  // Drawer save/delete handlers
+  function handleDrawerSave(m: Milestone) {
+    setMilestones((prev) => {
+      const idx = prev.findIndex((x) => x.id === m.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = m;
+        toast.success("Milestone updated", { description: m.name });
+        return next;
+      }
+      toast.success("Milestone added", { description: m.name });
+      return [...prev, m];
+    });
+    setDrawer({ mode: "closed" });
+  }
+
+  function handleDrawerDelete(id: string) {
+    const target = milestones.find((m) => m.id === id);
+    setMilestones((prev) => prev.filter((m) => m.id !== id));
+    toast.success("Milestone deleted", { description: target?.name });
+    setDrawer({ mode: "closed" });
+  }
+
   const filtered = milestones.filter((m) => {
     if (filterPhase !== "All" && m.phase !== filterPhase) return false;
     if (filterStatus !== "All" && m.status !== filterStatus) return false;
@@ -372,10 +401,18 @@ export function MilestonesGrid() {
 
         <button
           onClick={handleScheduleFromGoLive}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+          className="flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
         >
           <Calendar className="h-3.5 w-3.5" />
           Schedule from Go-Live
+        </button>
+
+        <button
+          onClick={() => setDrawer({ mode: "new" })}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Milestone
         </button>
       </div>
 
@@ -427,9 +464,15 @@ export function MilestonesGrid() {
                   />
                 </div>
 
-                {/* Name + owner */}
+                {/* Name + owner — clicking name opens edit drawer */}
                 <div className="min-w-0 pl-2">
-                  <p className="truncate text-sm font-medium text-foreground">{m.name}</p>
+                  <button
+                    onClick={() => setDrawer({ mode: "edit", milestone: m })}
+                    className="truncate text-left text-sm font-medium text-foreground hover:text-primary hover:underline"
+                    title="Click to edit"
+                  >
+                    {m.name}
+                  </button>
                   <p className="text-xs text-muted-foreground">Owner: {m.owner}</p>
                 </div>
 
@@ -527,6 +570,16 @@ export function MilestonesGrid() {
           onDiscard={() => setCascadePreview(null)}
         />
       )}
+
+      {/* Add / Edit drawer */}
+      <MilestoneFormDrawer
+        open={drawer.mode !== "closed"}
+        initial={drawer.mode === "edit" ? drawer.milestone : null}
+        allMilestones={milestones}
+        onSave={handleDrawerSave}
+        onDelete={handleDrawerDelete}
+        onClose={() => setDrawer({ mode: "closed" })}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Milestone, ArrowRight } from "lucide-react";
+import { toast } from "sonner";
+import { ChevronDown, ChevronRight, Milestone, ArrowRight, Plus } from "lucide-react";
 import {
   tasks as initialTasks,
   milestones,
@@ -9,6 +10,7 @@ import {
   type TaskStatus,
   type TaskPriority,
 } from "@/lib/mockData";
+import { TaskFormDrawer } from "./task-form";
 import { cn } from "@/lib/utils";
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -132,11 +134,13 @@ function TaskRow({
   allTasks,
   onStatusToggle,
   onProgressChange,
+  onEdit,
 }: {
   task: Task;
   allTasks: Task[];
   onStatusToggle: (id: string) => void;
   onProgressChange: (id: string, value: number) => void;
+  onEdit: (task: Task) => void;
 }) {
   const [editingProgress, setEditingProgress] = useState(false);
   const p = priorityStyles[task.priority];
@@ -152,9 +156,15 @@ function TaskRow({
         />
       </td>
 
-      {/* Name + milestone tag + dependencies */}
+      {/* Name + milestone tag + dependencies — click name to edit */}
       <td className="px-2 py-3">
-        <p className="text-sm font-medium leading-tight text-foreground">{task.name}</p>
+        <button
+          onClick={() => onEdit(task)}
+          className="block w-full text-left text-sm font-medium leading-tight text-foreground hover:text-primary hover:underline"
+          title="Click to edit"
+        >
+          {task.name}
+        </button>
         <div className="mt-1 flex flex-wrap items-center gap-1">
           <MilestoneTag milestoneId={task.milestoneId} />
         </div>
@@ -247,12 +257,14 @@ function WorkstreamGroup({
   allTasks,
   onStatusToggle,
   onProgressChange,
+  onEdit,
 }: {
   name: string;
   tasks: Task[];
   allTasks: Task[];
   onStatusToggle: (id: string) => void;
   onProgressChange: (id: string, value: number) => void;
+  onEdit: (task: Task) => void;
 }) {
   const [open, setOpen] = useState(true);
 
@@ -323,6 +335,7 @@ function WorkstreamGroup({
                 allTasks={allTasks}
                 onStatusToggle={onStatusToggle}
                 onProgressChange={onProgressChange}
+                onEdit={onEdit}
               />
             ))}
           </tbody>
@@ -334,13 +347,38 @@ function WorkstreamGroup({
 
 // ─── Main grid ────────────────────────────────────────────────────────────────
 
+type TaskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
+
 export function TasksGrid() {
   const [tasks, setTasks]                       = useState<Task[]>(initialTasks);
   const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
   const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
   const [filterWorkstream, setFilterWorkstream] = useState<string>("All");
+  const [drawer, setDrawer]                     = useState<TaskDrawerState>({ mode: "closed" });
 
   const allWorkstreams = Array.from(new Set(tasks.map((t) => t.workstream)));
+
+  function handleDrawerSave(t: Task) {
+    setTasks((prev) => {
+      const idx = prev.findIndex((x) => x.id === t.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = t;
+        toast.success("Task updated", { description: t.name });
+        return next;
+      }
+      toast.success("Task added", { description: t.name });
+      return [...prev, t];
+    });
+    setDrawer({ mode: "closed" });
+  }
+
+  function handleDrawerDelete(id: string) {
+    const target = tasks.find((t) => t.id === id);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    toast.success("Task deleted", { description: target?.name });
+    setDrawer({ mode: "closed" });
+  }
 
   function handleStatusToggle(id: string) {
     setTasks((prev) =>
@@ -427,6 +465,14 @@ export function TasksGrid() {
           <option value="All">All statuses</option>
           {allStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+
+        <button
+          onClick={() => setDrawer({ mode: "new" })}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Task
+        </button>
       </div>
 
       {/* Legend */}
@@ -457,10 +503,23 @@ export function TasksGrid() {
               allTasks={tasks}
               onStatusToggle={handleStatusToggle}
               onProgressChange={handleProgressChange}
+              onEdit={(t) => setDrawer({ mode: "edit", task: t })}
             />
           ))}
         </div>
       )}
+
+      {/* Add / Edit drawer */}
+      <TaskFormDrawer
+        open={drawer.mode !== "closed"}
+        initial={drawer.mode === "edit" ? drawer.task : null}
+        allTasks={tasks}
+        allMilestones={milestones}
+        knownWorkstreams={allWorkstreams}
+        onSave={handleDrawerSave}
+        onDelete={handleDrawerDelete}
+        onClose={() => setDrawer({ mode: "closed" })}
+      />
     </div>
   );
 }

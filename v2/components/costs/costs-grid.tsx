@@ -1,5 +1,10 @@
-import { DollarSign, TrendingDown, Wallet, Layers } from "lucide-react";
-import { costLines, budgetTrend } from "@/lib/mockData";
+"use client";
+
+import { useState } from "react";
+import { toast } from "sonner";
+import { DollarSign, TrendingDown, Wallet, Layers, Plus } from "lucide-react";
+import { costLines as initialCostLines, budgetTrend, type CostLine } from "@/lib/mockData";
+import { CostLineFormDrawer } from "./cost-line-form";
 import { cn } from "@/lib/utils";
 
 const TOTAL_BUDGET_K = 2000;
@@ -69,7 +74,34 @@ function KpiCard({
 
 // ─── Main grid ──────────────────────────────────────────────────────────────
 
+type CostDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; line: CostLine };
+
 export function CostsGrid() {
+  const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
+  const [drawer, setDrawer]       = useState<CostDrawerState>({ mode: "closed" });
+
+  const knownCategories = Array.from(new Set(costLines.map((c) => c.category)));
+
+  function handleDrawerSave(c: CostLine) {
+    setCostLines((prev) => {
+      const idx = prev.findIndex((x) => x.id === c.id);
+      if (idx >= 0) {
+        const next = [...prev]; next[idx] = c;
+        toast.success("Cost line updated", { description: c.description });
+        return next;
+      }
+      toast.success("Cost line added", { description: c.description });
+      return [...prev, c];
+    });
+    setDrawer({ mode: "closed" });
+  }
+  function handleDrawerDelete(id: string) {
+    const target = costLines.find((c) => c.id === id);
+    setCostLines((prev) => prev.filter((c) => c.id !== id));
+    toast.success("Cost line deleted", { description: target?.description });
+    setDrawer({ mode: "closed" });
+  }
+
   const totalActualK  = costLines.reduce((s, c) => s + c.actualK, 0);
   const totalBurnPct  = Math.round((totalActualK / TOTAL_BUDGET_K) * 100);
   const remainingK    = TOTAL_BUDGET_K - totalActualK;
@@ -137,6 +169,12 @@ export function CostsGrid() {
             <p className="text-sm font-semibold text-foreground">Cost Breakdown by Category</p>
             <p className="mt-0.5 text-xs text-muted-foreground">budget · actual · burn % per line</p>
           </div>
+          <button
+            onClick={() => setDrawer({ mode: "new" })}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add line
+          </button>
         </div>
 
         <table className="w-full text-sm">
@@ -165,7 +203,15 @@ export function CostsGrid() {
                       {c.category}
                     </span>
                   </td>
-                  <td className="px-3 py-3.5 text-xs text-muted-foreground">{c.description}</td>
+                  <td className="px-3 py-3.5">
+                    <button
+                      onClick={() => setDrawer({ mode: "edit", line: c })}
+                      className="text-left text-xs text-muted-foreground hover:text-primary hover:underline"
+                      title="Click to edit"
+                    >
+                      {c.description}
+                    </button>
+                  </td>
                   <td className="px-3 py-3.5 text-center">
                     <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", contractBadge[c.contractType])}>
                       {c.contractType}
@@ -203,6 +249,16 @@ export function CostsGrid() {
           </tfoot>
         </table>
       </div>
+
+      <CostLineFormDrawer
+        open={drawer.mode !== "closed"}
+        initial={drawer.mode === "edit" ? drawer.line : null}
+        allCostLines={costLines}
+        knownCategories={knownCategories}
+        onSave={handleDrawerSave}
+        onDelete={handleDrawerDelete}
+        onClose={() => setDrawer({ mode: "closed" })}
+      />
 
       {/* Monthly burn trend */}
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto">

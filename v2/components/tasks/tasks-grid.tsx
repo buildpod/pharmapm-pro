@@ -410,7 +410,13 @@ export function TasksGrid() {
 
   const workstreams = Array.from(new Set(tasks.map((t) => t.workstream)));
   const groups = workstreams
-    .map((ws) => ({ name: ws, tasks: filtered.filter((t) => t.workstream === ws) }))
+    .map((ws) => ({
+      name: ws,
+      tasks: filtered
+        .filter((t) => t.workstream === ws)
+        .slice()
+        .sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
+    }))
     .filter((g) => g.tasks.length > 0);
 
   // Summary counts

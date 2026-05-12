@@ -4,13 +4,10 @@ import { useState, useEffect } from "react";
 import { Trash2 } from "lucide-react";
 import type { Milestone, MilestoneStatus } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { isIsoDate, inProjectRange, addCalendarDays, PROJECT_DATE_MIN, PROJECT_DATE_MAX } from "@/lib/validation";
 
 const PHASES = ["Initiation", "Design", "Config", "Testing", "Training", "Go-Live"] as const;
 const STATUSES: MilestoneStatus[] = ["pending", "in-progress", "at-risk", "complete"];
-
-function isIso(s: string) {
-  return s === "" || /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
 
 function nextMilestoneId(all: Milestone[]): string {
   const nums = all
@@ -73,8 +70,17 @@ export function MilestoneFormDrawer({
   function handleSave() {
     if (!name.trim())             { setError("Name is required"); return; }
     if (!plannedDate)             { setError("Planned date is required"); return; }
-    if (!isIso(plannedDate))      { setError("Planned date must be yyyy-mm-dd"); return; }
-    if (!isIso(forecastDate))     { setError("Forecast date must be yyyy-mm-dd"); return; }
+    if (!isIsoDate(plannedDate))   { setError("Planned date must be yyyy-mm-dd"); return; }
+    if (!isIsoDate(forecastDate))  { setError("Forecast date must be yyyy-mm-dd"); return; }
+    if (!inProjectRange(plannedDate))  { setError(`Planned date must be between ${PROJECT_DATE_MIN} and ${PROJECT_DATE_MAX}`); return; }
+    if (!inProjectRange(forecastDate)) { setError(`Forecast date must be between ${PROJECT_DATE_MIN} and ${PROJECT_DATE_MAX}`); return; }
+    if (predecessor) {
+      const pred = allMilestones.find((m) => m.id === predecessor);
+      if (pred && plannedDate < pred.plannedDate) {
+        setError(`Planned date can't be before predecessor (${pred.name}: ${pred.plannedDate})`);
+        return;
+      }
+    }
     if (predecessor && predecessor === initial?.id) {
       setError("A milestone can't depend on itself"); return;
     }
@@ -183,10 +189,22 @@ export function MilestoneFormDrawer({
             </Field>
           </div>
 
-          <Field label="Predecessor" hint="The milestone this one depends on (optional)">
+          <Field label="Predecessor" hint="The milestone this one depends on (optional). Selecting one auto-suggests planned date.">
             <select
               value={predecessor}
-              onChange={(e) => setPredecessor(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value;
+                setPredecessor(next);
+                // Auto-suggest planned date based on predecessor + lag (only if planned not set yet)
+                if (next && !plannedDate) {
+                  const pred = allMilestones.find((m) => m.id === next);
+                  if (pred?.plannedDate) {
+                    // rough: predecessor end + (lag + 1) calendar days; user can refine
+                    const suggest = addCalendarDays(pred.plannedDate, lag + 1);
+                    setPlannedDate(suggest);
+                  }
+                }
+              }}
               className={inputCls}
             >
               <option value="">— none —</option>

@@ -4,31 +4,40 @@ import { useState, createContext, useContext } from "react";
 import { toast } from "sonner";
 import { Users, Calendar, ClipboardList, Layers, AlertTriangle, XCircle, Plus, Trash2, X } from "lucide-react";
 import {
-  teamMembers, absences as initialAbsences, recurringMeetings, milestones, tasks, risks, documents,
+  teamMembers as initialTeamMembers,
+  absences as initialAbsences,
+  recurringMeetings as initialMeetings,
+  milestones, tasks, risks, documents,
   type TeamMember, type RecurringMeeting, type Absence, type AbsenceReason,
 } from "@/lib/mockData";
+import { TeamMemberFormDrawer } from "./team-member-form";
+import { MeetingFormDrawer } from "./meeting-form";
 import { cn } from "@/lib/utils";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const TODAY = "2026-05-11";
 
-// ─── Absences state (lifted) ────────────────────────────────────────────────
+// ─── Resources state (lifted) ────────────────────────────────────────────────
 
-type AbsencesContextValue = {
+type ResourcesContextValue = {
   absences: Absence[];
   addAbsence: (a: Omit<Absence, "id">) => void;
   removeAbsence: (id: string) => void;
+  teamMembers: TeamMember[];
+  recurringMeetings: RecurringMeeting[];
 };
 
-const AbsencesContext = createContext<AbsencesContextValue>({
+const ResourcesContext = createContext<ResourcesContextValue>({
   absences: initialAbsences,
   addAbsence: () => {},
   removeAbsence: () => {},
+  teamMembers: initialTeamMembers,
+  recurringMeetings: initialMeetings,
 });
 
-function useAbsences() {
-  return useContext(AbsencesContext);
+function useResources() {
+  return useContext(ResourcesContext);
 }
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
@@ -37,8 +46,8 @@ function overlaps(aStart: string, aEnd: string, bStart: string, bEnd: string) {
   return aStart <= bEnd && aEnd >= bStart;
 }
 
-function getMemberById(id: string) {
-  return teamMembers.find((m) => m.id === id);
+function getMemberById(members: TeamMember[], id: string) {
+  return members.find((m) => m.id === id);
 }
 
 function getMemberAbsencesInWeek(absences: Absence[], memberId: string, wStart: string, wEnd: string) {
@@ -99,11 +108,13 @@ const REASON_OPTIONS: AbsenceReason[] = ["Vacation", "Public Holiday", "Conferen
 function AddAbsenceForm({
   onCancel,
   onSubmit,
+  members,
 }: {
   onCancel: () => void;
   onSubmit: (a: Omit<Absence, "id">) => void;
+  members: TeamMember[];
 }) {
-  const ops = teamMembers.filter((m) => m.workstream !== "Executive");
+  const ops = members.filter((m) => m.workstream !== "Executive");
   const [memberId, setMemberId] = useState(ops[0]?.id ?? "");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -223,8 +234,8 @@ function AddAbsenceForm({
 
 // ─── Tab 1: Team Availability ────────────────────────────────────────────────
 
-function TeamAvailabilityTab() {
-  const { absences, addAbsence, removeAbsence } = useAbsences();
+function TeamAvailabilityTab({ onEditMember }: { onEditMember: (m: TeamMember) => void }) {
+  const { absences, addAbsence, removeAbsence, teamMembers } = useResources();
   const [addOpen, setAddOpen] = useState(false);
   const weeks = getWeeks(8);
   const ops = teamMembers.filter((m) => m.workstream !== "Executive");
@@ -256,6 +267,7 @@ function TeamAvailabilityTab() {
 
       {addOpen && (
         <AddAbsenceForm
+          members={teamMembers}
           onCancel={() => setAddOpen(false)}
           onSubmit={(a) => {
             addAbsence(a);
@@ -283,15 +295,19 @@ function TeamAvailabilityTab() {
             {ops.map((member) => (
               <tr key={member.id} className="hover:bg-muted/20">
                 <td className="px-3 py-2 sticky left-0 bg-card">
-                  <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => onEditMember(member)}
+                    className="flex items-center gap-2 text-left hover:text-primary"
+                    title="Click to edit member"
+                  >
                     <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
                       {member.initials}
                     </span>
                     <div>
-                      <p className="text-xs font-medium text-foreground leading-none">{member.name}</p>
+                      <p className="text-xs font-medium leading-none">{member.name}</p>
                       <p className="text-[10px] text-muted-foreground">{member.role}</p>
                     </div>
-                  </div>
+                  </button>
                 </td>
                 {weeks.map((week) => {
                   const weekAbs = getMemberAbsencesInWeek(absences, member.id, week.start, week.end);
@@ -328,7 +344,7 @@ function TeamAvailabilityTab() {
         <p className="mb-2 text-xs font-semibold text-foreground">Registered Absences</p>
         <div className="grid gap-2 sm:grid-cols-2">
           {absences.map((ab) => {
-            const member = getMemberById(ab.memberId);
+            const member = getMemberById(teamMembers, ab.memberId);
             if (!member) return null;
             const impactTasks = tasks.filter(
               (t) =>
@@ -401,8 +417,8 @@ function TeamAvailabilityTab() {
 
 // ─── Tab 2: Meeting Cadence ──────────────────────────────────────────────────
 
-function MeetingCadenceTab() {
-  const { absences } = useAbsences();
+function MeetingCadenceTab({ onEditMeeting }: { onEditMeeting: (m: RecurringMeeting) => void }) {
+  const { absences, teamMembers, recurringMeetings } = useResources();
 
   function hasMandatoryConflict(mtg: RecurringMeeting) {
     return mtg.attendees.some(
@@ -444,8 +460,14 @@ function MeetingCadenceTab() {
             )}
           >
             <div className="flex items-start justify-between gap-2">
-              <div>
-                <p className="text-sm font-semibold text-foreground">{mtg.name}</p>
+              <div className="min-w-0">
+                <button
+                  onClick={() => onEditMeeting(mtg)}
+                  className="text-left text-sm font-semibold text-foreground hover:text-primary hover:underline"
+                  title="Click to edit meeting"
+                >
+                  {mtg.name}
+                </button>
                 {mtg.workstream && (
                   <p className="text-[10px] text-muted-foreground">{mtg.workstream} workstream</p>
                 )}
@@ -481,7 +503,7 @@ function MeetingCadenceTab() {
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Mandatory</p>
               <div className="flex flex-wrap gap-1.5">
                 {mandatory.map((att) => {
-                  const m = getMemberById(att.memberId);
+                  const m = getMemberById(teamMembers, att.memberId);
                   if (!m) return null;
                   const absent = absences.some(
                     (ab) =>
@@ -511,7 +533,7 @@ function MeetingCadenceTab() {
                 <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Optional</p>
                 <div className="flex flex-wrap gap-1.5">
                   {optional.map((att) => {
-                    const m = getMemberById(att.memberId);
+                    const m = getMemberById(teamMembers, att.memberId);
                     if (!m) return null;
                     return (
                       <span
@@ -536,7 +558,7 @@ function MeetingCadenceTab() {
 // ─── Tab 3: SteerCo Pre-Brief ────────────────────────────────────────────────
 
 function SteerCoPreBriefTab() {
-  const { absences } = useAbsences();
+  const { absences, teamMembers, recurringMeetings } = useResources();
   const steerco = recurringMeetings.find((m) => m.type === "steerco")!;
   const mandatory = teamMembers.filter((m) => m.steercoRole === "mandatory");
 
@@ -711,7 +733,7 @@ function SteerCoPreBriefTab() {
           <p className="mb-2 text-xs font-semibold text-foreground">Resource Conflicts — Next 2 Weeks</p>
           <div className="space-y-1.5">
             {nearConflicts.map((ab) => {
-              const member = getMemberById(ab.memberId);
+              const member = getMemberById(teamMembers, ab.memberId);
               if (!member) return null;
               const impact = getImpactCount(member, ab.startDate, ab.endDate);
               return (
@@ -780,7 +802,7 @@ function SteerCoPreBriefTab() {
 const ALL_WORKSTREAMS = ["Configuration", "Validation", "Data Migration", "Training", "Project Mgmt"];
 
 function WorkstreamPreBriefTab() {
-  const { absences } = useAbsences();
+  const { absences, teamMembers } = useResources();
   const [ws, setWs] = useState(ALL_WORKSTREAMS[0]);
 
   const lead      = teamMembers.find((m) => m.workstream === ws);
@@ -905,7 +927,7 @@ function WorkstreamPreBriefTab() {
               <span>
                 <span className="font-semibold">Absences in next 4 weeks: </span>
                 {wsAbsences.map((ab) => {
-                  const m = getMemberById(ab.memberId);
+                  const m = getMemberById(teamMembers, ab.memberId);
                   return `${m?.name ?? ab.memberId} (${ab.startDate}→${ab.endDate})`;
                 }).join("; ")}
               </span>
@@ -1011,9 +1033,16 @@ const tabs = [
   { id: "workstream"   as const, label: "Workstream Brief",  Icon: Layers },
 ];
 
+type MemberDrawer  = { mode: "closed" } | { mode: "new" } | { mode: "edit"; member: TeamMember };
+type MeetingDrawer = { mode: "closed" } | { mode: "new" } | { mode: "edit"; meeting: RecurringMeeting };
+
 export function ResourcesPanel() {
   const [tab, setTab] = useState<Tab>("availability");
-  const [absences, setAbsences] = useState<Absence[]>(initialAbsences);
+  const [absences, setAbsences]                   = useState<Absence[]>(initialAbsences);
+  const [teamMembers, setTeamMembers]             = useState<TeamMember[]>(initialTeamMembers);
+  const [recurringMeetings, setRecurringMeetings] = useState<RecurringMeeting[]>(initialMeetings);
+  const [memberDrawer,  setMemberDrawer]          = useState<MemberDrawer>({ mode: "closed" });
+  const [meetingDrawer, setMeetingDrawer]         = useState<MeetingDrawer>({ mode: "closed" });
 
   function addAbsence(a: Omit<Absence, "id">) {
     const id = `ab${Date.now()}`;
@@ -1034,33 +1063,119 @@ export function ResourcesPanel() {
     });
   }
 
+  function saveMember(m: TeamMember) {
+    setTeamMembers((prev) => {
+      const idx = prev.findIndex((x) => x.id === m.id);
+      if (idx >= 0) {
+        const next = [...prev]; next[idx] = m;
+        toast.success("Member updated", { description: m.name });
+        return next;
+      }
+      toast.success("Member added", { description: m.name });
+      return [...prev, m];
+    });
+    setMemberDrawer({ mode: "closed" });
+  }
+  function deleteMember(id: string) {
+    const target = teamMembers.find((m) => m.id === id);
+    setTeamMembers((prev) => prev.filter((m) => m.id !== id));
+    toast.success("Member deleted", { description: target?.name });
+    setMemberDrawer({ mode: "closed" });
+  }
+
+  function saveMeeting(m: RecurringMeeting) {
+    setRecurringMeetings((prev) => {
+      const idx = prev.findIndex((x) => x.id === m.id);
+      if (idx >= 0) {
+        const next = [...prev]; next[idx] = m;
+        toast.success("Meeting updated", { description: m.name });
+        return next;
+      }
+      toast.success("Meeting added", { description: m.name });
+      return [...prev, m];
+    });
+    setMeetingDrawer({ mode: "closed" });
+  }
+  function deleteMeeting(id: string) {
+    const target = recurringMeetings.find((m) => m.id === id);
+    setRecurringMeetings((prev) => prev.filter((m) => m.id !== id));
+    toast.success("Meeting deleted", { description: target?.name });
+    setMeetingDrawer({ mode: "closed" });
+  }
+
+  // Workstreams from members + meetings, deduped
+  const knownWorkstreams = Array.from(new Set([
+    ...teamMembers.map((m) => m.workstream),
+    ...recurringMeetings.map((m) => m.workstream).filter((w): w is string => !!w),
+  ])).filter((w) => w !== "Executive");
+
   return (
-    <AbsencesContext.Provider value={{ absences, addAbsence, removeAbsence }}>
+    <ResourcesContext.Provider value={{ absences, addAbsence, removeAbsence, teamMembers, recurringMeetings }}>
     <div className="space-y-4">
-      {/* Tab bar */}
-      <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/40 p-1">
-        {tabs.map(({ id, label, Icon }) => (
+      {/* Tab bar with Add buttons inline */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/40 p-1">
+          {tabs.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={cn(
+                "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                tab === id
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+        <div className="flex-1" />
+        {tab === "availability" && (
           <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={cn(
-              "flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-              tab === id
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            )}
+            onClick={() => setMemberDrawer({ mode: "new" })}
+            className="flex items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
           >
-            <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="hidden sm:inline">{label}</span>
+            <Plus className="h-3.5 w-3.5" /> Add Member
           </button>
-        ))}
+        )}
+        {tab === "cadence" && (
+          <button
+            onClick={() => setMeetingDrawer({ mode: "new" })}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add Meeting
+          </button>
+        )}
       </div>
 
-      {tab === "availability" && <TeamAvailabilityTab />}
-      {tab === "cadence"      && <MeetingCadenceTab />}
+      {tab === "availability" && <TeamAvailabilityTab onEditMember={(m) => setMemberDrawer({ mode: "edit", member: m })} />}
+      {tab === "cadence"      && <MeetingCadenceTab onEditMeeting={(m) => setMeetingDrawer({ mode: "edit", meeting: m })} />}
       {tab === "steerco"      && <SteerCoPreBriefTab />}
       {tab === "workstream"   && <WorkstreamPreBriefTab />}
+
+      <TeamMemberFormDrawer
+        open={memberDrawer.mode !== "closed"}
+        initial={memberDrawer.mode === "edit" ? memberDrawer.member : null}
+        allMembers={teamMembers}
+        knownWorkstreams={knownWorkstreams}
+        onSave={saveMember}
+        onDelete={deleteMember}
+        onClose={() => setMemberDrawer({ mode: "closed" })}
+      />
+
+      <MeetingFormDrawer
+        open={meetingDrawer.mode !== "closed"}
+        initial={meetingDrawer.mode === "edit" ? meetingDrawer.meeting : null}
+        allMeetings={recurringMeetings}
+        teamMembers={teamMembers}
+        knownWorkstreams={knownWorkstreams}
+        onSave={saveMeeting}
+        onDelete={deleteMeeting}
+        onClose={() => setMeetingDrawer({ mode: "closed" })}
+      />
     </div>
-    </AbsencesContext.Provider>
+    </ResourcesContext.Provider>
   );
 }

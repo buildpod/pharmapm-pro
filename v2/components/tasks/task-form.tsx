@@ -1,16 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
 import type { Task, TaskStatus, TaskPriority, Milestone } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
+import { isIsoDate, inProjectRange, PROJECT_DATE_MIN, PROJECT_DATE_MAX } from "@/lib/validation";
 
 const PRIORITIES: TaskPriority[] = ["Critical", "High", "Medium", "Low"];
 const STATUSES:   TaskStatus[]   = ["Not Started", "In Progress", "Complete", "Blocked", "On Hold"];
-
-function isIso(s: string) {
-  return s === "" || /^\d{4}-\d{2}-\d{2}$/.test(s);
-}
 
 function nextTaskId(all: Task[]): string {
   const nums = all
@@ -72,8 +70,31 @@ export function TaskFormDrawer({
     if (!name.trim())         { setError("Name is required"); return; }
     if (!workstream.trim())   { setError("Workstream is required"); return; }
     if (!dueDate)             { setError("Due date is required"); return; }
-    if (!isIso(dueDate))      { setError("Due date must be yyyy-mm-dd"); return; }
+    if (!isIsoDate(dueDate))  { setError("Due date must be yyyy-mm-dd"); return; }
+    if (!inProjectRange(dueDate)) {
+      setError(`Due date must be between ${PROJECT_DATE_MIN} and ${PROJECT_DATE_MAX}`); return;
+    }
     setError(null);
+
+    // Soft warnings — don't block save, just nudge
+    if (milestoneId) {
+      const ms = allMilestones.find((m) => m.id === milestoneId);
+      if (ms && dueDate > ms.plannedDate) {
+        toast.warning("Task due after its milestone", {
+          description: `${ms.name} is planned for ${ms.plannedDate}`,
+        });
+      }
+    }
+    if (dependsOn.length > 0) {
+      const laterDeps = dependsOn
+        .map((id) => allTasks.find((t) => t.id === id))
+        .filter((t): t is Task => !!t && t.dueDate > dueDate);
+      if (laterDeps.length > 0) {
+        toast.warning(`Due before ${laterDeps.length} upstream task${laterDeps.length > 1 ? "s" : ""}`, {
+          description: laterDeps.map((t) => `${t.id.toUpperCase()} (${t.dueDate})`).join(", "),
+        });
+      }
+    }
 
     const id = initial?.id ?? nextTaskId(allTasks);
     const clampedProgress = Math.max(0, Math.min(100, progress));

@@ -362,11 +362,14 @@ export function MilestonesGrid() {
     setDrawer({ mode: "closed" });
   }
 
-  const filtered = milestones.filter((m) => {
-    if (filterPhase !== "All" && m.phase !== filterPhase) return false;
-    if (filterStatus !== "All" && m.status !== filterStatus) return false;
-    return true;
-  });
+  const filtered = milestones
+    .filter((m) => {
+      if (filterPhase !== "All" && m.phase !== filterPhase) return false;
+      if (filterStatus !== "All" && m.status !== filterStatus) return false;
+      return true;
+    })
+    .slice()
+    .sort((a, b) => a.plannedDate.localeCompare(b.plannedDate));
 
   return (
     <div className="space-y-4">

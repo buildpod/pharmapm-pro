@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, Shield, CheckCircle2, ArrowUpRight } from "lucide-react";
+import { toast } from "sonner";
+import { AlertTriangle, Shield, CheckCircle2, ArrowUpRight, Plus } from "lucide-react";
 import { risks as initialRisks, type Risk, type RiskStatus } from "@/lib/mockData";
+import { RiskFormDrawer } from "./risk-form";
 import { cn } from "@/lib/utils";
 
 // ─── Score bands (from v1 config/rules.js) ───────────────────────────────────
@@ -188,11 +190,13 @@ function RiskCard({
   selected,
   onSelect,
   onStatusToggle,
+  onEdit,
 }: {
   risk: Risk;
   selected: boolean;
   onSelect: () => void;
   onStatusToggle: () => void;
+  onEdit: () => void;
 }) {
   const band = scoreBand(risk.score);
   const StatusIcon = statusIcon[risk.status];
@@ -223,7 +227,13 @@ function RiskCard({
         {/* Content */}
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-start justify-between gap-2">
-            <h3 className="text-sm font-semibold leading-snug text-foreground">{risk.title}</h3>
+            <button
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
+              className="text-left text-sm font-semibold leading-snug text-foreground hover:text-primary hover:underline"
+              title="Click to edit"
+            >
+              {risk.title}
+            </button>
             <button
               onClick={(e) => { e.stopPropagation(); onStatusToggle(); }}
               title={`Click to mark ${nextStatus[risk.status]}`}
@@ -262,6 +272,7 @@ function RiskCard({
 // ─── Main grid ───────────────────────────────────────────────────────────────
 
 type SortKey = "score" | "probability" | "impact";
+type RiskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; risk: Risk };
 
 export function RisksGrid() {
   const [risks, setRisks] = useState<Risk[]>(initialRisks);
@@ -269,6 +280,7 @@ export function RisksGrid() {
   const [filterCategory, setFilterCategory] = useState("All");
   const [sortBy, setSortBy] = useState<SortKey>("score");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState<RiskDrawerState>({ mode: "closed" });
 
   const allCategories = Array.from(new Set(risks.map((r) => r.category)));
 
@@ -281,6 +293,26 @@ export function RisksGrid() {
     setTimeout(() => {
       document.getElementById(`risk-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 0);
+  }
+
+  function handleDrawerSave(r: Risk) {
+    setRisks((prev) => {
+      const idx = prev.findIndex((x) => x.id === r.id);
+      if (idx >= 0) {
+        const next = [...prev]; next[idx] = r;
+        toast.success("Risk updated", { description: r.title });
+        return next;
+      }
+      toast.success("Risk added", { description: r.title });
+      return [...prev, r];
+    });
+    setDrawer({ mode: "closed" });
+  }
+  function handleDrawerDelete(id: string) {
+    const target = risks.find((r) => r.id === id);
+    setRisks((prev) => prev.filter((r) => r.id !== id));
+    toast.success("Risk deleted", { description: target?.title });
+    setDrawer({ mode: "closed" });
   }
 
   const filtered = risks
@@ -342,6 +374,14 @@ export function RisksGrid() {
             <option value="probability">Sort by Probability</option>
             <option value="impact">Sort by Impact</option>
           </select>
+
+          <button
+            onClick={() => setDrawer({ mode: "new" })}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add Risk
+          </button>
         </div>
 
         {/* List */}
@@ -359,6 +399,7 @@ export function RisksGrid() {
                 selected={r.id === selectedId}
                 onSelect={() => setSelectedId(r.id)}
                 onStatusToggle={() => handleStatusToggle(r.id)}
+                onEdit={() => setDrawer({ mode: "edit", risk: r })}
               />
             ))}
           </div>
@@ -366,9 +407,19 @@ export function RisksGrid() {
 
         <p className="flex items-center gap-1.5 px-1 text-[11px] text-muted-foreground">
           <ArrowUpRight className="h-3 w-3" />
-          Click a risk dot in the matrix to highlight its card · click a status badge to cycle Open → Mitigated → Closed
+          Click a risk dot in the matrix to highlight its card · click a status badge to cycle · click title to edit
         </p>
       </div>
+
+      <RiskFormDrawer
+        open={drawer.mode !== "closed"}
+        initial={drawer.mode === "edit" ? drawer.risk : null}
+        allRisks={risks}
+        knownCategories={allCategories}
+        onSave={handleDrawerSave}
+        onDelete={handleDrawerDelete}
+        onClose={() => setDrawer({ mode: "closed" })}
+      />
     </div>
   );
 }

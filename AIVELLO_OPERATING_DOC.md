@@ -92,9 +92,22 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next session goal from Vineet_
+**Module:** M14 — Drawer pattern + data validation across all remaining entities
+**Goal:** Apply M13's `<EntityDrawer>` pattern (add / edit / delete) to risks, documents, cost lines, team members, recurring meetings. Bundle the data-validation work (sort by date, cross-entity sanity checks, plausibility range) across all entities in one pass — folding in what would otherwise be M13.5.
 
-Next up per §5.1 plan: **M14 — extend the M13 drawer pattern to risks, documents, cost lines, team members, recurring meetings**
+**DoD:**
+- 5 new form drawers (`risk-form`, `document-form`, `cost-line-form`, `team-member-form`, `meeting-form`), each wired into its grid with `+ Add` button, name-click-to-edit, Sonner toasts
+- `lib/validation.ts` — shared helpers: `isIsoDate`, `inProjectRange`, `compareDates`
+- Sort: milestones by plannedDate; tasks by dueDate within each workstream group; documents by dueDate within each phase
+- Cross-entity validation (warn via `toast.warning`, doesn't block save): task due > linked milestone planned, task due < `dependsOn` task due, cost actual > budget, meeting nextDate in past
+- Hard validation (blocks save): predecessor date contradiction on milestone, plausibility range (outside 2024-01-01 to 2030-12-31), self-reference, missing required fields
+- Auto-suggest planned date in milestone form when predecessor is picked
+- Build clean
+
+**Out of scope:** entity-to-entity linking UI beyond what's already in mockData; cascade-on-add for milestones (cascade engine still only runs on date edit); rich-text descriptions.
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M13 Completion summary (2026-05-11)
 

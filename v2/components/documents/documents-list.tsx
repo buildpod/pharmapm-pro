@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import {
   ChevronDown, ChevronRight, Clock, AlertCircle, Compass, Wrench,
-  ShieldCheck, GraduationCap, Rocket, Search,
+  ShieldCheck, GraduationCap, Rocket, Search, Plus,
 } from "lucide-react";
 import {
   documents as initialDocuments,
@@ -13,6 +14,7 @@ import {
   type DocumentStatus,
   type DocumentPhase,
 } from "@/lib/mockData";
+import { DocumentFormDrawer } from "./document-form";
 import { cn } from "@/lib/utils";
 
 const TODAY = "2026-05-11";
@@ -182,9 +184,11 @@ function HistoryPane({ doc }: { doc: Document }) {
 function DocumentCard({
   doc,
   onDecisionToggle,
+  onEdit,
 }: {
   doc: Document;
   onDecisionToggle: (docId: string, kind: "reviewers" | "approvers", idx: number) => void;
+  onEdit: (doc: Document) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const status = deriveStatus(doc);
@@ -227,7 +231,13 @@ function DocumentCard({
                 </span>
                 <span className="text-[10px] text-muted-foreground">v{doc.version}</span>
               </div>
-              <h3 className="text-base font-semibold text-foreground leading-snug">{doc.name}</h3>
+              <button
+                onClick={() => onEdit(doc)}
+                className="text-left text-base font-semibold leading-snug text-foreground hover:text-primary hover:underline"
+                title="Click to edit"
+              >
+                {doc.name}
+              </button>
               {doc.description && (
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{doc.description}</p>
               )}
@@ -336,10 +346,12 @@ function PhaseSection({
   phase,
   docs,
   onDecisionToggle,
+  onEdit,
 }: {
   phase: DocumentPhase;
   docs: Document[];
   onDecisionToggle: (docId: string, kind: "reviewers" | "approvers", idx: number) => void;
+  onEdit: (doc: Document) => void;
 }) {
   const meta = PHASES.find((p) => p.id === phase)!;
   const Icon = meta.Icon;
@@ -363,7 +375,7 @@ function PhaseSection({
       </header>
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {docs.map((doc) => (
-          <DocumentCard key={doc.id} doc={doc} onDecisionToggle={onDecisionToggle} />
+          <DocumentCard key={doc.id} doc={doc} onDecisionToggle={onDecisionToggle} onEdit={onEdit} />
         ))}
       </div>
     </section>
@@ -373,11 +385,35 @@ function PhaseSection({
 // ─── Main list ──────────────────────────────────────────────────────────────
 
 type StatusFilter = "All" | DocumentStatus;
+type DocDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; doc: Document };
 
 export function DocumentsList() {
   const [docs, setDocs] = useState<Document[]>(initialDocuments);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
   const [query, setQuery] = useState("");
+  const [drawer, setDrawer] = useState<DocDrawerState>({ mode: "closed" });
+
+  function handleDrawerSave(d: Document) {
+    setDocs((prev) => {
+      const idx = prev.findIndex((x) => x.id === d.id);
+      if (idx >= 0) {
+        const next = [...prev]; next[idx] = d;
+        toast.success("Document updated", { description: d.name });
+        return next;
+      }
+      toast.success("Document added", { description: d.name });
+      return [...prev, d];
+    });
+    setDrawer({ mode: "closed" });
+  }
+  function handleDrawerDelete(id: string) {
+    const target = docs.find((d) => d.id === id);
+    setDocs((prev) => prev.filter((d) => d.id !== id));
+    toast.success("Document deleted", { description: target?.name });
+    setDrawer({ mode: "closed" });
+  }
+
+  const knownTypes = Array.from(new Set(docs.map((d) => d.type)));
 
   function handleDecisionToggle(docId: string, kind: "reviewers" | "approvers", idx: number) {
     setDocs((prev) =>
@@ -476,6 +512,14 @@ export function DocumentsList() {
             {pendingTotal} pending
           </span>
         )}
+
+        <button
+          onClick={() => setDrawer({ mode: "new" })}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Document
+        </button>
       </div>
 
       {/* Phase sections */}
@@ -487,7 +531,10 @@ export function DocumentsList() {
       ) : (
         <div className="space-y-8">
           {PHASES.map(({ id }) => {
-            const phaseDocs = filtered.filter((d) => d.phase === id);
+            const phaseDocs = filtered
+              .filter((d) => d.phase === id)
+              .slice()
+              .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
             if (phaseDocs.length === 0) return null;
             return (
               <PhaseSection
@@ -495,11 +542,22 @@ export function DocumentsList() {
                 phase={id}
                 docs={phaseDocs}
                 onDecisionToggle={handleDecisionToggle}
+                onEdit={(d) => setDrawer({ mode: "edit", doc: d })}
               />
             );
           })}
         </div>
       )}
+
+      <DocumentFormDrawer
+        open={drawer.mode !== "closed"}
+        initial={drawer.mode === "edit" ? drawer.doc : null}
+        allDocuments={docs}
+        knownTypes={knownTypes}
+        onSave={handleDrawerSave}
+        onDelete={handleDrawerDelete}
+        onClose={() => setDrawer({ mode: "closed" })}
+      />
     </div>
   );
 }

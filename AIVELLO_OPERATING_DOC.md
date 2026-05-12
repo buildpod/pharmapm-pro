@@ -92,23 +92,30 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M10A — Enterprise UX polish + complete document set
-**Goal:** Lift the v2 UI from "competent template" to "enterprise-grade." Refine design tokens (typography scale, color palette, spacing rhythm), expand the mock document set to a realistic pharma RIM lifecycle (~12 docs incl. VMP/URS/OQ/PQ/DAP/RMP/TM/Training Plan), redesign Documents and Risks pages — the two views Vineet flagged as weakest.
+**Module:** M10B — Resources module
+**Goal:** Wire the already-built Resources panel (team availability + meeting cadence + SteerCo pre-brief + workstream pre-brief) into a routable page, sidebar nav, and command palette. Refresh the panel to match the M10A enterprise design tokens.
 **Definition of done:**
-- Design tokens shifted to muted/neutral enterprise palette (slate/zinc base, sophisticated primary, refined dark mode)
-- Typography scale: `text-sm` body baseline, clear heading hierarchy, `text-xs` reserved for metadata
-- Mock document set expanded to 10–12 docs, grouped by lifecycle phase
-- Documents page: phase-grouped, urgency-weighted cards, larger avatars, clearer hierarchy
-- Risks page: larger P×I matrix with risk titles inside cells (not just numbered dots), detail-on-select pattern
-- Spacing rhythm consistent (4/8/12/16/24/32) on touched pages
+- `app/(app)/resources/page.tsx` exists with consistent header
+- Sidebar has a Resources entry (new "PEOPLE" group)
+- Command palette includes Resources nav
+- ResourcesPanel uses bordered enterprise badges, color-hashed avatars, and the same typography rhythm as Documents/Risks
+- All four tabs render without runtime errors
 - Build clean, deployed
 
 **Started:** (this session)
 **Status:** in progress
 
-### M10B — Resources module (queued, foundation already laid)
+### M10A Completion summary (2026-05-11)
 
-The Resources module work begun earlier is preserved (mockData additions for team members, absences, meetings; `components/resources/resources-panel.tsx` with 4 tabs built but not yet wired to a route). Resumes after M10A. Goal unchanged: team availability + meeting cadence + SteerCo pre-brief + per-workstream pre-brief.
+**Module:** M10A — Enterprise UX polish + complete document set
+**Status:** ✅ Complete (commits `db46556`, `4905a74`)
+**Outcome:** Lifted the v2 UI from "competent template" to "enterprise-grade":
+- Design tokens refreshed: muted slate-neutral base, deeper indigo primary (224 71% 36%), refined dark mode, system-ui font stack with antialiasing, 14px body baseline, tabular-nums everywhere
+- Mock document set expanded 4 → 13 docs (added VMP, URS, RMP, DAP, OQ, PQ, Traceability Matrix, Training Plan, Go-Live Checklist); added `phase` + `abbreviation` + `description` fields to Document type
+- Documents page: phase-grouped cards (5 lifecycle phases with icons), urgency strips, person chips with avatar+name+role+status, color-hashed per-person avatars, progress bars, refined filter bar with free-text search
+- Risks page: matrix card widened, gradient-shaded cells, score visible in empty cells, click-a-dot smooth-scrolls and rings the matching card, risk cards with always-visible mitigation panel
+- Dashboard / Milestones / Tasks / Costs: consistent enterprise polish applied — KPI cards tone-aware with tinted icon chips, bordered badges throughout, owner avatars colour-hashed, status semantics unified (rose=danger, amber=warn, emerald=good, blue=primary action)
+- Vineet visually confirmed Documents, Risks, then Dashboard/Milestones/Tasks/Costs in sequence
 
 ### M9 Completion summary (2026-05-11)
 

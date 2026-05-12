@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
   LayoutDashboard, Milestone, CheckSquare, AlertTriangle,
-  DollarSign, FileText, BarChart2, Settings, Search,
+  DollarSign, FileText, BarChart2, Settings, Search, Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,7 @@ const PAGES = [
   { label: "Tasks",       href: "/tasks",      icon: CheckSquare,     group: "Navigate" },
   { label: "Risks",       href: "/risks",      icon: AlertTriangle,   group: "Navigate" },
   { label: "Costs",       href: "/costs",      icon: DollarSign,      group: "Navigate" },
+  { label: "Resources",   href: "/resources",  icon: Users,           group: "Navigate" },
   { label: "Documents",   href: "/documents",  icon: FileText,        group: "Navigate" },
   { label: "Reports",     href: "/reports",    icon: BarChart2,       group: "Navigate" },
   { label: "Settings",    href: "/settings",   icon: Settings,        group: "Navigate" },

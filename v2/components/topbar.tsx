@@ -15,6 +15,7 @@ const routeLabels: Record<string, string> = {
   "/tasks":      "Tasks",
   "/risks":      "Risks",
   "/costs":      "Costs",
+  "/resources":  "Resources",
   "/documents":  "Documents",
   "/reports":    "Reports",
   "/settings":   "Settings",

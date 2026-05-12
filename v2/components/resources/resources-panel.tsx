@@ -66,10 +66,10 @@ function getWeeks(n = 8) {
 }
 
 const reasonPill: Record<string, string> = {
-  "Vacation":       "bg-blue-100 text-blue-700",
-  "Public Holiday": "bg-purple-100 text-purple-700",
-  "Conference":     "bg-green-100 text-green-700",
-  "Sick Leave":     "bg-orange-100 text-orange-700",
+  "Vacation":       "bg-blue-50 text-blue-700 border border-blue-200",
+  "Public Holiday": "bg-violet-50 text-violet-700 border border-violet-200",
+  "Conference":     "bg-emerald-50 text-emerald-700 border border-emerald-200",
+  "Sick Leave":     "bg-orange-50 text-orange-700 border border-orange-200",
   "Other":          "bg-muted text-muted-foreground",
 };
 
@@ -136,7 +136,7 @@ function TeamAvailabilityTab() {
                           className={cn(
                             "rounded px-1.5 py-1 text-[10px] font-semibold leading-none cursor-default",
                             impact > 0
-                              ? "bg-red-100 text-red-700 border border-red-200"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200 border border-red-200"
                               : "bg-amber-50 text-amber-700 border border-amber-200"
                           )}
                         >
@@ -237,9 +237,9 @@ function MeetingCadenceTab() {
   }
 
   const typeStyle: Record<string, string> = {
-    steerco:    "bg-purple-100 text-purple-700",
-    workstream: "bg-blue-100 text-blue-700",
-    governance: "bg-slate-100 text-slate-700",
+    steerco:    "bg-violet-50 text-violet-700 border border-violet-200",
+    workstream: "bg-blue-50 text-blue-700 border border-blue-200",
+    governance: "bg-slate-50 text-slate-700 border border-slate-200",
   };
 
   const freqLabel: Record<string, string> = {
@@ -315,7 +315,7 @@ function MeetingCadenceTab() {
                       className={cn(
                         "rounded-full px-2 py-0.5 text-[10px] font-semibold",
                         absent
-                          ? "bg-red-100 text-red-700 ring-1 ring-red-300"
+                          ? "bg-rose-50 text-rose-700 border border-rose-200 ring-1 ring-red-300"
                           : "bg-primary/10 text-primary"
                       )}
                     >
@@ -427,9 +427,9 @@ function SteerCoPreBriefTab() {
   }
 
   const actionStyle: Record<string, string> = {
-    Present: "bg-purple-100 text-purple-700",
-    Approve: "bg-red-100 text-red-700",
-    Review:  "bg-amber-100 text-amber-700",
+    Present: "bg-violet-50 text-violet-700 border border-violet-200",
+    Approve: "bg-rose-50 text-rose-700 border border-rose-200",
+    Review:  "bg-amber-50 text-amber-700 border border-amber-200",
     Note:    "bg-blue-50 text-blue-700",
   };
 
@@ -631,16 +631,16 @@ function WorkstreamPreBriefTab() {
   const inProg   = wsTasks.filter((t) => t.status === "In Progress").length;
 
   const statusStyle: Record<string, string> = {
-    "Complete":    "bg-green-100 text-green-700",
-    "In Progress": "bg-blue-100 text-blue-700",
+    "Complete":    "bg-emerald-50 text-emerald-700 border border-emerald-200",
+    "In Progress": "bg-blue-50 text-blue-700 border border-blue-200",
     "Not Started": "bg-muted text-muted-foreground",
-    "Blocked":     "bg-red-100 text-red-700",
-    "On Hold":     "bg-amber-100 text-amber-700",
+    "Blocked":     "bg-rose-50 text-rose-700 border border-rose-200",
+    "On Hold":     "bg-amber-50 text-amber-700 border border-amber-200",
   };
   const prioStyle: Record<string, string> = {
-    Critical: "bg-red-100 text-red-700",
-    High:     "bg-orange-100 text-orange-700",
-    Medium:   "bg-yellow-100 text-yellow-700",
+    Critical: "bg-rose-50 text-rose-700 border border-rose-200",
+    High:     "bg-orange-50 text-orange-700 border border-orange-200",
+    Medium:   "bg-yellow-50 text-yellow-700 border border-yellow-200",
     Low:      "bg-muted text-muted-foreground",
   };
 
@@ -747,7 +747,7 @@ function WorkstreamPreBriefTab() {
                 <div key={m.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 text-xs">
                   <span className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] font-semibold shrink-0",
-                    m.status === "at-risk" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"
+                    m.status === "at-risk" ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-amber-50 text-amber-700 border border-amber-200"
                   )}>
                     {m.status}
                   </span>

@@ -92,18 +92,20 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M10B — Resources module
-**Goal:** Wire the already-built Resources panel (team availability + meeting cadence + SteerCo pre-brief + workstream pre-brief) into a routable page, sidebar nav, and command palette. Refresh the panel to match the M10A enterprise design tokens.
-**Definition of done:**
-- `app/(app)/resources/page.tsx` exists with consistent header
-- Sidebar has a Resources entry (new "PEOPLE" group)
-- Command palette includes Resources nav
-- ResourcesPanel uses bordered enterprise badges, color-hashed avatars, and the same typography rhythm as Documents/Risks
-- All four tabs render without runtime errors
-- Build clean, deployed
+**Module:** _none — awaiting next session goal from Vineet_
 
-**Started:** (this session)
-**Status:** in progress
+Backlog candidates worth considering for the next module (none locked in yet):
+- Resources deeper interactions: editable absence form, per-resource detail panel with full task/milestone list, reminder/notify hooks
+- Reports sweep with the same M10A design language (Weekly/SteerCo/Workstream tabs)
+- Dashboard click-throughs to detail views (milestone row → /milestones, doc row → /documents)
+- Entity search across the command palette (currently only navigates pages)
+- Domain integration: wire M8 settings (working days, holidays, RAG thresholds) into the milestones cascade engine and risk RAG computation
+
+### M10B Completion summary (2026-05-11)
+
+**Module:** M10B — Resources module
+**Status:** ✅ Complete (commit `0dbb953`)
+**Outcome:** Resources panel wired into `/resources` route with consistent M10A header. Sidebar gained a new PEOPLE nav group with Resources entry (Users icon). Command palette and topbar breadcrumb both recognise the route. ResourcesPanel refreshed across all 4 tabs to use the enterprise palette (bordered bg-50 pills replacing saturated bg-100 fills; rose replaces red, emerald replaces green, violet replaces purple).
 
 ### M10A Completion summary (2026-05-11)
 
@@ -329,6 +331,37 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M10A — Enterprise UX polish + M10B — Resources module)
+
+**Worked on:**
+
+M10A — Enterprise UX polish (commits `db46556`, `4905a74`):
+- Refreshed design tokens in `app/globals.css`: shifted from saturated shadcn defaults to muted slate-neutral base; primary moved from bright blue (221 83% 53%) to deeper indigo (224 71% 36%); refined dark mode palette; system-ui font stack with antialiasing; body baseline lifted to 14px; tabular-nums enforced site-wide
+- Expanded mock document set 4 → 13 documents: added `Document.phase`, `Document.abbreviation`, `Document.description` fields. New docs: VMP, URS, RMP, DAP, OQ Protocol, PQ Protocol, Traceability Matrix, Training Plan, Go-Live Readiness Checklist
+- Rewrote `components/documents/documents-list.tsx`: phase-grouped cards (Planning/Configuration/Validation/Training/Go-Live) with phase icons (Compass/Wrench/ShieldCheck/GraduationCap/Rocket), urgency-strip left edges, color-hashed per-person avatars, person chips showing name+role, progress bars, refined filter bar with free-text search, urgency-aware "Due in N days" labels
+- Rewrote `components/risks/risks-grid.tsx`: matrix widened to 340-420px sticky card, cells gradient-shaded with score number visible in empty cells, click-a-dot smooth-scrolls and rings the matching card, risk list switched from table to richer cards with always-visible mitigation panel, status icons (AlertTriangle/Shield/CheckCircle2) alongside text
+- Redesigned Dashboard, Milestones grid, Tasks grid, Costs grid: KPI cards now tone-aware (good/warn/bad/neutral) with tinted icon chips, bordered enterprise badges throughout, owner avatars colour-hashed on Tasks page, status semantics unified across the app
+- Lifted all 7 page headers from `text-lg font-semibold` to `text-2xl font-bold tracking-tight` with descriptive subtitles
+
+M10B — Resources module (commit `0dbb953`):
+- Created `app/(app)/resources/page.tsx` with consistent header
+- Added Resources to sidebar under new PEOPLE nav group (Users icon)
+- Added Resources to command palette between Costs and Documents
+- Added `/resources` to topbar `routeLabels` for breadcrumb support
+- Refreshed `components/resources/resources-panel.tsx` to use M10A enterprise tokens across all 4 tabs (Team Availability / Meeting Cadence / SteerCo Pre-Brief / Workstream Pre-Brief)
+
+**Decided:**
+- Two sub-modules (M10A polish, M10B Resources wiring) instead of forcing one large session — allowed visual sign-off before adding new surface area
+- Resources panel logic was already complete from earlier exploratory work; M10B was mostly wiring + token refresh, not a fresh build
+- Per-person avatar color hashing (Linear/Notion pattern) extended from Documents to Dashboard and Tasks pages for visual consistency
+- Status semantics across the app: rose=danger, amber=warn, emerald=good, blue=primary action, violet=on-hold
+
+**Built:** v2 looks enterprise-grade throughout, 13 static pages, build clean. All 4 Resources tabs render with refreshed tokens.
+
+**Next session goal:** Open — proposals welcome. Backlog candidates include: deeper Resources interactions (per-resource detail panel, edit absences), report sweep with same design language, Dashboard click-throughs to detail views, search across entities in command palette.
+
+---
 
 ### Session — 2026-05-11 (M9 — Polish + deploy)
 

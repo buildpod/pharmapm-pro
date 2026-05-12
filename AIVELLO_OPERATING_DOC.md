@@ -92,22 +92,22 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M14 — Drawer pattern + data validation across all remaining entities
-**Goal:** Apply M13's `<EntityDrawer>` pattern (add / edit / delete) to risks, documents, cost lines, team members, recurring meetings. Bundle the data-validation work (sort by date, cross-entity sanity checks, plausibility range) across all entities in one pass — folding in what would otherwise be M13.5.
+**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M15 — Projects list + create + switcher**.
 
-**DoD:**
-- 5 new form drawers (`risk-form`, `document-form`, `cost-line-form`, `team-member-form`, `meeting-form`), each wired into its grid with `+ Add` button, name-click-to-edit, Sonner toasts
-- `lib/validation.ts` — shared helpers: `isIsoDate`, `inProjectRange`, `compareDates`
-- Sort: milestones by plannedDate; tasks by dueDate within each workstream group; documents by dueDate within each phase
-- Cross-entity validation (warn via `toast.warning`, doesn't block save): task due > linked milestone planned, task due < `dependsOn` task due, cost actual > budget, meeting nextDate in past
-- Hard validation (blocks save): predecessor date contradiction on milestone, plausibility range (outside 2024-01-01 to 2030-12-31), self-reference, missing required fields
-- Auto-suggest planned date in milestone form when predecessor is picked
-- Build clean
+### M14 Completion summary (2026-05-11)
 
-**Out of scope:** entity-to-entity linking UI beyond what's already in mockData; cascade-on-add for milestones (cascade engine still only runs on date edit); rich-text descriptions.
-
-**Started:** (this session)
-**Status:** in progress
+**Module:** M14 — Drawer pattern + data validation across all entities
+**Status:** ✅ Complete (commit `5105406`)
+**Outcome:**
+- 5 new form drawers built (`risk-form`, `cost-line-form`, `document-form`, `team-member-form`, `meeting-form`), each wired with + Add button, name-click-to-edit, Sonner toasts on add/update/delete
+- `lib/validation.ts` shared helpers (`isIsoDate`, `inProjectRange`, `addCalendarDays`, `PROJECT_DATE_MIN`, `PROJECT_DATE_MAX`)
+- Hard validation (blocks save): missing required, ISO format, 2024–2030 range, predecessor date contradiction, self-reference
+- Soft validation (Sonner warning, doesn't block): task due > milestone planned, task due < dependsOn dates, cost actual > budget, doc/meeting due in past, member initials collision
+- Auto-suggest planned date when predecessor selected (calendar-days approximation)
+- Sort: milestones by plannedDate; tasks by dueDate within workstream; documents by dueDate within phase
+- `costs-grid` converted from server to client component
+- Resources panel: AbsencesContext → ResourcesContext (carries members + meetings); getMemberById refactored to take members as param; 4 tabs updated; Add buttons context-switched per active tab
+- Build clean, all 13 routes pass type-check + lint
 
 ### M13 Completion summary (2026-05-11)
 
@@ -439,6 +439,50 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-11 (M14 — Drawer pattern + validation across all entities)
+
+**Worked on (commit `5105406`):**
+
+Folded the proposed M13.5 (validation, sorting, plausibility) into M14 to do it once across all entities instead of twice. 5 new form drawers + cross-entity validation + sort patches.
+
+- Created `lib/validation.ts` (shared validation helpers + PROJECT_DATE_MIN/MAX constants)
+- Created `components/risks/risk-form.tsx` — `<RiskFormDrawer>`: title + category (datalist) + P×I (selects with auto-computed score in band-coloured display) + status + owner + mitigation
+- Created `components/costs/cost-line-form.tsx` — `<CostLineFormDrawer>`: category + description + budgetK + actualK + contractType + owner; soft warns if actual > budget
+- Created `components/documents/document-form.tsx` — `<DocumentFormDrawer>`: name + abbreviation + type (datalist) + phase + version + status + dueDate + description + reviewers list + approvers list (inline person editor with add/remove)
+- Created `components/resources/team-member-form.tsx` — `<TeamMemberFormDrawer>`: name + initials (auto-derive from name if blank) + role + workstream + optional steercoRole; warns on initials collision
+- Created `components/resources/meeting-form.tsx` — `<MeetingFormDrawer>`: name + type + workstream (conditional on type) + frequency + dayOfWeek + duration + nextDate + attendees with mandatory/optional toggle per attendee
+- Wired each form into its grid: `+ Add` button + click-name-to-edit + Sonner toasts on add/update/delete
+- `components/costs/costs-grid.tsx` converted to client component (was server)
+- `components/resources/resources-panel.tsx` refactored:
+  - `AbsencesContext` → `ResourcesContext` (now carries members + meetings)
+  - `useAbsences` → `useResources`
+  - `getMemberById` takes members as a parameter
+  - All 4 tabs updated to destructure from new context
+  - Tab bar now exposes "Add Member" on availability and "Add Meeting" on cadence (context-switched per active tab)
+  - 2 drawer states (member, meeting) + their save/delete handlers
+- Sort patches: milestones grid by plannedDate; tasks grid by dueDate within each workstream group; documents list by dueDate within each phase
+- Validation patches:
+  - Milestone form: predecessor-date contradiction blocks save; auto-suggest planned date when predecessor picked (calendar-days from `addCalendarDays`)
+  - Task form: soft-warns if due > linked milestone planned, soft-warns if any dependsOn task has later due
+  - Document form: soft-warns if due in past
+  - Cost form: soft-warns if actual > budget
+  - Meeting form: soft-warns if next date in past
+  - Member form: soft-warns on initials collision
+  - All forms with dates: hard-block on ISO format and 2024–2030 range
+
+**Decided:**
+- Folded M13.5 (validation) into M14 — same files needed to be touched
+- Soft vs hard validation: required fields + format + range + self-reference are hard-blocks; semantic mismatches (due-after-milestone etc.) are `toast.warning` so PMs can override when they need to (e.g. project-extended scenarios)
+- Auto-suggest uses calendar-days not working-days for simplicity — user can refine with the existing inline date editor which runs the proper cascade preview
+- Person editor inside DocumentFormDrawer is inline (chips with X to remove + name+role fields with + Add) rather than a sub-drawer — simpler UX, sufficient for the data shape
+- ResourcesContext gets all state lifted to the panel; this keeps the four tabs cleanly read-only consumers and makes future state changes (e.g. localStorage persistence) a single-file change
+
+**Built:** Every entity in the app is now add/edit/delete-able through the same drawer pattern with the same validation rhythm. The dogfood walkthrough that triggered M13 → M14 is now mostly satisfied. Build clean, 13 static pages, /resources 7.51 → 11.3 kB (forms + state).
+
+**Next session goal:** M15 — Projects list, create form, sidebar project switcher. The whole app currently hardcodes one project; making it multi-project is the next big lift.
+
+---
 
 ### Session — 2026-05-11 (M13 — Universal Add + Edit + Delete for milestones + tasks)
 

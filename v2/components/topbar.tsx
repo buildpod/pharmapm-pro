@@ -13,6 +13,7 @@ import { useState } from "react";
 
 const routeLabels: Record<string, string> = {
   "/":           "Dashboard",
+  "/my-items":   "My Items",
   "/projects":   "Projects",
   "/milestones": "Milestones",
   "/tasks":      "Tasks",

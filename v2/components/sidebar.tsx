@@ -13,6 +13,7 @@ import {
   FlaskConical,
   Settings,
   Users,
+  Inbox,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,6 +26,7 @@ const navGroups = [
     label: "OVERVIEW",
     items: [
       { label: "Dashboard", href: "/", icon: LayoutDashboard },
+      { label: "My Items",  href: "/my-items", icon: Inbox },
     ],
   },
   {

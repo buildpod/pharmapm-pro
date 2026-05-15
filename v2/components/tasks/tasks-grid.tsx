@@ -357,6 +357,7 @@ export function TasksGrid() {
   const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
   const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
   const [filterWorkstream, setFilterWorkstream] = useState<string>("All");
+  const [filterMine, setFilterMine]             = useState(false);
   const [drawer, setDrawer]                     = useState<TaskDrawerState>({ mode: "closed" });
 
   const projectTasks   = tasks.filter((t) => t.projectId === activeProjectId);
@@ -410,6 +411,7 @@ export function TasksGrid() {
     if (filterPriority   !== "All" && t.priority   !== filterPriority)   return false;
     if (filterStatus     !== "All" && t.status     !== filterStatus)     return false;
     if (filterWorkstream !== "All" && t.workstream !== filterWorkstream) return false;
+    if (filterMine && t.owner !== "VP")                                  return false;
     return true;
   });
 
@@ -449,6 +451,19 @@ export function TasksGrid() {
         )}
 
         <div className="flex-1" />
+
+        <button
+          onClick={() => setFilterMine((v) => !v)}
+          title={filterMine ? "Showing only items owned by you" : "Show only items owned by you"}
+          className={cn(
+            "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+            filterMine
+              ? "bg-primary/10 text-primary"
+              : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          Mine
+        </button>
 
         <select
           value={filterWorkstream}

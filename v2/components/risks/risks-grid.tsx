@@ -281,6 +281,7 @@ export function RisksGrid() {
   const [risks, setRisks] = useLocalStorageState<Risk[]>("aivello_risks_v1", initialRisks);
   const [filterStatus, setFilterStatus] = useState<RiskStatus | "All">("All");
   const [filterCategory, setFilterCategory] = useState("All");
+  const [filterMine, setFilterMine] = useState(false);
   const [sortBy, setSortBy] = useState<SortKey>("score");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drawer, setDrawer] = useState<RiskDrawerState>({ mode: "closed" });
@@ -323,6 +324,7 @@ export function RisksGrid() {
   const filtered = projectRisks
     .filter((r) => filterStatus === "All" || r.status === filterStatus)
     .filter((r) => filterCategory === "All" || r.category === filterCategory)
+    .filter((r) => !filterMine || r.owner === "VP")
     .sort((a, b) => b[sortBy] - a[sortBy]);
 
   const counts = {
@@ -360,6 +362,19 @@ export function RisksGrid() {
           ))}
 
           <div className="flex-1" />
+
+          <button
+            onClick={() => setFilterMine((v) => !v)}
+            title={filterMine ? "Showing only items owned by you" : "Show only items owned by you"}
+            className={cn(
+              "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+              filterMine
+                ? "bg-primary/10 text-primary"
+                : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            Mine
+          </button>
 
           <select
             value={filterCategory}

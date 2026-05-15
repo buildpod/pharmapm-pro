@@ -402,6 +402,7 @@ export function DocumentsList() {
   const { activeProjectId } = useProject();
   const [docs, setDocs] = useLocalStorageState<Document[]>("aivello_documents_v1", initialDocuments);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
+  const [filterMine, setFilterMine] = useState(false);
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState<DocDrawerState>({ mode: "closed" });
 
@@ -451,6 +452,7 @@ export function DocumentsList() {
   const filtered = projectDocs.filter((d) => {
     const s = deriveStatus(d);
     if (filterStatus !== "All" && s !== filterStatus) return false;
+    if (filterMine && d.owner !== "VP") return false;
     if (query.trim()) {
       const q = query.toLowerCase();
       const hit =
@@ -507,6 +509,19 @@ export function DocumentsList() {
         </div>
 
         <div className="sm:flex-1" />
+
+        <button
+          onClick={() => setFilterMine((v) => !v)}
+          title={filterMine ? "Showing only documents you own" : "Show only documents you own (Responsible)"}
+          className={cn(
+            "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+            filterMine
+              ? "bg-primary/10 text-primary"
+              : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          Mine
+        </button>
 
         {/* Search */}
         <div className="flex items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5 sm:w-64">

@@ -285,6 +285,7 @@ export function MilestonesGrid() {
   const [milestones, setMilestones] = useLocalStorageState<Milestone[]>("aivello_milestones_v1", initialMilestones);
   const [filterPhase, setFilterPhase] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
+  const [filterMine, setFilterMine] = useState(false);
   const [cascadePreview, setCascadePreview] = useState<CascadePreviewState | null>(null);
   const [drawer, setDrawer] = useState<DrawerState>({ mode: "closed" });
   const [viewMode, setViewMode] = useState<"grid" | "gantt">("grid");
@@ -381,6 +382,7 @@ export function MilestonesGrid() {
     .filter((m) => {
       if (filterPhase !== "All" && m.phase !== filterPhase) return false;
       if (filterStatus !== "All" && m.status !== filterStatus) return false;
+      if (filterMine && m.owner !== "VP") return false;
       return true;
     })
     .slice()
@@ -431,6 +433,19 @@ export function MilestonesGrid() {
         </select>
 
         <div className="flex-1" />
+
+        <button
+          onClick={() => setFilterMine((v) => !v)}
+          title={filterMine ? "Showing only items owned by you" : "Show only items owned by you"}
+          className={cn(
+            "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
+            filterMine
+              ? "bg-primary/10 text-primary"
+              : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          Mine
+        </button>
 
         <button
           onClick={handleReset}

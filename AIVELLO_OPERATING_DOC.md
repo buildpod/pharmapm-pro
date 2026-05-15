@@ -92,7 +92,29 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M16.1 (persistence + notification bell)  →  M17 (global search + My Items + owner-me filter)
+**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M18 — CSV / Excel import + project templates**, or **M19 — Comments + activity feed**.
+
+### M17 Completion summary (2026-05-13)
+
+**Module:** M17 — Global entity search + My Items + owner-me filter
+**Status:** ✅ Complete (commit `305a9ca`)
+**Outcome:**
+- New `lib/searchIndex.ts` — `buildSearchIndex(activeProjectId)` reads every entity from its M16.1 localStorage key (fallback to initial mockData), returns flat `SearchHit[]` for the active project (plus all projects globally). `scoreHit()` ranks title-match > startsWith > includes > subtitle-includes. `searchEntities(activeProjectId, query, limit=20)` returns the top hits.
+- Command palette rewired to show two groups: **Navigate** (page links, always present) and **Entities** (only when query is non-empty). Entity items show kind icon + title + subtitle + kind badge. Click navigates to the relevant page.
+- New `/my-items` route — aggregates everything owned by VP in the active project. Summary strip (Tasks / Docs / Risks / Milestones) with tone-aware count cards. Below that: Tasks bucketed by Overdue / Blocked / Due-this-week / On-track; Documents as Responsible bucketed by Overdue / In-review / Drafts; Risks sorted by score; Milestones sorted by planned date with slip indicator. Empty state when nothing's owned.
+- Sidebar OVERVIEW group adds a "My Items" entry (Inbox icon). Command palette + topbar breadcrumb both register `/my-items`.
+- New "Mine" toggle in the toolbars of Milestones, Tasks, Risks, Documents grids — filters to `owner === "VP"`. Per-component state.
+- Build clean — 15 static pages (was 14)
+
+### M16.1 Completion summary (2026-05-13)
+
+**Module:** M16.1 — Entity persistence + working notification bell
+**Status:** ✅ Complete (commit `04c336c`)
+**Outcome:**
+- New `lib/useLocalStorageState.ts` — drop-in `useState` replacement that hydrates from localStorage on mount, saves on every set. Used in 8 places (milestones, tasks, risks, documents, costLines, absences, teamMembers, recurringMeetings)
+- New `components/notification-bell.tsx` — replaces the static red-dot Bell. Click opens a popover listing live derived alerts: overdue tasks owned by me, documents pending my decision, escalated risks (score ≥12), at-risk milestones. Scoped to active project. Click an alert → navigates. Empty state when nothing.
+- Topbar breadcrumb now uses live `activeProject.name + phase` instead of hardcoded "Veeva RIM Implementation · Phase 2"
+- Build clean
 
 **M16.1 goal:** Fix the two bugs surfaced after M16:
 1. New `useLocalStorageState<T>(key, initial)` helper. Apply to every entity array — milestones, tasks, risks, documents, cost lines, team members, recurring meetings, absences. Adds, edits, deletes survive page refresh.
@@ -498,6 +520,34 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-13 (M16.1 — persistence + bell + M17 — search + My Items + owner-me)
+
+**Worked on:**
+
+M16.1 (commit `04c336c`) — two bug fixes flagged after M16:
+- `lib/useLocalStorageState.ts` — generic `useState`-shaped hook that mirrors value to localStorage. Hydrates once on mount, writes on every set, swallows JSON/quota errors. Drop-in for all 8 entity arrays in their respective grids
+- `components/notification-bell.tsx` — popover with derived live alerts (overdue tasks where owner=VP, pending decisions where I'm a reviewer/approver, escalated risks score≥12, at-risk milestones). Count badge replaces the static dot; empty state when no alerts. Click an alert → navigates. Click-outside closes
+- Topbar breadcrumb subtitle uses `activeProject.name + phase` instead of hardcoded text
+
+M17 (commit `305a9ca`) — three lifts:
+- `lib/searchIndex.ts` — unified search across all entity types. Reads localStorage keys with fallback to mockData. `searchEntities(activeProjectId, query, limit)` scores by title-equality > startsWith > includes > subtitle-includes
+- Command palette rewired: Navigate group (pages) + Entities group (only when query is non-empty). Entity items show kind icon + title + subtitle + kind badge. Click navigates
+- `/my-items` route — owner=VP aggregation across active project. Summary strip + Tasks (Overdue/Blocked/Due-this-week/On-track) + Documents (Overdue/In-review/Drafts as Responsible) + Risks + Milestones with slip indicators. Empty state when nothing owned. Sidebar OVERVIEW group adds the entry (Inbox icon)
+- "Mine" toggle in toolbars of Milestones, Tasks, Risks, Documents grids — filters by `owner === "VP"` (or RACI Responsible for documents)
+
+**Decided:**
+- Search reads localStorage directly each open rather than via React context — keeps the palette self-contained and always-fresh, no provider plumbing across the app
+- Project hits in search are global (across all projects), not scoped to active — lets you find and switch to other projects via ⌘K
+- My Items page reads localStorage with mockData fallback — same pattern as the search index; if a key isn't populated yet (fresh load) we still see the seeded data
+- Mine toggle is per-grid component state rather than a global setting — keeps each grid's filter behaviour orthogonal; user can have Mine on for Tasks but off for Risks
+- Notification bell reads raw mockData (not localStorage) for now — acceptable trade-off because alerts are derived from project state at module-load time. A future improvement would lift entity state to a shared store so the bell reflects in-session edits. Logged as a known limitation in M16.1's commit message
+
+**Built:** Both bugs fixed, M17 shipped. 15 static pages. After adding a milestone in PromoMats and refreshing, the milestone is still there. Bell shows "5 alerts" with overdue tasks, pending decisions, escalated risks. ⌘K + "FRS" finds the document. /my-items lists owned items grouped by urgency.
+
+**Next session goal:** M18 — CSV / Excel import + project templates (the next big PM-onboarding unblock), or M19 — Comments + activity feed.
+
+---
 
 ### Session — 2026-05-13 (M16 — Gantt timeline + critical path)
 

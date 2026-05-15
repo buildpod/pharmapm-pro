@@ -13,6 +13,7 @@ import {
 import { TeamMemberFormDrawer } from "./team-member-form";
 import { MeetingFormDrawer } from "./meeting-form";
 import { useProject } from "@/components/projects/project-provider";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { cn } from "@/lib/utils";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -1041,9 +1042,9 @@ type MeetingDrawer = { mode: "closed" } | { mode: "new" } | { mode: "edit"; meet
 export function ResourcesPanel() {
   const { activeProjectId } = useProject();
   const [tab, setTab] = useState<Tab>("availability");
-  const [absences, setAbsences]                   = useState<Absence[]>(initialAbsences);
-  const [teamMembers, setTeamMembers]             = useState<TeamMember[]>(initialTeamMembers);
-  const [recurringMeetings, setRecurringMeetings] = useState<RecurringMeeting[]>(initialMeetings);
+  const [absences, setAbsences]                   = useLocalStorageState<Absence[]>("aivello_absences_v1", initialAbsences);
+  const [teamMembers, setTeamMembers]             = useLocalStorageState<TeamMember[]>("aivello_teamMembers_v1", initialTeamMembers);
+  const [recurringMeetings, setRecurringMeetings] = useLocalStorageState<RecurringMeeting[]>("aivello_meetings_v1", initialMeetings);
   const [memberDrawer,  setMemberDrawer]          = useState<MemberDrawer>({ mode: "closed" });
   const [meetingDrawer, setMeetingDrawer]         = useState<MeetingDrawer>({ mode: "closed" });
 

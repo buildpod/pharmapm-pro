@@ -24,6 +24,7 @@ import {
 } from "@/lib/domain/scheduling";
 import { addWorkingDays } from "@/lib/domain/dates";
 import { useSettings } from "@/lib/settingsStore";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { useProject } from "@/components/projects/project-provider";
 import {
   Dialog,
@@ -281,7 +282,7 @@ type DrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; milest
 
 export function MilestonesGrid() {
   const { activeProjectId, activeProject } = useProject();
-  const [milestones, setMilestones] = useState<Milestone[]>(initialMilestones);
+  const [milestones, setMilestones] = useLocalStorageState<Milestone[]>("aivello_milestones_v1", initialMilestones);
   const [filterPhase, setFilterPhase] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [cascadePreview, setCascadePreview] = useState<CascadePreviewState | null>(null);

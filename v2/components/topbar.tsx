@@ -1,12 +1,14 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu, Sun, Moon, Bell, Download } from "lucide-react";
+import { Menu, Sun, Moon, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarContent } from "@/components/sidebar";
 import { CommandPaletteTrigger } from "@/components/command-palette";
+import { NotificationBell } from "@/components/notification-bell";
 import { useTheme } from "@/components/theme-provider";
+import { useProject } from "@/components/projects/project-provider";
 import { useState } from "react";
 
 const routeLabels: Record<string, string> = {
@@ -26,6 +28,7 @@ export function Topbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const { theme, toggle } = useTheme();
+  const { activeProject } = useProject();
 
   const label =
     Object.entries(routeLabels).find(([path]) =>
@@ -47,11 +50,11 @@ export function Topbar() {
         </SheetContent>
       </Sheet>
 
-      {/* Breadcrumb */}
+      {/* Breadcrumb — shows the active project as live context */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">{label}</p>
         <p className="text-xs text-muted-foreground hidden sm:block truncate">
-          Veeva RIM Implementation · Phase 2
+          {activeProject.name} · {activeProject.phase}
         </p>
       </div>
 
@@ -65,12 +68,8 @@ export function Topbar() {
           {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
 
-        {/* Alerts */}
-        <Button variant="ghost" size="icon" className="relative h-8 w-8">
-          <Bell className="h-4 w-4" />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-destructive" />
-          <span className="sr-only">Alerts</span>
-        </Button>
+        {/* Alerts — live derived from project entities */}
+        <NotificationBell />
 
         {/* Export — hidden on mobile */}
         <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-8">

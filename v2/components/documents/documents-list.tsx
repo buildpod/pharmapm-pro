@@ -16,6 +16,7 @@ import {
 } from "@/lib/mockData";
 import { DocumentFormDrawer } from "./document-form";
 import { useProject } from "@/components/projects/project-provider";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { cn } from "@/lib/utils";
 
 const TODAY = "2026-05-11";
@@ -399,7 +400,7 @@ type DocDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; doc
 
 export function DocumentsList() {
   const { activeProjectId } = useProject();
-  const [docs, setDocs] = useState<Document[]>(initialDocuments);
+  const [docs, setDocs] = useLocalStorageState<Document[]>("aivello_documents_v1", initialDocuments);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState<DocDrawerState>({ mode: "closed" });

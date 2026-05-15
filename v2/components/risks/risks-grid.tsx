@@ -6,6 +6,7 @@ import { AlertTriangle, Shield, CheckCircle2, ArrowUpRight, Plus } from "lucide-
 import { risks as initialRisks, type Risk, type RiskStatus } from "@/lib/mockData";
 import { RiskFormDrawer } from "./risk-form";
 import { useProject } from "@/components/projects/project-provider";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { cn } from "@/lib/utils";
 
 // ─── Score bands (from v1 config/rules.js) ───────────────────────────────────
@@ -277,7 +278,7 @@ type RiskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; ri
 
 export function RisksGrid() {
   const { activeProjectId } = useProject();
-  const [risks, setRisks] = useState<Risk[]>(initialRisks);
+  const [risks, setRisks] = useLocalStorageState<Risk[]>("aivello_risks_v1", initialRisks);
   const [filterStatus, setFilterStatus] = useState<RiskStatus | "All">("All");
   const [filterCategory, setFilterCategory] = useState("All");
   const [sortBy, setSortBy] = useState<SortKey>("score");

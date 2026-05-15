@@ -12,6 +12,7 @@ import {
 } from "@/lib/mockData";
 import { TaskFormDrawer } from "./task-form";
 import { useProject } from "@/components/projects/project-provider";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { cn } from "@/lib/utils";
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -352,7 +353,7 @@ type TaskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; ta
 
 export function TasksGrid() {
   const { activeProjectId } = useProject();
-  const [tasks, setTasks]                       = useState<Task[]>(initialTasks);
+  const [tasks, setTasks]                       = useLocalStorageState<Task[]>("aivello_tasks_v1", initialTasks);
   const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
   const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
   const [filterWorkstream, setFilterWorkstream] = useState<string>("All");

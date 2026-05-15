@@ -6,6 +6,7 @@ import { DollarSign, TrendingDown, Wallet, Layers, Plus } from "lucide-react";
 import { costLines as initialCostLines, budgetTrend, type CostLine } from "@/lib/mockData";
 import { CostLineFormDrawer } from "./cost-line-form";
 import { useProject } from "@/components/projects/project-provider";
+import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { cn } from "@/lib/utils";
 
 const TOTAL_BUDGET_K = 2000;
@@ -79,7 +80,7 @@ type CostDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; li
 
 export function CostsGrid() {
   const { activeProjectId } = useProject();
-  const [costLines, setCostLines] = useState<CostLine[]>(initialCostLines);
+  const [costLines, setCostLines] = useLocalStorageState<CostLine[]>("aivello_costLines_v1", initialCostLines);
   const [drawer, setDrawer]       = useState<CostDrawerState>({ mode: "closed" });
 
   const projectCostLines = costLines.filter((c) => c.projectId === activeProjectId);

@@ -92,13 +92,23 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._
+**Module:** M16.1 (persistence + notification bell)  →  M17 (global search + My Items + owner-me filter)
 
-**Known bugs flagged by Vineet 2026-05-13 (not yet scoped):**
-1. **Topbar bell notification** isn't interactive — has a red dot indicator but no click handler / drawer / list. Either wire it to something or remove the dot.
-2. **Entity persistence gap** — `projects` and `activeProjectId` persist to localStorage (M15), but entities (milestones, tasks, risks, documents, costs, members, meetings, absences) don't. Adding a milestone in a project then refreshing the page loses it. Need to extend the localStorage pattern to all entity arrays. Mirror what M15 did for projects.
+**M16.1 goal:** Fix the two bugs surfaced after M16:
+1. New `useLocalStorageState<T>(key, initial)` helper. Apply to every entity array — milestones, tasks, risks, documents, cost lines, team members, recurring meetings, absences. Adds, edits, deletes survive page refresh.
+2. Make the topbar bell interactive: popover listing live derived alerts (tasks overdue, decisions pending for me, escalated risks, at-risk milestones). Click an alert → navigate to relevant page. Red dot only when there are alerts.
 
-Next likely module: **M16.1 — Fix entity persistence + notification bell**, or proceed to **M17 — Global search in ⌘K**.
+**M17 goal:** Global search + "My Items" view + filter-by-owner-me:
+1. Extend ⌘K command palette to search entities — typing "FRS" finds the FRS document; typing "data migration" finds risks + milestones + tasks. Results show entity icon + name + page link.
+2. New `/my-items` route aggregating every entity owned by current user (mock — VP). Tasks, risks, milestones, documents-as-owner sorted by urgency.
+3. "Owned by me" toggle on milestones, tasks, risks, documents toolbars.
+
+**DoD:** all 14+1 routes pass build clean; refreshing `/milestones` after adding a milestone keeps the milestone; bell click opens a popover; ⌘K typing "FRS" finds the document; `/my-items` lists owned entities; toggling "Mine" filter shows only owner=VP items.
+
+**Out of scope:** notification read/unread state, dismiss action, persistence of read state, search across project (search currently scopes to active project).
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M16 Completion summary (2026-05-13)
 

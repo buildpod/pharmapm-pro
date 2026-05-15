@@ -272,6 +272,100 @@ export function previewCascade(
   return { affected, error: null };
 }
 
+// ─── Critical path ───────────────────────────────────────────────────────────
+//
+// Forward pass: ES/EF taken directly from milestones.plannedStart / plannedEnd
+//   (since cascade has already enforced predecessor relationships).
+// Backward pass: starting from terminal milestones, compute LS/LF respecting
+//   predecessor + lag chains. Slack = workingDaysBetween(ES, LS).
+// A milestone is on the critical path iff slack === 0.
+
+export function computeCriticalPath(
+  milestones: ScheduleMilestone[],
+  workingDays: number[] = [1, 2, 3, 4, 5],
+  holidays: string[] = []
+): { criticalIds: Set<number>; slackById: Record<number, number> } {
+  const result = { criticalIds: new Set<number>(), slackById: {} as Record<number, number> };
+  if (milestones.length === 0) return result;
+
+  const topo = topologicalSort(milestones);
+  if (!topo.sorted) return result; // cycle → no meaningful CP
+
+  const byId: Record<number, ScheduleMilestone> = {};
+  milestones.forEach((m) => { byId[m.id] = m; });
+
+  // Project end = latest plannedEnd across all milestones
+  let projectEnd: string | null = null;
+  milestones.forEach((m) => {
+    if (m.plannedEnd && (!projectEnd || compare(m.plannedEnd, projectEnd) > 0)) {
+      projectEnd = m.plannedEnd;
+    }
+  });
+  if (!projectEnd) return result;
+
+  // Backward pass: for each milestone in reverse topo order, compute LS/LF.
+  // - Terminal milestones (no successors): LF = projectEnd
+  // - Others: LF = min over successors of (LS[succ] - lag[succ] - 1 working day)
+  const LF: Record<number, string> = {};
+  const LS: Record<number, string> = {};
+  const reversed = [...topo.sorted].reverse();
+
+  reversed.forEach((id) => {
+    const m = byId[id];
+    const successors = milestones.filter((x) => x.predecessor === id);
+    const dur = parseInt(String(m.duration ?? 1)) || 1;
+
+    let lfDate: string | null;
+    if (successors.length === 0) {
+      lfDate = projectEnd;
+    } else {
+      let earliest: string | null = null;
+      for (const s of successors) {
+        const sLag = parseInt(String(s.lag ?? 0)) || 0;
+        const sLS = LS[s.id];
+        if (!sLS) continue;
+        // Latest m can finish = succ.LS - lag - 1 working day
+        const cap = addWorkingDays(sLS, -(1 + sLag), workingDays, holidays);
+        if (!cap) continue;
+        if (!earliest || compare(cap, earliest) < 0) earliest = cap;
+      }
+      lfDate = earliest;
+    }
+    if (!lfDate) return;
+    LF[id] = lfDate;
+    const ls = addWorkingDays(lfDate, -(dur - 1), workingDays, holidays);
+    if (ls) LS[id] = ls;
+  });
+
+  // Slack = working days between ES (=plannedStart) and LS
+  milestones.forEach((m) => {
+    const ls = LS[m.id];
+    if (!ls || !m.plannedStart) {
+      result.slackById[m.id] = 0;
+      result.criticalIds.add(m.id);
+      return;
+    }
+    // Count working days between plannedStart and LS
+    let slack = 0;
+    if (compare(ls, m.plannedStart) > 0) {
+      // ls is after plannedStart → positive slack
+      let cursor = m.plannedStart;
+      let guard = 0;
+      while (compare(cursor, ls) < 0 && guard < 10000) {
+        const next = addWorkingDays(cursor, 1, workingDays, holidays);
+        if (!next || next === cursor) break;
+        cursor = next;
+        slack++;
+        guard++;
+      }
+    }
+    result.slackById[m.id] = slack;
+    if (slack === 0) result.criticalIds.add(m.id);
+  });
+
+  return result;
+}
+
 export function computeEndFromDuration(
   startDate: string,
   duration: number,

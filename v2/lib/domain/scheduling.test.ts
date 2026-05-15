@@ -7,6 +7,7 @@ import {
   previewCascade,
   computeEndFromDuration,
   computeDurationFromDates,
+  computeCriticalPath,
   type ScheduleMilestone,
 } from "./scheduling";
 
@@ -186,5 +187,68 @@ describe("scheduling.computeEndFromDuration", () => {
 describe("scheduling.computeDurationFromDates", () => {
   it("Mon to Fri = 5 working days", () => {
     expect(computeDurationFromDates("2026-05-04", "2026-05-08")).toBe(5);
+  });
+});
+
+describe("scheduling.computeCriticalPath", () => {
+  // Linear chain (A → B → C): every milestone is on CP (no slack possible).
+  const linear: ScheduleMilestone[] = [
+    { id: 1, duration: 5, plannedStart: "2026-05-04", plannedEnd: "2026-05-08" },
+    { id: 2, predecessor: 1, lag: 0, duration: 5, plannedStart: "2026-05-11", plannedEnd: "2026-05-15" },
+    { id: 3, predecessor: 2, lag: 0, duration: 5, plannedStart: "2026-05-18", plannedEnd: "2026-05-22" },
+  ];
+
+  it("linear chain: every milestone is on the critical path", () => {
+    const cp = computeCriticalPath(linear);
+    expect(cp.criticalIds.has(1)).toBe(true);
+    expect(cp.criticalIds.has(2)).toBe(true);
+    expect(cp.criticalIds.has(3)).toBe(true);
+    expect(cp.slackById[1]).toBe(0);
+    expect(cp.slackById[2]).toBe(0);
+    expect(cp.slackById[3]).toBe(0);
+  });
+
+  // Parallel chains converging on a single terminal:
+  //   A (5d) → C (5d)        ← long branch
+  //   B (2d) → C
+  // C is terminal. B has slack (it could start later than its planned start).
+  it("parallel branches: shorter branch has slack, longer is critical", () => {
+    const ms: ScheduleMilestone[] = [
+      { id: 1, duration: 5, plannedStart: "2026-05-04", plannedEnd: "2026-05-08" }, // A long
+      { id: 2, duration: 2, plannedStart: "2026-05-04", plannedEnd: "2026-05-05" }, // B short, parallel
+      { id: 3, predecessor: 1, lag: 0, duration: 3, plannedStart: "2026-05-11", plannedEnd: "2026-05-13" }, // C ← A
+    ];
+    const cp = computeCriticalPath(ms);
+    expect(cp.criticalIds.has(1)).toBe(true);  // A on CP
+    expect(cp.criticalIds.has(3)).toBe(true);  // C on CP (terminal)
+    expect(cp.criticalIds.has(2)).toBe(false); // B has slack
+    expect(cp.slackById[2]).toBeGreaterThan(0);
+  });
+
+  it("single terminal milestone: is on CP", () => {
+    const ms: ScheduleMilestone[] = [
+      { id: 1, duration: 1, plannedStart: "2026-09-02", plannedEnd: "2026-09-02" },
+    ];
+    const cp = computeCriticalPath(ms);
+    expect(cp.criticalIds.has(1)).toBe(true);
+    expect(cp.slackById[1]).toBe(0);
+  });
+
+  it("respects holidays in the backward pass (slack shrinks)", () => {
+    // Without holidays, B has some slack; adding holidays reduces working days
+    // available between its plannedStart and its latest start.
+    const ms: ScheduleMilestone[] = [
+      { id: 1, duration: 5,  plannedStart: "2026-05-04", plannedEnd: "2026-05-08" },
+      { id: 2, duration: 2,  plannedStart: "2026-05-04", plannedEnd: "2026-05-05" },
+      { id: 3, predecessor: 1, duration: 3, plannedStart: "2026-05-11", plannedEnd: "2026-05-13" },
+    ];
+    const slackNoHolidays = computeCriticalPath(ms).slackById[2];
+    const slackWithHolidays = computeCriticalPath(ms, [1,2,3,4,5], ["2026-05-06","2026-05-07","2026-05-08"]).slackById[2];
+    expect(slackWithHolidays).toBeLessThanOrEqual(slackNoHolidays);
+  });
+
+  it("empty input returns empty CP", () => {
+    const cp = computeCriticalPath([]);
+    expect(cp.criticalIds.size).toBe(0);
   });
 });

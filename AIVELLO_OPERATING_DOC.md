@@ -92,7 +92,21 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M16 — Gantt + critical path**.
+**Module:** M16 — Gantt timeline + critical path
+**Goal:** Add a Gantt view to the Milestones page so PMs can see the project schedule as a horizontal timeline. Compute critical path from the existing cascade-engine inputs and surface it visually.
+
+**DoD:**
+- `lib/domain/scheduling.ts` gains `computeCriticalPath(milestones, opts)` — backward-pass slack computation returning ids of zero-slack milestones
+- New tests in `scheduling.test.ts` covering linear chain (all on CP), parallel chain (one on CP), terminal-only (single CP), with respect to workingDays + holidays opts
+- New `components/milestones/gantt-view.tsx` — div-based timeline with month axis, bars per milestone, today line, critical-path-coloured bars (rose), click bar to open edit drawer (re-uses existing `MilestoneFormDrawer` callback path)
+- Milestones page gains a Grid/Gantt toggle; default Grid
+- Gantt respects current phase/status filters and active project
+- Build clean, tests pass
+
+**Out of scope:** predecessor arrows between bars (defer — needs SVG overlay), task-level Gantt (M16 is milestones only), drag-to-resize bars (huge undertaking).
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M15 Completion summary (2026-05-11)
 

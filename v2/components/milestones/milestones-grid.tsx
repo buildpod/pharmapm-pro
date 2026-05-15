@@ -35,6 +35,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { MilestoneFormDrawer } from "./milestone-form";
+import { GanttView } from "./gantt-view";
+import { LayoutGrid, GanttChartSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const TODAY = "2026-05-11";
@@ -284,6 +286,7 @@ export function MilestonesGrid() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [cascadePreview, setCascadePreview] = useState<CascadePreviewState | null>(null);
   const [drawer, setDrawer] = useState<DrawerState>({ mode: "closed" });
+  const [viewMode, setViewMode] = useState<"grid" | "gantt">("grid");
 
   // Live settings from M8 — pass through to every domain call so working days,
   // holidays, and RAG thresholds actually drive the schedule.
@@ -386,6 +389,29 @@ export function MilestonesGrid() {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3 shadow-sm">
+        {/* View toggle */}
+        <div className="flex rounded-md border border-border bg-background p-0.5">
+          {([
+            { id: "grid",  label: "Grid",  Icon: LayoutGrid },
+            { id: "gantt", label: "Gantt", Icon: GanttChartSquare },
+          ] as const).map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => setViewMode(id)}
+              className={cn(
+                "flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
+                viewMode === id
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+              aria-pressed={viewMode === id}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
+
         <select
           value={filterPhase}
           onChange={(e) => setFilterPhase(e.target.value)}
@@ -430,7 +456,16 @@ export function MilestonesGrid() {
         </button>
       </div>
 
+      {/* Gantt view (toggle) */}
+      {viewMode === "gantt" && (
+        <GanttView
+          milestones={filtered}
+          onEditMilestone={(m) => setDrawer({ mode: "edit", milestone: m })}
+        />
+      )}
+
       {/* Grid */}
+      {viewMode === "grid" && (
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-x-auto">
         <div className="grid grid-cols-[24px_2fr_1fr_1fr_1fr_64px_80px_80px_32px] gap-0 border-b border-border bg-muted/40 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           <div />
@@ -572,6 +607,7 @@ export function MilestonesGrid() {
           </span>
         </div>
       </div>
+      )}
 
       {/* Cascade preview modal */}
       {cascadePreview && (

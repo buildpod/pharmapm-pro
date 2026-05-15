@@ -92,21 +92,24 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** _none — awaiting next goal._
+
+**Known bugs flagged by Vineet 2026-05-13 (not yet scoped):**
+1. **Topbar bell notification** isn't interactive — has a red dot indicator but no click handler / drawer / list. Either wire it to something or remove the dot.
+2. **Entity persistence gap** — `projects` and `activeProjectId` persist to localStorage (M15), but entities (milestones, tasks, risks, documents, costs, members, meetings, absences) don't. Adding a milestone in a project then refreshing the page loses it. Need to extend the localStorage pattern to all entity arrays. Mirror what M15 did for projects.
+
+Next likely module: **M16.1 — Fix entity persistence + notification bell**, or proceed to **M17 — Global search in ⌘K**.
+
+### M16 Completion summary (2026-05-13)
+
 **Module:** M16 — Gantt timeline + critical path
-**Goal:** Add a Gantt view to the Milestones page so PMs can see the project schedule as a horizontal timeline. Compute critical path from the existing cascade-engine inputs and surface it visually.
-
-**DoD:**
-- `lib/domain/scheduling.ts` gains `computeCriticalPath(milestones, opts)` — backward-pass slack computation returning ids of zero-slack milestones
-- New tests in `scheduling.test.ts` covering linear chain (all on CP), parallel chain (one on CP), terminal-only (single CP), with respect to workingDays + holidays opts
-- New `components/milestones/gantt-view.tsx` — div-based timeline with month axis, bars per milestone, today line, critical-path-coloured bars (rose), click bar to open edit drawer (re-uses existing `MilestoneFormDrawer` callback path)
-- Milestones page gains a Grid/Gantt toggle; default Grid
-- Gantt respects current phase/status filters and active project
-- Build clean, tests pass
-
-**Out of scope:** predecessor arrows between bars (defer — needs SVG overlay), task-level Gantt (M16 is milestones only), drag-to-resize bars (huge undertaking).
-
-**Started:** (this session)
-**Status:** in progress
+**Status:** ✅ Complete (commit `8e427f2`)
+**Outcome:**
+- New `computeCriticalPath()` in `lib/domain/scheduling.ts` — backward pass through topo-sorted milestones computing latest-start / latest-finish from terminal milestones backward through predecessor + lag chains. Returns `{ criticalIds: Set<number>, slackById: Record<number, number> }`. Respects `workingDays` + `holidays` opts.
+- 5 new Vitest cases (51 total): linear chain (all on CP), parallel branches (long branch on CP, short branch has slack), single terminal milestone, holidays-reduce-slack, empty input
+- New `components/milestones/gantt-view.tsx` — div-based horizontal timeline. Left rail shows names with lock icon and CP badge (rose) or slack indicator (+Nd). Right pane has month-headed time axis (3 px/day). Bars coloured rose for CP, status colours otherwise. Today line, forecast-slip striped extension, click-to-edit
+- Milestones page gains a Grid/Gantt toggle in the toolbar (LayoutGrid / GanttChartSquare icons); default Grid. All existing filters and active-project scoping preserved
+- Build clean, 14 static pages, `/milestones` 9.67 → 11.9 kB
 
 ### M15 Completion summary (2026-05-11)
 
@@ -485,6 +488,37 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-13 (M16 — Gantt timeline + critical path)
+
+**Worked on (commit `8e427f2`):**
+- `lib/domain/scheduling.ts`: added `computeCriticalPath(milestones, workingDays?, holidays?)` — backward pass over `topologicalSort` result. For each milestone (reverse topo order): if terminal, LF = max plannedEnd across project; else LF = min over successors of `addWorkingDays(succ.LS, -(1 + succ.lag), workingDays, holidays)`. LS = `addWorkingDays(LF, -(dur - 1), …)`. Slack = working days from plannedStart to LS. `slack === 0 ⇒ critical`. Returns `{ criticalIds, slackById }`.
+- `lib/domain/scheduling.test.ts`: 5 new cases — linear, parallel branches, terminal, holidays-reduce-slack, empty input. 46 → 51 tests, all pass.
+- New `components/milestones/gantt-view.tsx`:
+  - Left rail (256 px) — milestone name list with lock icon and CP/slack indicator
+  - Right pane — month-headed time axis (3 px / day, ~810 px for a 9-month project), absolute-positioned bars
+  - Bars: rose for CP, blue/amber/emerald/slate for status (in-progress/at-risk/complete/pending), 5 px tall, click opens the existing edit drawer via passed callback
+  - Today line (primary colour) + "TODAY" pill
+  - Forecast-slip indicator — striped rose extension beyond planned end
+  - Empty state when filters yield zero milestones
+  - All memoised; CP computed once per milestones/settings change
+- `components/milestones/milestones-grid.tsx`: added `viewMode: "grid" | "gantt"` state; Grid/Gantt toggle in the toolbar (LayoutGrid / GanttChartSquare icons, primary-tint active state); render switches at the top of the body keeping toolbar + drawers + cascade modal common to both
+
+**Decided:**
+- Bars-only Gantt; predecessor arrows deferred (would need SVG overlay; predecessor relationships already visible via the row ordering and CP highlighting)
+- 3 px / day fixed scale rather than zoomable — simpler MVP; can revisit if user feedback wants zoom
+- Critical path computed from current `plannedStart` / `plannedEnd` (the cascade-engine outputs), not by re-running cascade — keeps CP deterministic from what the user sees in the grid
+- Click bar to edit re-uses the existing `MilestoneFormDrawer`; no separate Gantt-specific edit affordance
+
+**Built:** Gantt visible by clicking the new toggle on `/milestones`. Switching to the Veeva PromoMats project (empty) shows the empty state. Build clean.
+
+**Known bugs surfaced by Vineet this session (NOT fixed in M16; logged in §4 for next session):**
+1. Topbar bell notification not interactive
+2. Entity persistence gap — new milestones / tasks / etc. don't survive page refresh because M15 only persisted `projects` + `activeProjectId`, not entity arrays. Need to mirror the localStorage pattern across all entity types.
+
+**Next session goal:** M16.1 — fix entity persistence + bell notification (small focused module), then M17 — global search in ⌘K + "My Items" view.
+
+---
 
 ### Session — 2026-05-11 (M14.1 — pre-flight fixes + M15 — multi-project)
 

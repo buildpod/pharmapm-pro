@@ -8,6 +8,7 @@ import {
 import { getKpis, budgetTrend, riskTrend } from "@/lib/mockData";
 import { PhaseProgress } from "@/components/dashboard/phase-progress";
 import { Sparkline } from "@/components/dashboard/sparkline";
+import { ProjectHealth } from "@/components/dashboard/project-health";
 import { useProject } from "@/components/projects/project-provider";
 import { cn } from "@/lib/utils";
 
@@ -131,8 +132,11 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Phase progress */}
-      <PhaseProgress />
+      {/* Phase progress + Project health side-by-side on large screens */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr]">
+        <PhaseProgress />
+        <ProjectHealth />
+      </div>
 
       {/* Sparkline cards */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Shield, CheckCircle2, ArrowUpRight, Plus } from "lucide-react";
-import { risks as initialRisks, type Risk, type RiskStatus } from "@/lib/mockData";
+import { type Risk, type RiskStatus } from "@/lib/mockData";
 import { RiskFormDrawer } from "./risk-form";
 import { useProject } from "@/components/projects/project-provider";
-import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useEntityStore } from "@/lib/stores/entity-store";
 import { cn } from "@/lib/utils";
 
 // ─── Score bands (from v1 config/rules.js) ───────────────────────────────────
@@ -278,7 +278,10 @@ type RiskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; ri
 
 export function RisksGrid() {
   const { activeProjectId } = useProject();
-  const [risks, setRisks] = useLocalStorageState<Risk[]>("aivello_risks_v1", initialRisks);
+  const risks            = useEntityStore((s) => s.risks);
+  const addRisk          = useEntityStore((s) => s.addRisk);
+  const updateRisk       = useEntityStore((s) => s.updateRisk);
+  const deleteRiskAction = useEntityStore((s) => s.deleteRisk);
   const [filterStatus, setFilterStatus] = useState<RiskStatus | "All">("All");
   const [filterCategory, setFilterCategory] = useState("All");
   const [filterMine, setFilterMine] = useState(false);
@@ -290,7 +293,8 @@ export function RisksGrid() {
   const allCategories = Array.from(new Set(projectRisks.map((r) => r.category)));
 
   function handleStatusToggle(id: string) {
-    setRisks((prev) => prev.map((r) => r.id === id ? { ...r, status: nextStatus[r.status] } : r));
+    const target = risks.find((r) => r.id === id);
+    if (target) updateRisk({ ...target, status: nextStatus[target.status] }, { source: "user-inline", note: "status cycle" });
   }
 
   function handleSelectFromMatrix(id: string) {
@@ -302,21 +306,19 @@ export function RisksGrid() {
 
   function handleDrawerSave(r: Risk) {
     const withProj: Risk = { ...r, projectId: r.projectId || activeProjectId };
-    setRisks((prev) => {
-      const idx = prev.findIndex((x) => x.id === withProj.id);
-      if (idx >= 0) {
-        const next = [...prev]; next[idx] = withProj;
-        toast.success("Risk updated", { description: withProj.title });
-        return next;
-      }
+    const exists = risks.some((x) => x.id === withProj.id);
+    if (exists) {
+      updateRisk(withProj);
+      toast.success("Risk updated", { description: withProj.title });
+    } else {
+      addRisk(withProj);
       toast.success("Risk added", { description: withProj.title });
-      return [...prev, withProj];
-    });
+    }
     setDrawer({ mode: "closed" });
   }
   function handleDrawerDelete(id: string) {
     const target = risks.find((r) => r.id === id);
-    setRisks((prev) => prev.filter((r) => r.id !== id));
+    deleteRiskAction(id);
     toast.success("Risk deleted", { description: target?.title });
     setDrawer({ mode: "closed" });
   }

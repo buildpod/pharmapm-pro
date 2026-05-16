@@ -4,16 +4,13 @@ import { useState, createContext, useContext } from "react";
 import { toast } from "sonner";
 import { Users, Calendar, ClipboardList, Layers, AlertTriangle, XCircle, Plus, Trash2, X } from "lucide-react";
 import {
-  teamMembers as initialTeamMembers,
-  absences as initialAbsences,
-  recurringMeetings as initialMeetings,
   milestones, tasks, risks, documents,
   type TeamMember, type RecurringMeeting, type Absence, type AbsenceReason,
 } from "@/lib/mockData";
 import { TeamMemberFormDrawer } from "./team-member-form";
 import { MeetingFormDrawer } from "./meeting-form";
 import { useProject } from "@/components/projects/project-provider";
-import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useEntityStore } from "@/lib/stores/entity-store";
 import { cn } from "@/lib/utils";
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -30,12 +27,13 @@ type ResourcesContextValue = {
   recurringMeetings: RecurringMeeting[];
 };
 
+// Context defaults are empty — real values come from the entity store via the provider in <ResourcesPanel>
 const ResourcesContext = createContext<ResourcesContextValue>({
-  absences: initialAbsences,
+  absences: [],
   addAbsence: () => {},
   removeAbsence: () => {},
-  teamMembers: initialTeamMembers,
-  recurringMeetings: initialMeetings,
+  teamMembers: [],
+  recurringMeetings: [],
 });
 
 function useResources() {
@@ -1042,9 +1040,17 @@ type MeetingDrawer = { mode: "closed" } | { mode: "new" } | { mode: "edit"; meet
 export function ResourcesPanel() {
   const { activeProjectId } = useProject();
   const [tab, setTab] = useState<Tab>("availability");
-  const [absences, setAbsences]                   = useLocalStorageState<Absence[]>("aivello_absences_v1", initialAbsences);
-  const [teamMembers, setTeamMembers]             = useLocalStorageState<TeamMember[]>("aivello_teamMembers_v1", initialTeamMembers);
-  const [recurringMeetings, setRecurringMeetings] = useLocalStorageState<RecurringMeeting[]>("aivello_meetings_v1", initialMeetings);
+  const absences            = useEntityStore((s) => s.absences);
+  const teamMembers         = useEntityStore((s) => s.teamMembers);
+  const recurringMeetings   = useEntityStore((s) => s.meetings);
+  const addAbsenceAction    = useEntityStore((s) => s.addAbsence);
+  const deleteAbsenceAction = useEntityStore((s) => s.deleteAbsence);
+  const addTeamMember       = useEntityStore((s) => s.addTeamMember);
+  const updateTeamMember    = useEntityStore((s) => s.updateTeamMember);
+  const deleteTeamMemberAction = useEntityStore((s) => s.deleteTeamMember);
+  const addMeetingAction    = useEntityStore((s) => s.addMeeting);
+  const updateMeetingAction = useEntityStore((s) => s.updateMeeting);
+  const deleteMeetingAction = useEntityStore((s) => s.deleteMeeting);
   const [memberDrawer,  setMemberDrawer]          = useState<MemberDrawer>({ mode: "closed" });
   const [meetingDrawer, setMeetingDrawer]         = useState<MeetingDrawer>({ mode: "closed" });
 
@@ -1056,7 +1062,7 @@ export function ResourcesPanel() {
   function addAbsence(a: Omit<Absence, "id">) {
     const id = `ab${Date.now()}`;
     const withProj: Absence = { ...a, id, projectId: activeProjectId };
-    setAbsences((prev) => [...prev, withProj]);
+    addAbsenceAction(withProj);
     const member = teamMembers.find((m) => m.id === a.memberId);
     toast.success(`Absence added`, {
       description: `${member?.name ?? a.memberId} · ${a.startDate} → ${a.endDate} · ${a.reason}`,
@@ -1066,7 +1072,7 @@ export function ResourcesPanel() {
   function removeAbsence(id: string) {
     const ab = absences.find((x) => x.id === id);
     if (!ab) return;
-    setAbsences((prev) => prev.filter((x) => x.id !== id));
+    deleteAbsenceAction(id);
     const member = teamMembers.find((m) => m.id === ab.memberId);
     toast.success("Absence removed", {
       description: `${member?.name ?? ab.memberId} · ${ab.startDate} → ${ab.endDate}`,
@@ -1075,42 +1081,38 @@ export function ResourcesPanel() {
 
   function saveMember(m: TeamMember) {
     const withProj: TeamMember = { ...m, projectId: m.projectId || activeProjectId };
-    setTeamMembers((prev) => {
-      const idx = prev.findIndex((x) => x.id === withProj.id);
-      if (idx >= 0) {
-        const next = [...prev]; next[idx] = withProj;
-        toast.success("Member updated", { description: withProj.name });
-        return next;
-      }
+    const exists = teamMembers.some((x) => x.id === withProj.id);
+    if (exists) {
+      updateTeamMember(withProj);
+      toast.success("Member updated", { description: withProj.name });
+    } else {
+      addTeamMember(withProj);
       toast.success("Member added", { description: withProj.name });
-      return [...prev, withProj];
-    });
+    }
     setMemberDrawer({ mode: "closed" });
   }
   function deleteMember(id: string) {
     const target = teamMembers.find((m) => m.id === id);
-    setTeamMembers((prev) => prev.filter((m) => m.id !== id));
+    deleteTeamMemberAction(id);
     toast.success("Member deleted", { description: target?.name });
     setMemberDrawer({ mode: "closed" });
   }
 
   function saveMeeting(m: RecurringMeeting) {
     const withProj: RecurringMeeting = { ...m, projectId: m.projectId || activeProjectId };
-    setRecurringMeetings((prev) => {
-      const idx = prev.findIndex((x) => x.id === withProj.id);
-      if (idx >= 0) {
-        const next = [...prev]; next[idx] = withProj;
-        toast.success("Meeting updated", { description: withProj.name });
-        return next;
-      }
+    const exists = recurringMeetings.some((x) => x.id === withProj.id);
+    if (exists) {
+      updateMeetingAction(withProj);
+      toast.success("Meeting updated", { description: withProj.name });
+    } else {
+      addMeetingAction(withProj);
       toast.success("Meeting added", { description: withProj.name });
-      return [...prev, withProj];
-    });
+    }
     setMeetingDrawer({ mode: "closed" });
   }
   function deleteMeeting(id: string) {
     const target = recurringMeetings.find((m) => m.id === id);
-    setRecurringMeetings((prev) => prev.filter((m) => m.id !== id));
+    deleteMeetingAction(id);
     toast.success("Meeting deleted", { description: target?.name });
     setMeetingDrawer({ mode: "closed" });
   }

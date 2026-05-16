@@ -7,7 +7,6 @@ import {
   ShieldCheck, GraduationCap, Rocket, Search, Plus,
 } from "lucide-react";
 import {
-  documents as initialDocuments,
   type Document,
   type Decision,
   type DecisionStatus,
@@ -16,7 +15,7 @@ import {
 } from "@/lib/mockData";
 import { DocumentFormDrawer } from "./document-form";
 import { useProject } from "@/components/projects/project-provider";
-import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useEntityStore } from "@/lib/stores/entity-store";
 import { cn } from "@/lib/utils";
 
 const TODAY = "2026-05-11";
@@ -400,7 +399,10 @@ type DocDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; doc
 
 export function DocumentsList() {
   const { activeProjectId } = useProject();
-  const [docs, setDocs] = useLocalStorageState<Document[]>("aivello_documents_v1", initialDocuments);
+  const docs            = useEntityStore((s) => s.documents);
+  const addDocument     = useEntityStore((s) => s.addDocument);
+  const updateDocument  = useEntityStore((s) => s.updateDocument);
+  const deleteDocumentAction = useEntityStore((s) => s.deleteDocument);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("All");
   const [filterMine, setFilterMine] = useState(false);
   const [query, setQuery] = useState("");
@@ -410,21 +412,19 @@ export function DocumentsList() {
 
   function handleDrawerSave(d: Document) {
     const withProj: Document = { ...d, projectId: d.projectId || activeProjectId };
-    setDocs((prev) => {
-      const idx = prev.findIndex((x) => x.id === withProj.id);
-      if (idx >= 0) {
-        const next = [...prev]; next[idx] = withProj;
-        toast.success("Document updated", { description: withProj.name });
-        return next;
-      }
+    const exists = docs.some((x) => x.id === withProj.id);
+    if (exists) {
+      updateDocument(withProj);
+      toast.success("Document updated", { description: withProj.name });
+    } else {
+      addDocument(withProj);
       toast.success("Document added", { description: withProj.name });
-      return [...prev, withProj];
-    });
+    }
     setDrawer({ mode: "closed" });
   }
   function handleDrawerDelete(id: string) {
     const target = docs.find((d) => d.id === id);
-    setDocs((prev) => prev.filter((d) => d.id !== id));
+    deleteDocumentAction(id);
     toast.success("Document deleted", { description: target?.name });
     setDrawer({ mode: "closed" });
   }
@@ -432,20 +432,17 @@ export function DocumentsList() {
   const knownTypes = Array.from(new Set(projectDocs.map((d) => d.type)));
 
   function handleDecisionToggle(docId: string, kind: "reviewers" | "approvers", idx: number) {
-    setDocs((prev) =>
-      prev.map((doc) => {
-        if (doc.id !== docId) return doc;
-        const updated = [...doc[kind]];
-        const old = updated[idx];
-        const next = nextStatus[old.status];
-        updated[idx] = {
-          ...old,
-          status: next,
-          date: next === "approved" ? TODAY : next === "rejected" ? TODAY : undefined,
-        };
-        return { ...doc, [kind]: updated };
-      })
-    );
+    const doc = docs.find((d) => d.id === docId);
+    if (!doc) return;
+    const updated = [...doc[kind]];
+    const old = updated[idx];
+    const next = nextStatus[old.status];
+    updated[idx] = {
+      ...old,
+      status: next,
+      date: next === "approved" ? TODAY : next === "rejected" ? TODAY : undefined,
+    };
+    updateDocument({ ...doc, [kind]: updated }, { source: "user-inline", note: "decision chip click" });
   }
 
   // Filtering — start from project-scoped docs

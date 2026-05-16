@@ -13,7 +13,7 @@ import {
   RotateCcw,
   Plus,
 } from "lucide-react";
-import { milestones as initialMilestones, type Milestone, type MilestoneStatus } from "@/lib/mockData";
+import { type Milestone, type MilestoneStatus } from "@/lib/mockData";
 import {
   computeRAG,
   computeDependencyStatus,
@@ -29,7 +29,7 @@ import { addWorkingDays } from "@/lib/domain/dates";
 import { tasks as initialTasks, type Task } from "@/lib/mockData";
 import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
 import { useSettings } from "@/lib/settingsStore";
-import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useEntityStore } from "@/lib/stores/entity-store";
 import { useProject } from "@/components/projects/project-provider";
 // (Dialog imports removed in M18 — CascadePreviewDialog replaced by ImpactDrawer)
 import { MilestoneFormDrawer } from "./milestone-form";
@@ -237,7 +237,11 @@ type DrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; milest
 
 export function MilestonesGrid() {
   const { activeProjectId, activeProject } = useProject();
-  const [milestones, setMilestones] = useLocalStorageState<Milestone[]>("aivello_milestones_v1", initialMilestones);
+  const milestones        = useEntityStore((s) => s.milestones);
+  const addMilestone      = useEntityStore((s) => s.addMilestone);
+  const updateMilestone   = useEntityStore((s) => s.updateMilestone);
+  const deleteMilestoneAction = useEntityStore((s) => s.deleteMilestone);
+  const replaceAllMilestones  = useEntityStore((s) => s.replaceAllMilestones);
   const [filterPhase, setFilterPhase] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [filterMine, setFilterMine] = useState(false);
@@ -287,7 +291,7 @@ export function MilestonesGrid() {
         domainMilestones.map((sm) => sm.id === numId ? { ...sm, plannedEnd: newDate } : sm),
         workingDays, holidays
       );
-      setMilestones(applyDomainResult(milestones, result.milestones));
+      replaceAllMilestones(applyDomainResult(milestones, result.milestones), { source: "cascade", note: "date edit, no downstream impact" });
       toast.success("Date updated", { description: original.name });
       return;
     }
@@ -311,56 +315,52 @@ export function MilestonesGrid() {
 
   // Apply a forecast-date change directly (no cascade — forecast is a projection)
   function handleForecastDateChange(id: string, newDate: string) {
-    setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, forecastDate: newDate } : m));
+    const target = milestones.find((m) => m.id === id);
+    if (target) updateMilestone({ ...target, forecastDate: newDate }, { source: "user-inline", note: "forecast edit" });
   }
 
-  // Toggle lock
   function handleLockToggle(id: string) {
-    setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, locked: !m.locked } : m));
+    const target = milestones.find((m) => m.id === id);
+    if (target) updateMilestone({ ...target, locked: !target.locked }, { source: "user-inline", note: "lock toggle" });
   }
 
-  // Status change
   function handleStatusChange(id: string, status: MilestoneStatus) {
-    setMilestones((prev) => prev.map((m) => m.id === id ? { ...m, status } : m));
+    const target = milestones.find((m) => m.id === id);
+    if (target) updateMilestone({ ...target, status }, { source: "user-inline", note: "status cycle" });
   }
 
-  // Schedule from Go-Live — uses the active project's go-live, respects working days + holidays
   function handleScheduleFromGoLive() {
     const result = scheduleBackward(domainMilestones, activeProject.goLiveDate, workingDays, holidays);
     if (result.error) return;
-    // Apply result back into the full milestones list (cascade only touched this project's ms)
     const updatedById = new Map(result.milestones.map((sm) => [sm.id, sm]));
-    setMilestones((prev) => prev.map((m) => {
+    const next = milestones.map((m) => {
       const sm = updatedById.get(toId(m.id));
       return sm ? { ...m, plannedDate: sm.plannedEnd ?? m.plannedDate } : m;
-    }));
+    });
+    replaceAllMilestones(next, { source: "system", note: "scheduleBackward from go-live" });
   }
 
-  // Reset to original mock data
+  // Reset is now a no-op pending a proper "reset to seed" feature
   function handleReset() {
-    setMilestones(initialMilestones);
+    toast.info("Reset disabled — use undo per change instead (coming after M20.2)");
   }
 
-  // Drawer save/delete handlers — always attach the active project's id
   function handleDrawerSave(m: Milestone) {
     const withProj: Milestone = { ...m, projectId: m.projectId || activeProjectId };
-    setMilestones((prev) => {
-      const idx = prev.findIndex((x) => x.id === withProj.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = withProj;
-        toast.success("Milestone updated", { description: withProj.name });
-        return next;
-      }
+    const exists = milestones.some((x) => x.id === withProj.id);
+    if (exists) {
+      updateMilestone(withProj);
+      toast.success("Milestone updated", { description: withProj.name });
+    } else {
+      addMilestone(withProj);
       toast.success("Milestone added", { description: withProj.name });
-      return [...prev, withProj];
-    });
+    }
     setDrawer({ mode: "closed" });
   }
 
   function handleDrawerDelete(id: string) {
     const target = milestones.find((m) => m.id === id);
-    setMilestones((prev) => prev.filter((m) => m.id !== id));
+    deleteMilestoneAction(id);
     toast.success("Milestone deleted", { description: target?.name });
     setDrawer({ mode: "closed" });
   }
@@ -683,7 +683,7 @@ export function MilestonesGrid() {
                 return { ...sm };
               });
               const cascadeResult = cascade(hypothetical, workingDays, holidays);
-              setMilestones(applyDomainResult(milestones, cascadeResult.milestones));
+              replaceAllMilestones(applyDomainResult(milestones, cascadeResult.milestones), { source: "cascade", note: "milestone cascade apply" });
               const count = r.affected.length;
               toast.success(
                 `${count} milestone${count === 1 ? "" : "s"} shifted`,

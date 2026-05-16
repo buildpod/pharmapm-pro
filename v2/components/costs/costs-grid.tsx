@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { DollarSign, TrendingDown, Wallet, Layers, Plus } from "lucide-react";
-import { costLines as initialCostLines, budgetTrend, type CostLine } from "@/lib/mockData";
+import { budgetTrend, type CostLine } from "@/lib/mockData";
 import { CostLineFormDrawer } from "./cost-line-form";
 import { useProject } from "@/components/projects/project-provider";
-import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useEntityStore } from "@/lib/stores/entity-store";
 import { cn } from "@/lib/utils";
 
 const TOTAL_BUDGET_K = 2000;
@@ -80,7 +80,10 @@ type CostDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; li
 
 export function CostsGrid() {
   const { activeProjectId } = useProject();
-  const [costLines, setCostLines] = useLocalStorageState<CostLine[]>("aivello_costLines_v1", initialCostLines);
+  const costLines       = useEntityStore((s) => s.costLines);
+  const addCostLine     = useEntityStore((s) => s.addCostLine);
+  const updateCostLine  = useEntityStore((s) => s.updateCostLine);
+  const deleteCostLineAction = useEntityStore((s) => s.deleteCostLine);
   const [drawer, setDrawer]       = useState<CostDrawerState>({ mode: "closed" });
 
   const projectCostLines = costLines.filter((c) => c.projectId === activeProjectId);
@@ -88,21 +91,19 @@ export function CostsGrid() {
 
   function handleDrawerSave(c: CostLine) {
     const withProj: CostLine = { ...c, projectId: c.projectId || activeProjectId };
-    setCostLines((prev) => {
-      const idx = prev.findIndex((x) => x.id === withProj.id);
-      if (idx >= 0) {
-        const next = [...prev]; next[idx] = withProj;
-        toast.success("Cost line updated", { description: withProj.description });
-        return next;
-      }
+    const exists = costLines.some((x) => x.id === withProj.id);
+    if (exists) {
+      updateCostLine(withProj);
+      toast.success("Cost line updated", { description: withProj.description });
+    } else {
+      addCostLine(withProj);
       toast.success("Cost line added", { description: withProj.description });
-      return [...prev, withProj];
-    });
+    }
     setDrawer({ mode: "closed" });
   }
   function handleDrawerDelete(id: string) {
     const target = costLines.find((c) => c.id === id);
-    setCostLines((prev) => prev.filter((c) => c.id !== id));
+    deleteCostLineAction(id);
     toast.success("Cost line deleted", { description: target?.description });
     setDrawer({ mode: "closed" });
   }

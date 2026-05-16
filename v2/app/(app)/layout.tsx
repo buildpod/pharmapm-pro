@@ -3,12 +3,14 @@ import { Topbar } from "@/components/topbar";
 import { ThemeProvider } from "@/components/theme-provider";
 import { CommandPalette } from "@/components/command-palette";
 import { ProjectProvider } from "@/components/projects/project-provider";
+import { EntityStoreHydrator } from "@/components/stores/entity-store-hydrator";
 import { Toaster } from "sonner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
     <ProjectProvider>
+      <EntityStoreHydrator />
       <div className="flex h-screen overflow-hidden bg-background">
         {/* Desktop sidebar — hidden on mobile, hidden when printing */}
         <aside data-sidebar className="hidden md:flex md:w-56 md:shrink-0 md:flex-col border-r border-border print:hidden">

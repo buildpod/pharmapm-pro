@@ -92,7 +92,26 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1, next up is **M21 — Timesheets + derived labour cost (EVM closure)**.
+**Module:** M20.2 — Architectural pre-flight refactor
+**Goal:** Before adding more feature modules (M21+), put the four foundations in place that the remaining roadmap depends on. The cost is one session now; the benefit is patch-safe future work and a clean Path C transition.
+
+**DoD:**
+- **Centralized entity store** (Zustand, ~5 KB) at `lib/stores/projectStore.ts`. One slice per entity type (projects, milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences). Add/update/delete actions. Persistence middleware writes to localStorage on every change.
+- **Audit log infrastructure** at `lib/stores/audit.ts`. Every mutation flows through a `dispatch(action)` that records `{ type, entityKind, entityId, before, after, source, timestamp, projectId }` to a per-project audit log. Persisted to localStorage.
+- **`EntityRepository<T>` interface** at `lib/repositories/entity-repository.ts` with `LocalStorageRepository<T>` implementation. The store injects a repository; future Path C swaps it for a Supabase implementation — rest of the app unchanged.
+- **Cross-entity validator** at `lib/validation/project-validator.ts`. ~5 rules to start: no milestone after go-live, task due ≤ linked milestone planned, risks have owners, cost actuals ≤ budgets, docs in-review have reviewers. Returns `{ healthScore, issues[] }`.
+- **Migrate all 8 entity grids** to read from the store + dispatch via actions. `useLocalStorageState` removed where the store replaces it (kept for project switcher state — different concern).
+- **One new visible surface**: "Project Health" card on the dashboard showing healthScore + issue count + link to issues list. Powers the user-facing payoff for the refactor.
+- All 70+ tests pass; build clean.
+
+**Out of scope (deferred):**
+- Undo/redo UI — infrastructure (before/after in actions) is in place; UI hook comes later
+- Change Request workflow (M23 still its own module — but now built on this foundation)
+- Supabase repository implementation — Path C territory
+- Real-time sync, conflict resolution — Path C
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M20.1 Completion summary (2026-05-16)
 
@@ -667,6 +686,26 @@ These are not modules yet — they're the architectural decisions Path C require
 - Audit trail (immutable change log) — schema design
 - SOC 2 + cert-prep documentation (internal, not user-facing) — separate doc trail
 - GxP validation package authoring (IQ/OQ/PQ for the tool itself if anyone uses it for GxP data) — separate doc trail
+
+---
+
+## 5.2 — Tech-debt index
+
+Live ledger of architectural debt + shortcuts. Reviewed at every checkpoint (per §9.9). Each item: when accumulated · severity · proposed module to clear · current status.
+
+| Item | Severity | Origin | Proposed clear | Status |
+|---|---|---|---|---|
+| Per-grid local state for entities | High | M3+ | M20.2 | **Clearing this session** |
+| No central audit trail / dispatch | High | M3+ | M20.2 | **Clearing this session** |
+| Persistence shape coupled to UI shape | Medium | M16.1 | M20.2 (`EntityRepository<T>`) | **Clearing this session** |
+| Validation rules are per-form only | Medium | M14 | M20.2 (`project-validator`) | **Clearing this session** |
+| Mock-data field additions require Python backfill scripts | Low | M14.1, M15 | Could codify into a migration helper; not urgent | Pending |
+| Two XLSX libs side-by-side (`xlsx` + `xlsx-js-style`) | Low | M19 | Migrate M7 reports to xlsx-js-style; drop xlsx dep | Pending |
+| `CommandPalette` reads localStorage directly | Low | M17 | Now redundant once M20.2 store ships; refactor to consume store | M20.3 candidate |
+| `NotificationBell` derives from raw mockData not localStorage | Low | M16.1 | Same — consume store after M20.2 | M20.3 candidate |
+| No undo/redo UI on cascade | Medium | M18 | Hook into action dispatcher post-M20.2 | M23+ |
+
+A new module that **introduces** debt must log the item here. A checkpoint module that **clears** debt updates the status column.
 
 ---
 
@@ -1485,6 +1524,15 @@ These are non-negotiable. Vineet can quote any of them back to me.
 7. **If Vineet says "check the operating doc," I stop, re-read this document, and respond from it.** Not from session memory, not from training defaults.
 
 8. **If Vineet says "you're hallucinating," I stop immediately, do not defend, and ask Vineet to point to the section being violated.**
+
+9. **Periodic architectural checkpoint.** After every 4 feature modules ship, the next module slot is a checkpoint. The checkpoint must:
+   (a) Run the full Vitest suite + production build, surface any regressions.
+   (b) Quick competitive scan — pick 1–2 tools in our space (Monday / Smartsheet / Asana / MS Project / Linear / a pharma-specific tool) and check whether any new capability has shipped that would change our roadmap.
+   (c) Review §5.2 tech-debt index. Decide whether a refactor module is warranted before next feature work.
+   (d) Update §5.2 with any new debt items the recent modules introduced.
+   If no debt requires attention and no competitive shift is found, the checkpoint is a no-op session — just stamp the discipline. Vineet is told either way.
+
+   Counted from M21 onward: M21–M24 are 4 feature modules → M25 is the next checkpoint. M20.2 itself is the inaugural exercise of this rule, not on the counter.
 
 ---
 

@@ -4,7 +4,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Milestone, ArrowRight, Plus } from "lucide-react";
 import {
-  tasks as initialTasks,
   milestones,
   type Task,
   type TaskStatus,
@@ -12,7 +11,7 @@ import {
 } from "@/lib/mockData";
 import { TaskFormDrawer } from "./task-form";
 import { useProject } from "@/components/projects/project-provider";
-import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useEntityStore } from "@/lib/stores/entity-store";
 import { useSettings } from "@/lib/settingsStore";
 import {
   previewTaskCascade, findConstraintViolations, groupViolationsByTask, diffViolations,
@@ -62,7 +61,9 @@ const allStatuses: TaskStatus[]     = ["Not Started", "In Progress", "Complete",
 // ─── Lookups ──────────────────────────────────────────────────────────────────
 
 const milestoneById = Object.fromEntries(milestones.map((m) => [m.id, m]));
-const taskById      = Object.fromEntries(initialTasks.map((t) => [t.id, t]));
+// taskById fallback removed in M20.2 — tasks now flow from the entity store
+// at the call sites; DependencyTags receives the live list as allTasks.
+const taskById: Record<string, Task> = {};
 
 function MilestoneTag({ milestoneId }: { milestoneId?: string }) {
   if (!milestoneId) return null;
@@ -368,7 +369,11 @@ interface TaskCascadePreviewState {
 export function TasksGrid() {
   const { activeProjectId } = useProject();
   const { settings } = useSettings();
-  const [tasks, setTasks]                       = useLocalStorageState<Task[]>("aivello_tasks_v1", initialTasks);
+  const tasks             = useEntityStore((s) => s.tasks);
+  const addTask           = useEntityStore((s) => s.addTask);
+  const updateTask        = useEntityStore((s) => s.updateTask);
+  const deleteTaskAction  = useEntityStore((s) => s.deleteTask);
+  const replaceAllTasks   = useEntityStore((s) => s.replaceAllTasks);
   const [cascadePreview, setCascadePreview]     = useState<TaskCascadePreviewState | null>(null);
   const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
   const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
@@ -426,45 +431,43 @@ export function TasksGrid() {
     }
 
     // No cascade impact (or no due-date change) — apply directly
-    setTasks((prev) => {
-      const idx = prev.findIndex((x) => x.id === withProj.id);
-      if (idx >= 0) {
-        const next = [...prev];
-        next[idx] = withProj;
-        toast.success("Task updated", { description: withProj.name });
-        return next;
-      }
+    const exists = tasks.some((x) => x.id === withProj.id);
+    if (exists) {
+      updateTask(withProj);
+      toast.success("Task updated", { description: withProj.name });
+    } else {
+      addTask(withProj);
       toast.success("Task added", { description: withProj.name });
-      return [...prev, withProj];
-    });
+    }
     setDrawer({ mode: "closed" });
   }
 
   function handleDrawerDelete(id: string) {
     const target = tasks.find((t) => t.id === id);
-    setTasks((prev) => prev.filter((t) => t.id !== id));
+    deleteTaskAction(id);
     toast.success("Task deleted", { description: target?.name });
     setDrawer({ mode: "closed" });
   }
 
   function handleStatusToggle(id: string) {
-    setTasks((prev) =>
-      prev.map((t) => t.id !== id ? t : {
-        ...t,
-        status: nextStatus[t.status],
-        progress: nextStatus[t.status] === "Complete" ? 100 : t.progress,
-      })
-    );
+    const target = tasks.find((t) => t.id === id);
+    if (!target) return;
+    const newStatus = nextStatus[target.status];
+    updateTask({
+      ...target,
+      status: newStatus,
+      progress: newStatus === "Complete" ? 100 : target.progress,
+    }, { source: "user-inline", note: "status cycle" });
   }
 
   function handleProgressChange(id: string, value: number) {
-    setTasks((prev) =>
-      prev.map((t) => t.id !== id ? t : {
-        ...t,
-        progress: value,
-        status: value === 100 ? "Complete" : value > 0 && t.status === "Not Started" ? "In Progress" : t.status,
-      })
-    );
+    const target = tasks.find((t) => t.id === id);
+    if (!target) return;
+    updateTask({
+      ...target,
+      progress: value,
+      status: value === 100 ? "Complete" : value > 0 && target.status === "Not Started" ? "In Progress" : target.status,
+    }, { source: "user-inline", note: "progress slider" });
   }
 
   // Apply filters then group by workstream — scoped to active project
@@ -703,7 +706,7 @@ export function TasksGrid() {
                 if (shiftedById[x.id]) return { ...x, dueDate: shiftedById[x.id] };
                 return x;
               });
-              setTasks(pendingTasks);
+              replaceAllTasks(pendingTasks, { source: "cascade", note: "task cascade apply" });
               const applied = r.affected.length;
               toast.success(
                 `${applied + 1} task${applied === 0 ? "" : "s"} updated`,

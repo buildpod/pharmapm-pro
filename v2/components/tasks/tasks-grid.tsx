@@ -18,6 +18,7 @@ import {
   previewTaskToMilestonePush,
   type TaskScheduleEntry, type ScheduleMilestone,
 } from "@/lib/domain/scheduling";
+import { workingDaysBetween } from "@/lib/domain/dates";
 
 // Local helpers — match the conversion used in milestones-grid so a task linked
 // to "m6" resolves to the milestone whose id is 6 in the engine.
@@ -426,12 +427,14 @@ export function TasksGrid() {
         status: "Not Started", lockDate: m.locked,
       }));
       const msPushProbe = previewTaskToMilestonePush(
-        initial.tasks, probeMs, msNumToStr
+        initial.tasks, probeMs, msNumToStr,
+        { workingDays: settings.workingDays, holidays: settings.holidays }
       );
 
       if (initial.affected.length > 0 || msPushProbe.length > 0) {
-        const daysShifted = Math.ceil(
-          (new Date(withProj.dueDate).getTime() - new Date(existing.dueDate).getTime()) / 86_400_000
+        // M20.5 PL-3 — working days, not calendar days
+        const daysShifted = workingDaysBetween(
+          existing.dueDate, withProj.dueDate, settings.workingDays, settings.holidays
         );
         // Open the M20 selective-cascade drawer. The drawer will call
         // recompute() on every toggle/override; we keep the edit + originals
@@ -694,8 +697,10 @@ export function TasksGrid() {
               // M20.3 — task → milestone push. Compute against the cascaded
               // task state (r.tasks). Default-checked (PM must opt out per
               // Vineet's confirmed preference for schedule integrity).
+              // M20.5 — now transitive (PL-2) and with +1WD gate buffer (PL-4).
               const msPushes = previewTaskToMilestonePush(
-                r.tasks, scheduleMilestones, msNumToStr
+                r.tasks, scheduleMilestones, msNumToStr,
+                { workingDays: settings.workingDays, holidays: settings.holidays }
               );
               const milestonesSection: ImpactSection = {
                 kind: "milestones",
@@ -767,9 +772,10 @@ export function TasksGrid() {
               replaceAllTasks(pendingTasks, { source: "cascade", note: "task cascade apply" });
 
               // M20.3 — apply task → milestone pushes (default-checked, unless
-              // the PM unchecked them in the drawer)
+              // the PM unchecked them in the drawer). M20.5: transitive + buffered.
               const msPushes = previewTaskToMilestonePush(
-                r.tasks, scheduleMilestones, msNumToStr
+                r.tasks, scheduleMilestones, msNumToStr,
+                { workingDays: settings.workingDays, holidays: settings.holidays }
               );
               const includedPushes = msPushes.filter((p) => !excludeIds.has(p.milestoneId));
               if (includedPushes.length > 0) {

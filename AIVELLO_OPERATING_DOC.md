@@ -92,6 +92,41 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M20.5 — Cascade engine fixes (PL-2, PL-3, PL-4, PL-11)
+**Goal:** Land the four highest-impact gaps the M20.4 formal spec revealed. Two are P0 (transitive task→milestone push; silent auto-fix of pre-existing violations); two are P1 that directly affect SteerCo number accuracy (working-day daysShifted display; gate buffer on task→milestone push). With these in, the cascade engine matches the §10 punch-list spec for everything Vineet flagged as SteerCo-critical.
+
+**DoD:**
+- **PL-2 — Transitive task→milestone push.** After `previewTaskToMilestonePush` proposes milestone shifts, run those shifts through `previewCascade` to see if they propagate to further milestones via `predecessor` chains. Merge the additional milestone shifts into the drawer's milestones section. The `it.skip("PL-2: ...")` test flips to `it(...)` and passes.
+- **PL-3 — Working-day shift display.** Add `workingDaysBetween(a, b, workingDays, holidays)` to `lib/domain/dates.ts`. Switch `daysShifted` in `previewTaskCascade`, `previewCascade`, `previewMilestoneToTaskImpact` (slack), and `previewTaskToMilestonePush` to working days. Drawer label clarifies: "+5 working days". The PL-3 skipped test flips to passing.
+- **PL-4 — Gate buffer on task→milestone push.** `previewTaskToMilestonePush` adds a configurable buffer (default: 1 working day) so the proposed milestone date lands AFTER the last linked task, not on it. PMBOK / industry convention: milestone = approval gate, happens *after* the final deliverable. Buffer is a parameter on the function (`gateBufferWorkingDays?: number`, default 1) so it can be tuned per project later. PL-4 skipped test flips to passing.
+- **PL-11 — Respect pre-existing violations.** Add `respectPreExisting?: boolean` opt to `previewTaskCascade` (default `true`). When true: snapshot baseline violations on input data BEFORE applying the edit; after cascade, identify shifts that were caused by pre-existing violations (not by the user's edit) and suppress them — those shifts don't appear in `affected[]` and the cascaded `tasks[]` returned reflects the pre-existing violations untouched. PL-11 skipped test flips to passing.
+- All 107 existing tests continue to pass. 4 skipped tests promoted to passing (PL-2, PL-3, PL-4, PL-11). New tests added where the implementation surface area justifies them (3-hop transitive cascade end-to-end, gate-buffer-with-holiday, working-day-shift-over-weekend).
+- `v2/docs/CASCADE_ALGORITHM.md` updated: §10 punch list rows for PL-2, PL-3, PL-4, PL-11 marked as ✅ Resolved with the commit hash; the spec sections (§4.2, §4.4, §10) updated to reflect the new behavior.
+- Build clean; bundles within budget.
+- No UI surface beyond the existing impact drawer is changed. Drawer simply consumes the engine's improved output.
+
+**Out of scope (M20.5):**
+- PL-1 (in-progress forward-pull protection) — keep current behaviour; document only.
+- PL-5, PL-6, PL-7, PL-8, PL-9, PL-10 — captured in punch list, defer to a future polish module or M20.6 if Vineet wants them prioritised.
+- Any UI changes beyond the drawer's existing display labels.
+
+**Why this matters:** Vineet's framing — *"this only can possibly provide details impact to steero co as well that can becaise cost resource or any other issues"*. PL-2 + PL-11 are the two gaps where the engine currently lies to SteerCo (incomplete impact picture; phantom shifts). PL-3 + PL-4 are the two display gaps where SteerCo sees mismatched numbers (calendar days mixed into a working-day schedule; milestones landing on the final task instead of after it).
+
+**Started:** (this session)
+**Status:** in progress
+
+### M20.4 Completion summary (2026-05-17)
+
+**Module:** M20.4 — Cascade algorithm formalization & verification
+**Status:** ✅ Complete (commit `5fb31fa`)
+**Outcome:**
+- `v2/docs/CASCADE_ALGORITHM.md` — 11-section formal specification of the cascade engine + prior-art cross-check (PMBOK §6.5, MS Project auto-vs-manual, Primavera P6 constraint hierarchy, Goldratt CCM)
+- `v2/lib/domain/scheduling.algorithm.test.ts` — 42-case test matrix organised by spec section
+- Final state: 107 pass / 8 skipped (= punch list items)
+- 11-item punch list with severities P0–P2, fix sketches. Vineet selected PL-2 + PL-3 + PL-4 + PL-11 for M20.5.
+
+### M20.4 original goal/DoD (preserved for traceability)
+
 **Module:** M20.4 — Cascade algorithm formalization & verification
 **Goal:** The cascade engine drives SteerCo decisions about cost / resources / vendor commits. If it's quietly wrong in an edge case, real money decisions get made on bad data and the audit log (M20.2) immortalises the wrong action. Before adding any more cascade UI on top (M20.3 just shipped) or building anything that consumes cascade output downstream (M21+ all do), spend one session getting the engine **formally specified, exhaustively tested, and cross-checked against prior art**. No UI changes this session.
 
@@ -857,6 +892,55 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M20.5 — cascade engine fixes PL-2 + PL-3 + PL-4 + PL-11)
+
+**Strategic context:**
+Same session as M20.4 — Vineet locked all four high-priority punch-list items for immediate fix (PL-2 + PL-11 are the two P0s flagged directly to SteerCo accuracy; PL-3 + PL-4 are the P1s affecting drawer display).
+
+**Built (not yet committed — pending Vineet review):**
+
+- **PL-3 (working-day shift display)**:
+  - New `workingDaysBetween(a, b, workingDays, holidays)` helper in `lib/domain/dates.ts`. 6 new unit tests cover same-date, weekend-spanning, negative direction, holidays, custom working week.
+  - Switched `daysShifted` to working days in `previewCascade`, `previewTaskCascade`, `previewTaskToMilestonePush`, and `findConstraintViolations.daysBehind`.
+  - Updated drawer labels: "+5 WD" / "-3 WD" / "+N WD slack" so PMs read the unit explicitly.
+  - Updated `daysShifted` at the milestones-grid and tasks-grid summary call-sites to use `workingDaysBetween` instead of `Math.ceil((newTime - oldTime) / 86_400_000)`.
+  - `daysBetween` (calendar) still used by `computeRAG` (delay vs today — calendar is correct there) and remains exported for any future calendar-day consumer.
+
+- **PL-4 (gate buffer on task→milestone push)**:
+  - `previewTaskToMilestonePush` takes a new `opts.gateBufferWorkingDays?: number` (default `1`). Milestone's `proposedNewDate` = binding task's cascaded `dueDate` + `gateBuffer` working days.
+  - Industry rationale: milestones represent gate reviews / approvals that happen *after* the final deliverable, not on its same day.
+  - Configurable per-project (e.g. tighter `0` for self-approving milestones, or `2` for multi-day approval cycles).
+
+- **PL-2 (transitive task→milestone push)**:
+  - After computing task-driven milestone proposals, `previewTaskToMilestonePush` runs `previewCascade` on each proposed shift to find further milestones pushed by predecessor chains.
+  - Transitive proposals are appended with `transitive: true` and inherit `drivenByTaskId` from the originating task-driven proposal — so the audit trail reads "m7 shifts because m6 shifts because task t1 pushed past m6".
+  - M20.3's promise of "fully transitive" is now actually true. 3-hop test passes.
+
+- **PL-11 (phantom-save guard)**:
+  - Added `respectPreExisting?: boolean` opt to `CascadeOpts` (default `true`).
+  - When the user's edit is a no-op (`originalDueDate === newDueDate`), `previewTaskCascade` short-circuits with `{ tasks: original, affected: [], error: null }`. Phantom saves no longer silently re-date downstream tasks with pre-existing violations.
+  - Pre-existing violations remain visible via `findConstraintViolations` and the M20.2 Project Health card — engine reports, never silently fixes.
+  - Real edits cascade fully — pre-existing violations downstream of a real edit do get auto-corrected because the edit is doing something. This matches PM intuition: "if I'm saving without changing, don't touch anything; if I'm meaningfully changing, settle the schedule".
+
+- **Test matrix updated**:
+  - 4 `it.skip` PL tests flipped to active `it()` tests, all passing.
+  - 7 supplementary tests added: workingDaysBetween coverage (6), gate-buffer configurability (1), PL-11 real-edit-vs-phantom (2), respectPreExisting opt-out (1).
+  - **Final state: 121 tests pass / 4 skipped (= PL-1 documented quirk, PL-5/6/9 deferred).**
+  - Build clean: 15 static pages; `/tasks` 7.23 → 7.22 kB (rounding noise from helper additions).
+
+- **Doc updates**:
+  - `v2/docs/CASCADE_ALGORITHM.md` §10 punch list — PL-2, PL-3, PL-4, PL-11 marked ✅ M20.5 Resolved with one-sentence outcome.
+
+**Decided:**
+- **PL-11 = no-op detection, not pre-existing-violation suppression.** Initial implementation tried to detect every pre-existing violation and suppress its shift; broke fan-in tests because a real edit upstream genuinely should cascade through tasks that happen to have pre-existing violations. Simpler and more defensible rule: "click Save without changing anything = do nothing." Covers the user's actual complaint (phantom save).
+- **Gate buffer default = 1 WD.** Smallest meaningful buffer; aligns with PMBOK's "milestone = gate after deliverable" framing without being aggressive. Configurable for projects that need 0 or 2+.
+- **WD suffix in drawer ("+5 WD") rather than just "+5d".** Unambiguous unit. Long enough to read clearly, short enough to fit.
+- **`respectPreExisting: false` is a caller opt-out, not a UI control.** The drawer always uses default `true`. Future use cases (one-off data cleanup pass, import settle, etc.) can opt out programmatically.
+
+**Pending:**
+- Commit + push M20.5 after Vineet confirms.
+- Dogfood: phantom save no longer warns; real edit through to milestone push now lands at +1WD with transitive m7 shown in the drawer.
 
 ### Session — 2026-05-17 (M20.4 — cascade algorithm formalization & verification)
 

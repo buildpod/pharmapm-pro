@@ -344,26 +344,26 @@ describe("scheduling.previewTaskToMilestonePush — M20.3", () => {
   ];
   const msNumToStr = (n: number) => `m${n}`;
 
-  it("proposes pushing a milestone when its linked task moves past it", () => {
+  it("proposes pushing a milestone when its linked task moves past it (with +1WD gate buffer, PL-4)", () => {
     const cascaded: TaskScheduleEntry[] = [
-      { id: "t1", dueDate: "2026-05-20", milestoneId: "m6" },
+      { id: "t1", dueDate: "2026-05-20", milestoneId: "m6" }, // Wed
     ];
     const pushes = previewTaskToMilestonePush(cascaded, milestones, msNumToStr);
     expect(pushes.length).toBe(1);
     expect(pushes[0].milestoneId).toBe("m6");
-    expect(pushes[0].proposedNewDate).toBe("2026-05-20");
+    expect(pushes[0].proposedNewDate).toBe("2026-05-21"); // Thu (Wed + 1WD gate buffer)
     expect(pushes[0].drivenByTaskId).toBe("t1");
   });
 
-  it("groups by milestone — picks the latest driving task as the binding constraint", () => {
+  it("groups by milestone — picks the latest driving task as the binding constraint (+1WD buffer)", () => {
     const cascaded: TaskScheduleEntry[] = [
-      { id: "t1", dueDate: "2026-05-18", milestoneId: "m6" },
-      { id: "t2", dueDate: "2026-05-22", milestoneId: "m6" }, // binding
-      { id: "t3", dueDate: "2026-05-20", milestoneId: "m6" },
+      { id: "t1", dueDate: "2026-05-18", milestoneId: "m6" }, // Mon
+      { id: "t2", dueDate: "2026-05-22", milestoneId: "m6" }, // Fri — binding
+      { id: "t3", dueDate: "2026-05-20", milestoneId: "m6" }, // Wed
     ];
     const pushes = previewTaskToMilestonePush(cascaded, milestones, msNumToStr);
     expect(pushes.length).toBe(1);
-    expect(pushes[0].proposedNewDate).toBe("2026-05-22");
+    expect(pushes[0].proposedNewDate).toBe("2026-05-25"); // Mon (Fri + 1WD gate buffer)
     expect(pushes[0].drivenByTaskId).toBe("t2");
   });
 

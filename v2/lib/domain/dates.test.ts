@@ -7,6 +7,7 @@ import {
   addDays,
   addWorkingDays,
   daysBetween,
+  workingDaysBetween,
   compare,
 } from "./dates";
 
@@ -31,6 +32,22 @@ describe("dates.addWorkingDays", () => {
 
 describe("dates.daysBetween", () => {
   it("9 days between Apr 1 and Apr 10", () => expect(daysBetween("2026-04-01", "2026-04-10")).toBe(9));
+});
+
+describe("dates.workingDaysBetween (M20.5 PL-3)", () => {
+  it("zero when same date", () =>
+    expect(workingDaysBetween("2026-05-04", "2026-05-04")).toBe(0));
+  it("5 working days across a weekend (Fri → Fri = 5 WD, 7 cal days)", () =>
+    expect(workingDaysBetween("2026-05-08", "2026-05-15")).toBe(5));
+  it("1 working day Fri → Mon", () =>
+    expect(workingDaysBetween("2026-05-08", "2026-05-11")).toBe(1));
+  it("negative when b precedes a", () =>
+    expect(workingDaysBetween("2026-05-15", "2026-05-08")).toBe(-5));
+  it("respects holidays", () =>
+    expect(workingDaysBetween("2026-05-08", "2026-05-15", [1, 2, 3, 4, 5], ["2026-05-11"])).toBe(4));
+  it("custom working week — Sun–Thu Mid-East", () =>
+    // Sun 05-10 → Sun 05-17 = 5 working days under Sun–Thu calendar
+    expect(workingDaysBetween("2026-05-10", "2026-05-17", [0, 1, 2, 3, 4])).toBe(5));
 });
 
 describe("dates.compare", () => {

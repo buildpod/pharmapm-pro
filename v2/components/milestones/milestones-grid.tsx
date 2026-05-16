@@ -25,7 +25,7 @@ import {
   type ScheduleMilestone,
   type TaskScheduleEntry,
 } from "@/lib/domain/scheduling";
-import { addWorkingDays } from "@/lib/domain/dates";
+import { addWorkingDays, workingDaysBetween } from "@/lib/domain/dates";
 import { tasks as initialTasks, type Task } from "@/lib/mockData";
 import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
 import { useSettings } from "@/lib/settingsStore";
@@ -287,8 +287,9 @@ export function MilestonesGrid() {
     const taskWarnings = taskImpact.conflicts;
     const slackInfo = taskImpact.slack;
 
-    const daysShifted = Math.ceil(
-      (new Date(newDate).getTime() - new Date(original.plannedDate).getTime()) / 86_400_000
+    // M20.5 PL-3 — working days, not calendar days
+    const daysShifted = workingDaysBetween(
+      original.plannedDate, newDate, workingDays, holidays
     );
 
     if (probe.affected.length === 0 && taskWarnings.length === 0 && slackInfo.length === 0) {

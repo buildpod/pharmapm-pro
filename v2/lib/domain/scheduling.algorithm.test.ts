@@ -298,29 +298,29 @@ describe("M20.4 §2 Operations — forward / backward / lock / override / exclud
 
 describe("M20.4 §3 Calendar — working days, holidays, lag", () => {
   it("Fri→Mon boundary — task on Fri + 1WD = Mon (not Sat)", () => {
+    // a starts Thu, gets edited to Fri. b depends on a, should shift to Mon.
     const tasks = [
-      task("a", "2026-05-08"), // Friday
+      task("a", "2026-05-07"), // Thursday
       task("b", "2026-05-08", ["a"]),
     ];
     const r = previewTaskCascade(tasks, { id: "a", newDueDate: "2026-05-08" }, WD, NO_HOLS);
-    // b currently equals a, so it should shift to a + 1WD = 2026-05-11 (Mon)
     const b = r.affected.find((x) => x.id === "b");
-    expect(b?.newDue).toBe("2026-05-11");
+    expect(b?.newDue).toBe("2026-05-11"); // Mon (Fri + 1WD)
   });
 
   it("Holiday mid-chain — task + 1WD skips a holiday", () => {
     const tasks = [
-      task("a", "2026-05-08"), // Friday
+      task("a", "2026-05-07"), // Thursday
       task("b", "2026-05-08", ["a"]),
     ];
     const r = previewTaskCascade(
       tasks,
-      { id: "a", newDueDate: "2026-05-08" },
+      { id: "a", newDueDate: "2026-05-08" }, // edit a to Friday
       WD,
       ["2026-05-11"] // Monday is a holiday
     );
     const b = r.affected.find((x) => x.id === "b");
-    expect(b?.newDue).toBe("2026-05-12"); // Tuesday
+    expect(b?.newDue).toBe("2026-05-12"); // Tuesday (Fri + 1WD, skipping Mon holiday)
   });
 
   it("Milestone lag — A end Mon, B has lag=2, B start = Mon + 3WD = Thu", () => {
@@ -336,12 +336,12 @@ describe("M20.4 §3 Calendar — working days, holidays, lag", () => {
 
   it("Custom working week — Sun–Thu (Mid-East default) — Thu + 1WD = Sun", () => {
     const tasks = [
-      task("a", "2026-05-07"), // Thursday
+      task("a", "2026-05-06"), // Wednesday
       task("b", "2026-05-07", ["a"]),
     ];
     const r = previewTaskCascade(tasks, { id: "a", newDueDate: "2026-05-07" }, [0, 1, 2, 3, 4], NO_HOLS);
     const b = r.affected.find((x) => x.id === "b");
-    expect(b?.newDue).toBe("2026-05-10"); // Sunday
+    expect(b?.newDue).toBe("2026-05-10"); // Sunday (Thu + 1WD in Sun–Thu week)
   });
 });
 
@@ -373,15 +373,15 @@ describe("M20.4 §4 Cross-entity — milestone↔task", () => {
     expect(r.slack.length).toBe(0);
   });
 
-  it("task→milestone push: single linked task moving past milestone proposes a push", () => {
-    const cascaded = [task("t1", "2026-05-20", [], "m6")];
+  it("task→milestone push: single linked task moving past milestone proposes a push (with +1WD gate buffer)", () => {
+    const cascaded = [task("t1", "2026-05-20", [], "m6")]; // Wed
     const milestones: ScheduleMilestone[] = [
       ms(6, "2026-05-15", 1, undefined, { plannedEnd: "2026-05-15" }),
     ];
     const r = previewTaskToMilestonePush(cascaded, milestones, (n) => `m${n}`);
     expect(r.length).toBe(1);
     expect(r[0].milestoneId).toBe("m6");
-    expect(r[0].proposedNewDate).toBe("2026-05-20");
+    expect(r[0].proposedNewDate).toBe("2026-05-21"); // PL-4 gate buffer
   });
 
   it("task→milestone push: binding-constraint task is the latest among linked", () => {
@@ -398,18 +398,22 @@ describe("M20.4 §4 Cross-entity — milestone↔task", () => {
     expect(r[0].drivenByTaskId).toBe("t2");
   });
 
-  it.skip("PL-2: task→milestone push is transitive (m6 pushes m7) — CURRENTLY ONE-HOP, FIX IN M20.5", () => {
-    // When task t1 pushes m6, m7 (which depends on m6) should ALSO be proposed
-    // for a push. Today the engine returns only m6.
+  it("PL-2 ✅: task→milestone push is transitive (m6 pushes m7)", () => {
+    // When task t1 pushes m6, m7 (which depends on m6) is ALSO proposed.
+    // m7's proposal is marked transitive=true with drivenByTaskId carried over.
     const cascaded = [task("t1", "2026-05-20", [], "m6")];
     const milestones: ScheduleMilestone[] = [
       ms(6, "2026-05-15", 1, undefined, { plannedEnd: "2026-05-15" }),
       ms(7, "2026-05-16", 1, 6,        { plannedEnd: "2026-05-16" }),
     ];
     const r = previewTaskToMilestonePush(cascaded, milestones, (n) => `m${n}`);
-    expect(r.find((p) => p.milestoneId === "m6")).toBeDefined();
-    // EXPECTED but currently MISSING:
-    expect(r.find((p) => p.milestoneId === "m7")).toBeDefined();
+    const m6 = r.find((p) => p.milestoneId === "m6");
+    const m7 = r.find((p) => p.milestoneId === "m7");
+    expect(m6).toBeDefined();
+    expect(m6?.transitive).toBe(false);
+    expect(m7).toBeDefined();
+    expect(m7?.transitive).toBe(true);
+    expect(m7?.drivenByTaskId).toBe("t1"); // ancestry preserved
   });
 });
 
@@ -426,21 +430,36 @@ describe("M20.4 §5 Hygiene — engine reports, never silently fixes", () => {
     expect(violations[0].taskId).toBe("t2");
   });
 
-  it.skip("PL-11: cascade with no-op edit leaves pre-existing violations alone — currently 'auto-fixes' them, M20.5", () => {
-    // The engine, when invoked with an edit that does NOT change the upstream date,
-    // still runs the full topological cascade and "fixes" any pre-existing violations
-    // downstream. From the PM's POV this means a phantom save can silently re-date
-    // tasks that were always wrong, attributing the shift to "this edit".
-    //
-    // Today: t2 gets pushed to 05-11 (t1 + 1WD).
-    // Spec: a no-op edit should produce no affected[] rows, and r.tasks should
-    //       leave t2 at its original 05-05 (with the pre-existing violation still
-    //       reportable via findConstraintViolations but not silently rewritten).
+  it("PL-11 ✅: phantom-save (no-op edit) leaves pre-existing violations alone", () => {
+    // The user clicks Save on a task without changing its date. The engine MUST
+    // NOT silently re-date downstream tasks that had pre-existing violations.
     const tasks = [task("t1", "2026-05-10"), task("t2", "2026-05-05", ["t1"])];
     const r = previewTaskCascade(tasks, { id: "t1", newDueDate: "2026-05-10" }, WD, NO_HOLS);
     const t2After = r.tasks.find((x) => x.id === "t2");
-    expect(t2After?.dueDate).toBe("2026-05-05"); // currently 2026-05-11
+    expect(t2After?.dueDate).toBe("2026-05-05"); // unchanged
     expect(r.affected).toEqual([]);
+  });
+
+  it("PL-11: real edit on edited task still cascades fully (pre-existing scope only)", () => {
+    // Phantom-save protection is scoped to no-op edits. A real edit on t1 cascades
+    // normally, including the auto-fix of a pre-existing violation on t2 since the
+    // edit itself is meaningfully changing t1.
+    const tasks = [task("t1", "2026-05-10"), task("t2", "2026-05-05", ["t1"])];
+    const r = previewTaskCascade(tasks, { id: "t1", newDueDate: "2026-05-15" }, WD, NO_HOLS);
+    const t2After = r.tasks.find((x) => x.id === "t2");
+    expect(t2After?.dueDate).toBe("2026-05-18"); // Mon (Fri + 1WD)
+    expect(r.affected.find((a) => a.id === "t2")).toBeDefined();
+  });
+
+  it("PL-11: respectPreExisting=false bypasses the phantom-save guard (caller opt-out)", () => {
+    const tasks = [task("t1", "2026-05-10"), task("t2", "2026-05-05", ["t1"])];
+    const r = previewTaskCascade(
+      tasks,
+      { id: "t1", newDueDate: "2026-05-10" },
+      { workingDays: WD, holidays: NO_HOLS, respectPreExisting: false }
+    );
+    const t2After = r.tasks.find((x) => x.id === "t2");
+    expect(t2After?.dueDate).toBe("2026-05-11"); // engine settles the violation
   });
 
   it("empty cascade — edit on a task with no dependents has empty affected", () => {
@@ -492,25 +511,42 @@ describe("M20.4 §6 Punch list reproductions — these document current gaps", (
     expect(r.affected.find((a) => a.id === 2)).toBeUndefined();
   });
 
-  it.skip("PL-3: daysShifted should be working days, not calendar days — M20.5", () => {
-    const tasks = [task("a", "2026-05-08"), task("b", "2026-05-08", ["a"])];
-    const r = previewTaskCascade(tasks, { id: "a", newDueDate: "2026-05-15" }, WD, NO_HOLS);
+  it("PL-3 ✅: daysShifted is working days (skips weekend)", () => {
+    // a=Thu 05-07 → edit to Thu 05-14. b=Fri 05-08 depends on a → must shift to Fri 05-15.
+    // Calendar gap (Fri 05-08 → Fri 05-15) = 7 days. Working-day gap = 5.
+    const tasks = [task("a", "2026-05-07"), task("b", "2026-05-08", ["a"])];
+    const r = previewTaskCascade(tasks, { id: "a", newDueDate: "2026-05-14" }, WD, NO_HOLS);
     const b = r.affected.find((x) => x.id === "b");
-    // Calendar: 05-08 Fri → 05-18 Mon = 10 days
-    // Working: should be 6
-    // Currently the engine returns 10 (calendar). M20.5 should switch to working.
-    expect(b?.daysShifted).toBe(6);
+    expect(b?.newDue).toBe("2026-05-15");
+    expect(b?.daysShifted).toBe(5); // 5 working days, not 7 calendar days
   });
 
-  it.skip("PL-4: task→milestone push should leave a 1-WD gate buffer — M20.5", () => {
-    const cascaded = [task("t1", "2026-05-20", [], "m6")];
+  it("PL-4 ✅: task→milestone push leaves a 1-WD gate buffer", () => {
+    const cascaded = [task("t1", "2026-05-20", [], "m6")]; // Wed
     const milestones: ScheduleMilestone[] = [
       ms(6, "2026-05-15", 1, undefined, { plannedEnd: "2026-05-15" }),
     ];
     const r = previewTaskToMilestonePush(cascaded, milestones, (n) => `m${n}`);
-    // Spec: milestone should land 1 working day AFTER the last task (gate review pattern)
-    // Today: lands exactly on the task date
-    expect(r[0].proposedNewDate).toBe("2026-05-21"); // 05-20 + 1WD
+    // Milestone lands 1 working day after the last task (gate review pattern)
+    expect(r[0].proposedNewDate).toBe("2026-05-21"); // Thu
+  });
+
+  it("PL-4 ✅: task→milestone gate buffer skips weekend", () => {
+    const cascaded = [task("t1", "2026-05-22", [], "m6")]; // Fri
+    const milestones: ScheduleMilestone[] = [
+      ms(6, "2026-05-15", 1, undefined, { plannedEnd: "2026-05-15" }),
+    ];
+    const r = previewTaskToMilestonePush(cascaded, milestones, (n) => `m${n}`);
+    expect(r[0].proposedNewDate).toBe("2026-05-25"); // Mon (Fri + 1WD skips weekend)
+  });
+
+  it("PL-4: gate buffer is configurable (e.g. 2-day approval cycle)", () => {
+    const cascaded = [task("t1", "2026-05-20", [], "m6")]; // Wed
+    const milestones: ScheduleMilestone[] = [
+      ms(6, "2026-05-15", 1, undefined, { plannedEnd: "2026-05-15" }),
+    ];
+    const r = previewTaskToMilestonePush(cascaded, milestones, (n) => `m${n}`, { gateBufferWorkingDays: 2 });
+    expect(r[0].proposedNewDate).toBe("2026-05-22"); // Fri (Wed + 2WD)
   });
 
   it.skip("PL-5: computeCriticalPath on cyclic graph should surface error — M20.5", () => {

@@ -98,6 +98,36 @@ export function daysBetween(a: string, b: string): number {
   return Math.round(ms / 86_400_000);
 }
 
+// M20.5 PL-3 — working-day distance between two ISO dates.
+// Positive if b >= a, negative if b < a. Skips weekends + holidays. Counts
+// the number of working-day steps required to walk from a to b, exclusive
+// of the start. Used for shift-display semantics in the cascade impact drawer
+// (so a "+7 calendar days" weekend shift reads as "+5 working days" to PMs).
+export function workingDaysBetween(
+  a: string,
+  b: string,
+  workingDays: number[] = [1, 2, 3, 4, 5],
+  holidays: string[] = []
+): number {
+  if (!a || !b) return 0;
+  const cmp = compare(a, b);
+  if (cmp === 0) return 0;
+  const forward = cmp < 0;
+  let cursor = a;
+  let count = 0;
+  let guard = 0;
+  while (compare(cursor, b) !== 0 && guard < 10_000) {
+    const next = addDays(cursor, forward ? 1 : -1);
+    if (!next) break;
+    cursor = next;
+    guard++;
+    if (workingDays.indexOf(dayOfWeek(cursor)) >= 0 && !holidays.includes(cursor)) {
+      count++;
+    }
+  }
+  return forward ? count : -count;
+}
+
 export function compare(a: string, b: string): -1 | 0 | 1 {
   const pa = parseISO(a);
   const pb = parseISO(b);

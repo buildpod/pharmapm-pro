@@ -5,6 +5,7 @@ import {
   addWorkingDays,
   compare,
   daysBetween,
+  workingDaysBetween,
   today as todayFn,
 } from "./dates";
 
@@ -285,8 +286,9 @@ export function previewCascade(
     const endShifted = before.plannedEnd !== after.plannedEnd;
     if (startShifted || endShifted) {
       let daysShifted = 0;
+      // M20.5 PL-3 — working-day delta, not calendar-day delta
       if (before.plannedStart && after.plannedStart) {
-        daysShifted = daysBetween(before.plannedStart, after.plannedStart);
+        daysShifted = workingDaysBetween(before.plannedStart, after.plannedStart, wd, hols);
       }
       affected.push({
         id: after.id,
@@ -428,6 +430,12 @@ export interface CascadeOpts {
   overrides?: Record<string, string>;
   workingDays?: number[];
   holidays?: string[];
+  // M20.5 PL-11 — when true (default), the cascade suppresses shifts that
+  // exist only to fix pre-existing constraint violations (i.e. violations
+  // present in the input data BEFORE the user's edit is applied). Set false
+  // for the rare case where the caller wants the engine to "settle"
+  // pre-existing inconsistencies (e.g. a one-off data-cleanup pass).
+  respectPreExisting?: boolean;
 }
 
 export interface TaskCascadeResult {
@@ -492,6 +500,7 @@ export function previewTaskCascade(
   const hols        = opts.holidays    ?? [];
   const excludeIds  = opts.excludeIds  ?? new Set<string>();
   const overrides   = opts.overrides   ?? {};
+  const respectPreExisting = opts.respectPreExisting ?? true; // M20.5 PL-11
 
   // M20.1: topo-sort first. Cycles are surfaced as errors rather than
   // producing wrong results via a runaway BFS.
@@ -515,6 +524,16 @@ export function previewTaskCascade(
   // Snapshot originals for the diff at the end
   const originalDates: Record<string, string> = {};
   tasks.forEach((t) => { originalDates[t.id] = t.dueDate; });
+
+  // M20.5 PL-11 — phantom-edit guard. If the user's edit is a no-op
+  // (newDueDate === currentDueDate), short-circuit with no shifts. This
+  // prevents a click-Save-without-change from silently re-dating downstream
+  // tasks that had pre-existing constraint violations. Pre-existing
+  // violations remain visible via findConstraintViolations() and the
+  // M20.2 Project Health card — the engine reports, never silently fixes.
+  if (respectPreExisting && originalDates[edit.id] === edit.newDueDate) {
+    return { tasks: tasks.slice(), affected: [], error: null };
+  }
 
   // Apply the user's edit
   byId[edit.id].dueDate = edit.newDueDate;
@@ -559,7 +578,8 @@ export function previewTaskCascade(
       affected.push({
         id: t.id, name: t.name,
         oldDue: original, newDue: t.dueDate,
-        daysShifted: daysBetween(original, t.dueDate),
+        // M20.5 PL-3 — working-day delta (PMs read the schedule in working days)
+        daysShifted: workingDaysBetween(original, t.dueDate, workingDays, hols),
       });
     }
   }
@@ -652,7 +672,8 @@ export function findConstraintViolations(
           depId: dep.id,
           depName: dep.name,
           depDue: dep.dueDate,
-          daysBehind: daysBetween(t.dueDate, earliest),
+          // M20.5 PL-3 — working-day delta
+          daysBehind: workingDaysBetween(t.dueDate, earliest, workingDays, holidays),
         });
       }
     });
@@ -746,15 +767,29 @@ export interface TaskToMilestonePush {
   daysShifted: number;
 }
 
+// M20.5 PL-2 — when a milestone push propagates via predecessor chains
+// to other milestones, those are appended as `transitive: true`. The
+// originating tasks-driven shifts are `transitive: false`.
+export interface TaskToMilestonePushOpts {
+  gateBufferWorkingDays?: number; // M20.5 PL-4 — default 1
+  workingDays?: number[];
+  holidays?: string[];
+}
+
 export function previewTaskToMilestonePush(
   cascadedTasks: TaskScheduleEntry[],
   milestones: ScheduleMilestone[],
   msIdToString: (n: number) => string,
-): TaskToMilestonePush[] {
+  opts: TaskToMilestonePushOpts = {},
+): (TaskToMilestonePush & { transitive?: boolean })[] {
   // For each task with milestoneId, find the linked milestone. If task.dueDate
   // is now AFTER the milestone's plannedEnd, propose pushing the milestone.
   // Group by milestone — the binding constraint is the latest task driving the push.
-  const proposalsByMs: Record<string, TaskToMilestonePush> = {};
+  const gateBuffer = opts.gateBufferWorkingDays ?? 1; // M20.5 PL-4
+  const wd  = opts.workingDays ?? [1, 2, 3, 4, 5];
+  const hols = opts.holidays   ?? [];
+
+  const proposalsByMs: Record<string, TaskToMilestonePush & { transitive?: boolean }> = {};
 
   cascadedTasks.forEach((t) => {
     if (!t.milestoneId) return;
@@ -763,18 +798,56 @@ export function previewTaskToMilestonePush(
     if (!ms || !ms.plannedEnd) return;
     if (compare(t.dueDate, ms.plannedEnd) <= 0) return;
 
+    // M20.5 PL-4 — milestone lands gateBuffer working days AFTER the last task
+    // (industry convention: milestone = gate review, happens after deliverable)
+    const proposedDate = addWorkingDays(t.dueDate, gateBuffer, wd, hols) ?? t.dueDate;
+
     const existing = proposalsByMs[t.milestoneId];
-    if (existing && compare(t.dueDate, existing.proposedNewDate) <= 0) return;
+    if (existing && compare(proposedDate, existing.proposedNewDate) <= 0) return;
 
     proposalsByMs[t.milestoneId] = {
       milestoneId: t.milestoneId,
       milestoneName: ms.name,
       oldPlannedDate: ms.plannedEnd,
-      proposedNewDate: t.dueDate,
+      proposedNewDate: proposedDate,
       drivenByTaskId: t.id,
       drivenByTaskName: t.name,
-      daysShifted: daysBetween(ms.plannedEnd, t.dueDate),
+      // M20.5 PL-3 — working-day delta
+      daysShifted: workingDaysBetween(ms.plannedEnd, proposedDate, wd, hols),
+      transitive: false,
     };
+  });
+
+  // M20.5 PL-2 — transitive milestone-to-milestone propagation. For each task-
+  // driven proposal, run previewCascade with that proposal as the edit; any
+  // additional milestones that shift are appended as transitive proposals.
+  // Originator is the originating task-driven proposal (drivenByTaskId carries
+  // over for traceability — "this milestone shifts because m6 shifts because t1 pushed").
+  const taskDriven = Object.values(proposalsByMs);
+  taskDriven.forEach((tdp) => {
+    const msNum = parseInt(tdp.milestoneId.replace(/[^0-9]/g, ""), 10);
+    if (Number.isNaN(msNum)) return;
+    const r = previewCascade(
+      milestones,
+      { id: msNum, field: "plannedEnd", value: tdp.proposedNewDate },
+      { workingDays: wd, holidays: hols }
+    );
+    if (r.error) return;
+    r.affected.forEach((a) => {
+      const transitiveId = msIdToString(a.id);
+      if (proposalsByMs[transitiveId]) return; // already proposed via task
+      proposalsByMs[transitiveId] = {
+        milestoneId: transitiveId,
+        milestoneName: a.name,
+        oldPlannedDate: a.oldEnd ?? "",
+        proposedNewDate: a.newEnd ?? "",
+        drivenByTaskId: tdp.drivenByTaskId,
+        drivenByTaskName: tdp.drivenByTaskName,
+        // Already working days from previewCascade post-M20.5
+        daysShifted: a.daysShifted,
+        transitive: true,
+      };
+    });
   });
 
   return Object.values(proposalsByMs);

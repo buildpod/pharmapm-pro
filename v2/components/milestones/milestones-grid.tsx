@@ -112,11 +112,11 @@ function formatDate(iso: string) {
   });
 }
 
-// ─── Cascade preview state (M18) ──────────────────────────────────────────────
+// ─── Cascade preview state (M20 — selective) ──────────────────────────────────
 
 interface CascadePreviewState {
-  affected: { id: number; name?: string; oldEnd?: string; newEnd?: string; daysShifted: number }[];
-  pendingMilestones: Milestone[];
+  editedId: string;          // milestone id ("m6")
+  newPlannedDate: string;    // the user's edit
   summary: ImpactSummary;
   taskWarnings: { taskId: string; taskName?: string; taskDue: string; milestoneNewDate: string }[];
   criticalIds: Set<number>;
@@ -254,25 +254,21 @@ export function MilestonesGrid() {
   const projectMilestones = milestones.filter((m) => m.projectId === activeProjectId);
   const domainMilestones = projectMilestones.map(toScheduleMs);
 
-  // Apply a planned-date change: run cascade preview + cross-entity task scan,
-  // show <ImpactDrawer> with the full picture before committing.
+  // Apply a planned-date change: M20 selective cascade flow.
+  // Drawer's recompute() does the live re-cascade with PM's exclusions/overrides.
   function handlePlannedDateChange(id: string, newDate: string) {
     const numId = toId(id);
     const original = milestones.find((m) => m.id === id);
     if (!original) return;
 
-    const edit = { id: numId, field: "plannedEnd" as const, value: newDate };
-    const preview = previewCascade(domainMilestones, edit, workingDays, holidays);
-
-    // Build the "already-applied" milestone state for Apply
-    const cascadeResult = cascade(
-      domainMilestones.map((sm) => sm.id === numId ? { ...sm, plannedEnd: newDate } : sm),
+    // Quick probe: does the edit have any impact at all?
+    const probe = previewCascade(
+      domainMilestones,
+      { id: numId, field: "plannedEnd", value: newDate },
       workingDays,
-      holidays,
+      holidays
     );
-    const pending = applyDomainResult(milestones, cascadeResult.milestones);
 
-    // Cross-entity: which tasks (in this project) would now be after the milestone
     const projectTasksForCheck = readPersistedTasks()
       .filter((t) => t.projectId === activeProjectId)
       .map<TaskScheduleEntry>((t) => ({
@@ -281,37 +277,36 @@ export function MilestonesGrid() {
       }));
     const taskWarnings = previewMilestoneToTaskImpact(projectTasksForCheck, id, newDate);
 
-    // Critical-path ids (helps render CP flag in the drawer)
-    const cp = computeCriticalPath(domainMilestones, workingDays, holidays);
-
     const daysShifted = Math.ceil(
       (new Date(newDate).getTime() - new Date(original.plannedDate).getTime()) / 86_400_000
     );
 
-    const summary: ImpactSummary = {
-      originatorKind: "milestone",
-      originatorId: original.id,
-      originatorName: original.name,
-      oldDate: original.plannedDate,
-      newDate,
-      daysShifted,
-    };
-
-    // Open drawer if any cascade, task warning, or even if no impact — gives
-    // PM visibility either way (Apply still works on zero-impact changes).
-    if (preview.affected.length > 0 || taskWarnings.length > 0) {
-      setCascadePreview({
-        affected: preview.affected,
-        pendingMilestones: pending,
-        summary,
-        taskWarnings,
-        criticalIds: cp.criticalIds,
-      });
-    } else {
-      // No downstream impact — apply directly (and toast for visibility)
-      setMilestones(pending);
+    if (probe.affected.length === 0 && taskWarnings.length === 0) {
+      // No downstream impact — apply directly
+      const result = cascade(
+        domainMilestones.map((sm) => sm.id === numId ? { ...sm, plannedEnd: newDate } : sm),
+        workingDays, holidays
+      );
+      setMilestones(applyDomainResult(milestones, result.milestones));
       toast.success("Date updated", { description: original.name });
+      return;
     }
+
+    const cp = computeCriticalPath(domainMilestones, workingDays, holidays);
+    setCascadePreview({
+      editedId: id,
+      newPlannedDate: newDate,
+      taskWarnings,
+      criticalIds: cp.criticalIds,
+      summary: {
+        originatorKind: "milestone",
+        originatorId: original.id,
+        originatorName: original.name,
+        oldDate: original.plannedDate,
+        newDate,
+        daysShifted,
+      },
+    });
   }
 
   // Apply a forecast-date change directly (no cascade — forecast is a projection)
@@ -618,51 +613,81 @@ export function MilestonesGrid() {
       </div>
       )}
 
-      {/* M18 — Universal cascade impact drawer */}
+      {/* M20 — Selective cascade impact drawer */}
       {cascadePreview && (() => {
-        const sections: ImpactSection[] = [];
+        const editedNumId = toId(cascadePreview.editedId);
 
-        // Milestone shifts (sorted by criticality, then date)
-        if (cascadePreview.affected.length > 0) {
-          sections.push({
-            kind: "milestones",
-            title: "Milestones that will shift",
-            rows: cascadePreview.affected
-              .map((a) => ({
-                id: `m${a.id}`,
-                name: a.name,
-                oldDate: a.oldEnd ?? "—",
-                newDate: a.newEnd ?? "—",
-                daysShifted: a.daysShifted,
-                isCritical: cascadePreview.criticalIds.has(a.id),
-              }))
-              .sort((a, b) => (b.isCritical ? 1 : 0) - (a.isCritical ? 1 : 0)),
-          });
-        }
+        function runMilestoneCascade(excludeStrings: Set<string>, overridesByString: Record<string, string>) {
+          // Convert string IDs ("m6") back to numeric for the engine
+          const excludeNums = new Set<number>();
+          excludeStrings.forEach((s) => excludeNums.add(toId(s)));
+          const overridesNum: Record<number, string> = {};
+          Object.entries(overridesByString).forEach(([k, v]) => { overridesNum[toId(k)] = v; });
 
-        // Task warnings (cross-entity)
-        if (cascadePreview.taskWarnings.length > 0) {
-          sections.push({
-            kind: "warnings",
-            title: "Tasks linked to this milestone now end after its new date",
-            rows: cascadePreview.taskWarnings.map((w) => ({
-              id: w.taskId,
-              name: w.taskName,
-              message: `Task due ${w.taskDue} is after milestone's new ${w.milestoneNewDate}. Review the task's due date.`,
-            })),
-          });
+          return previewCascade(
+            domainMilestones,
+            { id: editedNumId, field: "plannedEnd", value: cascadePreview!.newPlannedDate },
+            { excludeIds: excludeNums, overrides: overridesNum, workingDays, holidays }
+          );
         }
 
         return (
           <ImpactDrawer
             open
             summary={cascadePreview.summary}
-            sections={sections}
-            onApply={() => {
-              setMilestones(cascadePreview.pendingMilestones);
+            recompute={(excludeIds, overrides) => {
+              const r = runMilestoneCascade(excludeIds, overrides);
+              const milestonesSection: ImpactSection = {
+                kind: "milestones",
+                title: "Milestones that will shift",
+                rows: r.affected
+                  .map((a) => ({
+                    id: `m${a.id}`,
+                    name: a.name,
+                    oldDate: a.oldEnd ?? "—",
+                    newDate: a.newEnd ?? "—",
+                    daysShifted: a.daysShifted,
+                    isCritical: cascadePreview!.criticalIds.has(a.id),
+                  }))
+                  .sort((a, b) => (b.isCritical ? 1 : 0) - (a.isCritical ? 1 : 0)),
+              };
+              const warningsSection: ImpactSection = {
+                kind: "warnings",
+                title: "Tasks linked to this milestone now end after its new date",
+                rows: cascadePreview!.taskWarnings.map((w) => ({
+                  id: w.taskId, name: w.taskName,
+                  message: `Task due ${w.taskDue} is after milestone's new ${w.milestoneNewDate}. Review the task's due date.`,
+                })),
+              };
+              return { sections: [milestonesSection, warningsSection] };
+            }}
+            onApply={(excludeIds, overrides) => {
+              const r = runMilestoneCascade(excludeIds, overrides);
+              // Build the final cascaded milestone list by reusing cascade()
+              // with the chosen exclusions/overrides applied to a clone.
+              const excludeNums = new Set<number>();
+              excludeIds.forEach((s) => excludeNums.add(toId(s)));
+              const overridesNum: Record<number, string> = {};
+              Object.entries(overrides).forEach(([k, v]) => { overridesNum[toId(k)] = v; });
+
+              const hypothetical = domainMilestones.map((sm) => {
+                if (sm.id === editedNumId) {
+                  return { ...sm, plannedEnd: cascadePreview!.newPlannedDate };
+                }
+                if (overridesNum[sm.id] !== undefined) {
+                  return { ...sm, plannedEnd: overridesNum[sm.id], lockDate: true };
+                }
+                if (excludeNums.has(sm.id)) {
+                  return { ...sm, lockDate: true };
+                }
+                return { ...sm };
+              });
+              const cascadeResult = cascade(hypothetical, workingDays, holidays);
+              setMilestones(applyDomainResult(milestones, cascadeResult.milestones));
+              const count = r.affected.length;
               toast.success(
-                `${cascadePreview.affected.length} milestone${cascadePreview.affected.length === 1 ? "" : "s"} shifted`,
-                { description: cascadePreview.summary.originatorName }
+                `${count} milestone${count === 1 ? "" : "s"} shifted`,
+                { description: cascadePreview!.summary.originatorName }
               );
               setCascadePreview(null);
             }}

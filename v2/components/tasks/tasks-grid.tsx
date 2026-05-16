@@ -14,7 +14,7 @@ import { TaskFormDrawer } from "./task-form";
 import { useProject } from "@/components/projects/project-provider";
 import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { useSettings } from "@/lib/settingsStore";
-import { previewTaskCascade, type TaskScheduleEntry } from "@/lib/domain/scheduling";
+import { previewTaskCascade, findConstraintViolations, type TaskScheduleEntry } from "@/lib/domain/scheduling";
 import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
 import { cn } from "@/lib/utils";
 
@@ -354,10 +354,12 @@ function WorkstreamGroup({
 
 type TaskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
 
+// M20: drawer now drives selective cascade. We capture the edit + summary;
+// recompute happens inside the drawer's callback on every toggle/override.
 interface TaskCascadePreviewState {
-  affected: { id: string; name?: string; oldDue: string; newDue: string; daysShifted: number }[];
-  pendingTasks: Task[];
+  edit: { id: string; newDueDate: string };
   summary: ImpactSummary;
+  editedTask: Task;          // the task with the new dueDate (to commit at end)
 }
 
 export function TasksGrid() {
@@ -384,36 +386,28 @@ export function TasksGrid() {
       !!existing && existing.dueDate !== withProj.dueDate && withProj.dueDate > existing.dueDate;
 
     if (dueMovedLater) {
-      // Cascade through the project's tasks
+      // Quick check: does this edit have any downstream impact at all?
       const projTasks = tasks.filter((x) => x.projectId === activeProjectId);
       const entries: TaskScheduleEntry[] = projTasks.map((x) => ({
         id: x.id, name: x.name, dueDate: x.dueDate,
         dependsOn: x.dependsOn, milestoneId: x.milestoneId,
       }));
-      const result = previewTaskCascade(
+      const initial = previewTaskCascade(
         entries,
         { id: withProj.id, newDueDate: withProj.dueDate },
-        settings.workingDays, settings.holidays
+        { workingDays: settings.workingDays, holidays: settings.holidays }
       );
 
-      // Build the post-cascade task list (apply the edit + every shift)
-      const shiftedById: Record<string, string> = {};
-      result.affected.forEach((a) => { shiftedById[a.id] = a.newDue; });
-      const pendingTasks = tasks.map((x) => {
-        if (x.id === withProj.id) return withProj;
-        if (shiftedById[x.id]) return { ...x, dueDate: shiftedById[x.id] };
-        return x;
-      });
-
-      const daysShifted = Math.ceil(
-        (new Date(withProj.dueDate).getTime() - new Date(existing.dueDate).getTime()) / 86_400_000
-      );
-
-      if (result.affected.length > 0) {
-        // Show ImpactDrawer with the cascade — Apply commits, Cancel drops the edit
+      if (initial.affected.length > 0) {
+        const daysShifted = Math.ceil(
+          (new Date(withProj.dueDate).getTime() - new Date(existing.dueDate).getTime()) / 86_400_000
+        );
+        // Open the M20 selective-cascade drawer. The drawer will call
+        // recompute() on every toggle/override; we keep the edit + originals
+        // here and re-run the engine fresh on each call.
         setCascadePreview({
-          affected: result.affected,
-          pendingTasks,
+          edit: { id: withProj.id, newDueDate: withProj.dueDate },
+          editedTask: withProj,
           summary: {
             originatorKind: "task",
             originatorId: withProj.id,
@@ -599,29 +593,67 @@ export function TasksGrid() {
         </div>
       )}
 
-      {/* M18 — Cascade impact drawer (fires when a task due-date moves later) */}
+      {/* M20 — Selective cascade impact drawer */}
       {cascadePreview && (() => {
-        const sections: ImpactSection[] = [{
-          kind: "tasks" as const,
-          title: "Downstream tasks that will shift",
-          rows: cascadePreview.affected.map((a) => ({
-            id: a.id,
-            name: a.name,
-            oldDate: a.oldDue,
-            newDate: a.newDue,
-            daysShifted: a.daysShifted,
-          })),
-        }];
+        // Snapshot tasks at drawer open so recompute is deterministic
+        const projTasks = tasks.filter((x) => x.projectId === activeProjectId);
+        const entries: TaskScheduleEntry[] = projTasks.map((x) => ({
+          id: x.id, name: x.name, dueDate: x.dueDate,
+          dependsOn: x.dependsOn, milestoneId: x.milestoneId,
+        }));
+
+        function runCascade(excludeIds: Set<string>, overrides: Record<string, string>) {
+          return previewTaskCascade(entries, cascadePreview!.edit, {
+            excludeIds, overrides,
+            workingDays: settings.workingDays,
+            holidays: settings.holidays,
+          });
+        }
+
         return (
           <ImpactDrawer
             open
             summary={cascadePreview.summary}
-            sections={sections}
-            onApply={() => {
-              setTasks(cascadePreview.pendingTasks);
+            recompute={(excludeIds, overrides) => {
+              const r = runCascade(excludeIds, overrides);
+              // Tasks section (shifts only)
+              const tasksSection: ImpactSection = {
+                kind: "tasks",
+                title: "Downstream tasks that will shift",
+                rows: r.affected.map((a) => ({
+                  id: a.id, name: a.name,
+                  oldDate: a.oldDue, newDate: a.newDue,
+                  daysShifted: a.daysShifted,
+                })),
+              };
+              // Violations against the resulting task list (after cascade applied)
+              const violations = findConstraintViolations(
+                r.tasks, settings.workingDays, settings.holidays
+              );
+              const violationsSection: ImpactSection = {
+                kind: "warnings",
+                title: "Dependency constraints violated by your choices",
+                rows: violations.map((v) => ({
+                  id: v.taskId, name: v.taskName,
+                  message: `Due ${v.taskDue} but upstream ${v.depId.toUpperCase()} is ${v.depDue} (needs +${v.daysBehind} working day${v.daysBehind === 1 ? "" : "s"})`,
+                })),
+              };
+              return { sections: [tasksSection, violationsSection] };
+            }}
+            onApply={(excludeIds, overrides) => {
+              const r = runCascade(excludeIds, overrides);
+              const shiftedById: Record<string, string> = {};
+              r.affected.forEach((a) => { shiftedById[a.id] = a.newDue; });
+              const pendingTasks = tasks.map((x) => {
+                if (x.id === cascadePreview!.editedTask.id) return cascadePreview!.editedTask;
+                if (shiftedById[x.id]) return { ...x, dueDate: shiftedById[x.id] };
+                return x;
+              });
+              setTasks(pendingTasks);
+              const applied = r.affected.length;
               toast.success(
-                `${cascadePreview.affected.length + 1} task${cascadePreview.affected.length === 0 ? "" : "s"} updated`,
-                { description: cascadePreview.summary.originatorName }
+                `${applied + 1} task${applied === 0 ? "" : "s"} updated`,
+                { description: cascadePreview!.summary.originatorName }
               );
               setCascadePreview(null);
             }}

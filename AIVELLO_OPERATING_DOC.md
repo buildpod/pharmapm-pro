@@ -92,7 +92,31 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1, next up is **M20 — Timesheets + derived labour cost (EVM closure)**.
+**Module:** M20 — Selective cascade with re-preview
+**Goal:** Today the ImpactDrawer is all-or-nothing — Apply commits every shift, Cancel commits none. PMs don't think that way. They want: include some shifts, exclude others (absorb the buffer), override specific new dates (we negotiated a faster turnaround), and see live what-if every change re-cascades. PMBOK §6.5.2.3 What-If Analysis + Goldratt's Critical Chain Method (buffer protection) both prescribe this pattern. None of Monday / Smartsheet / Asana have it inline; only Planisware and Jira Advanced Roadmaps do, and in a separate workspace. Doing it inline in the drawer is a real product wedge.
+
+**DoD:**
+- Extend `previewTaskCascade()` to accept `{ excludeIds?: Set<string>; overrides?: Record<string, string> }`. Excluded tasks keep their original date and don't propagate. Overridden tasks use the manual date and propagate from there.
+- Extend `previewCascade()` (milestones) with the same opts — implemented by setting `lockDate: true` on excluded milestones (reuses existing engine behaviour) and pre-applying override values.
+- New `findConstraintViolations(tasks)` helper — scans for FS-rule breaks: `task.dueDate < max(dep.dueDate) + 1 working day`. Returns `{ taskId, depId, taskDue, depDue, daysBehind }[]`. Used to flag the violations introduced by user exclusions/overrides.
+- Rewrite `<ImpactDrawer>` as a stateful component:
+  - Holds local `excludeIds: Set<string>` + `overrides: Record<string, string>`
+  - Calls a parent-provided `onRecompute(excludeIds, overrides)` callback on every toggle/edit
+  - Renders per-row checkbox (include in cascade) + editable date input
+  - Live re-renders affected list + violations section + Apply count
+  - Apply button label: "Apply N of M changes" reflecting current selection
+- 5+ new Vitest cases: exclusion stops propagation, override changes propagation root, exclusion + override combined, constraint-violation detection, milestone-side cascade exclusion via lockDate.
+- Build clean, all 58+ tests still pass.
+
+**Out of scope (deferred):**
+- Saving cascade "scenarios" / what-if workspaces (Planisware-style)
+- Bulk select / "Uncheck all" macro
+- Drag-to-resize Gantt bars
+- Audit log of skipped/overridden shifts (M23 change-request territory)
+- Animations between recompute states (could come later if jitter is distracting)
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M19 Completion summary (2026-05-16)
 
@@ -549,25 +573,31 @@ Following the 2026-05-11 dogfood walkthrough (logged below as the "what's missin
 
 **Definition of done:** Export button on dashboard + projects page produces `{Project}_{YYYY-MM-DD}.xlsx`. Gantt sheet uses calendar-grid cell colouring (via `xlsx-js-style`) with CP rows in rose. Filename and content stamped with date.
 
-### M20 — Timesheets + derived labour cost (EVM closure)
+### M20 — Selective cascade with re-preview
+
+**Goal:** Make the M18 ImpactDrawer interactive. PM can include/exclude/override individual cascade rows; engine re-cascades live. PMBOK §6.5.2.3 What-If Analysis + Goldratt Critical Chain Method buffer protection. None of Monday / Smartsheet / Asana have it inline.
+
+**Definition of done:** see §4.
+
+### M21 — Timesheets + derived labour cost (EVM closure)
 
 **Goal:** Auto-derive per-resource hours from task ownership + meeting attendance − absences. With `hourlyRate` on team members, surface **actual labour cost** so we can close the Earned Value Management loop (PV vs EV vs AC).
 
 **Definition of done:** Resources tab gains a Timesheets sub-view per member showing derived hours by week with cost roll-up. `/costs` reconciles against derived labour. Reads from existing mock data (tasks, meetings, absences); no manual time entry yet.
 
-### M21 — AI-agent team-member type + token-cost calc
+### M22 — AI-agent team-member type + token-cost calc
 
 **Goal:** First-class support for AI agents as team members. `TeamMember.kind: "human" | "ai-agent"`. Agents have `model`, `tokensPerTask`, `costPerMTokens` instead of hourly rate. Resources view shows mixed human/AI roster with cost-per-effort.
 
 **Definition of done:** Add agent in Resources form; agents can be assigned as task owners; cost on `/costs` and `/my-items` includes token-derived spend. Positions the tool as the first PM software designed for human + AI hybrid teams.
 
-### M22 — Change Request entity + impact-driven workflow
+### M23 — Change Request entity + impact-driven workflow
 
 **Goal:** PMBOK §4.6 implemented natively. New `ChangeRequest` entity captures scope changes with rationale + business value. System auto-computes impact on iron triangle (scope, schedule, cost) + risk delta. CR routes through CCB, on approval auto-applies cascade.
 
 **Definition of done:** Submit CR from any entity → impact panel computes 3-parameter delta → route to configured approvers → on approve, auto-apply with audit log entry. CR list and Change Log accessible per project.
 
-### M23 — Configurable CCB + risk-realization auto-CR
+### M24 — Configurable CCB + risk-realization auto-CR
 
 **Goal:** Settings page configures CCB approver chain (per-project levels, default OOTB chain). Risk transitioning open → realized auto-generates a CR using the risk's mitigation cost / schedule estimate as the impact baseline.
 

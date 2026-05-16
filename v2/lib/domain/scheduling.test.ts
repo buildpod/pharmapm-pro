@@ -332,3 +332,122 @@ describe("scheduling.previewMilestoneToTaskImpact", () => {
     expect(r.some((w) => w.taskId === "t3")).toBe(false);
   });
 });
+
+import { findConstraintViolations } from "./scheduling";
+
+describe("scheduling.previewTaskCascade — M20 selective cascade", () => {
+  // Linear chain A → B → C. Default behaviour: A shifts → B + C both shift.
+  const linear: TaskScheduleEntry[] = [
+    { id: "t1", name: "A", dueDate: "2026-05-04" },
+    { id: "t2", name: "B", dueDate: "2026-05-05", dependsOn: ["t1"] },
+    { id: "t3", name: "C", dueDate: "2026-05-06", dependsOn: ["t2"] },
+  ];
+
+  it("excludeIds: excluding B stops C from shifting too", () => {
+    const r = previewTaskCascade(
+      linear,
+      { id: "t1", newDueDate: "2026-05-11" },
+      { excludeIds: new Set(["t2"]) }
+    );
+    expect(r.error).toBeNull();
+    expect(r.affected.find((a) => a.id === "t2")).toBeUndefined(); // B excluded → no shift
+    expect(r.affected.find((a) => a.id === "t3")).toBeUndefined(); // C downstream of B, no push
+  });
+
+  it("overrides: PM gives B an earlier-than-suggested date and C respects it", () => {
+    // Default: A→May 11 forces B→May 12, C→May 13.
+    // PM overrides B to May 15 (later than engine's May 12).
+    // C must then shift to May 18 (May 15 + 1 working day).
+    const r = previewTaskCascade(
+      linear,
+      { id: "t1", newDueDate: "2026-05-11" },
+      { overrides: { t2: "2026-05-15" } }
+    );
+    expect(r.error).toBeNull();
+    const b = r.affected.find((a) => a.id === "t2")!;
+    const c = r.affected.find((a) => a.id === "t3")!;
+    expect(b.newDue).toBe("2026-05-15");
+    expect(c.newDue).toBe("2026-05-18");
+  });
+
+  it("override + exclude combined: B overridden, C excluded → only B shifts", () => {
+    const r = previewTaskCascade(
+      linear,
+      { id: "t1", newDueDate: "2026-05-11" },
+      { overrides: { t2: "2026-05-20" }, excludeIds: new Set(["t3"]) }
+    );
+    expect(r.error).toBeNull();
+    expect(r.affected.find((a) => a.id === "t2")?.newDue).toBe("2026-05-20");
+    expect(r.affected.find((a) => a.id === "t3")).toBeUndefined();
+  });
+
+  it("exclude in branching cascade: only the included branch shifts", () => {
+    const branched: TaskScheduleEntry[] = [
+      { id: "t1", name: "Root",     dueDate: "2026-05-04" },
+      { id: "t2", name: "Branch-1", dueDate: "2026-05-05", dependsOn: ["t1"] },
+      { id: "t3", name: "Branch-2", dueDate: "2026-05-05", dependsOn: ["t1"] },
+    ];
+    const r = previewTaskCascade(
+      branched,
+      { id: "t1", newDueDate: "2026-05-08" },
+      { excludeIds: new Set(["t2"]) }
+    );
+    expect(r.affected.find((a) => a.id === "t2")).toBeUndefined();
+    expect(r.affected.find((a) => a.id === "t3")?.newDue).toBe("2026-05-11");
+  });
+});
+
+describe("scheduling.findConstraintViolations", () => {
+  it("flags task that ends before its dependency + 1 working day", () => {
+    const tasks: TaskScheduleEntry[] = [
+      { id: "t1", name: "A", dueDate: "2026-05-15" },
+      { id: "t2", name: "B", dueDate: "2026-05-10", dependsOn: ["t1"] }, // violation: B < A+1
+    ];
+    const v = findConstraintViolations(tasks);
+    expect(v.length).toBe(1);
+    expect(v[0].taskId).toBe("t2");
+    expect(v[0].depId).toBe("t1");
+    expect(v[0].daysBehind).toBeGreaterThan(0);
+  });
+
+  it("no violations on a valid chain", () => {
+    const tasks: TaskScheduleEntry[] = [
+      { id: "t1", dueDate: "2026-05-04" },
+      { id: "t2", dueDate: "2026-05-05", dependsOn: ["t1"] },
+    ];
+    expect(findConstraintViolations(tasks).length).toBe(0);
+  });
+
+  it("multiple dependencies: violates only if max(dep)+1 > task.due", () => {
+    const tasks: TaskScheduleEntry[] = [
+      { id: "t1", dueDate: "2026-05-04" },
+      { id: "t2", dueDate: "2026-05-10" }, // this is the binding constraint
+      { id: "t3", dueDate: "2026-05-08", dependsOn: ["t1", "t2"] }, // violation: 05-08 < 05-11
+    ];
+    const v = findConstraintViolations(tasks);
+    expect(v.length).toBe(1);
+    expect(v[0].depId).toBe("t2"); // engine reports against the binding dep
+  });
+});
+
+describe("scheduling.previewCascade — M20 milestone selective cascade", () => {
+  const ms: ScheduleMilestone[] = [
+    { id: 1, name: "A", duration: 5, plannedStart: "2026-05-04", plannedEnd: "2026-05-08" },
+    { id: 2, name: "B", predecessor: 1, duration: 5, plannedStart: "2026-05-11", plannedEnd: "2026-05-15" },
+    { id: 3, name: "C", predecessor: 2, duration: 5, plannedStart: "2026-05-18", plannedEnd: "2026-05-22" },
+  ];
+
+  it("excludeIds: excluding B keeps both B and C frozen", () => {
+    // A shifts to end May 22. Without exclusion, B would shift; C would shift.
+    // With B excluded (lockDate:true under the hood), B doesn't move, and
+    // therefore C doesn't get pushed by B either.
+    const r = previewCascade(
+      ms,
+      { id: 1, field: "plannedEnd", value: "2026-05-22" },
+      { excludeIds: new Set([2]) }
+    );
+    expect(r.error).toBeNull();
+    expect(r.affected.find((a) => a.id === 2)).toBeUndefined();
+    expect(r.affected.find((a) => a.id === 3)).toBeUndefined();
+  });
+});

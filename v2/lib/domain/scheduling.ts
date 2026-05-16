@@ -219,27 +219,58 @@ export interface CascadeEdit {
   value: string | number;
 }
 
+// M20: optional per-row overrides for milestone selective cascade.
+// Excluded milestones get lockDate=true so the cascade engine respects them.
+// Overridden milestones get plannedEnd set + lockDate=true so cascade applies
+// the manual value and doesn't move it.
+export interface MilestoneCascadeOpts {
+  excludeIds?: Set<number>;
+  overrides?: Record<number, string>; // milestoneId → manual plannedEnd
+  workingDays?: number[];
+  holidays?: string[];
+}
+
 export function previewCascade(
   milestones: ScheduleMilestone[],
   edit: CascadeEdit,
-  workingDays: number[] = [1, 2, 3, 4, 5],
+  workingDaysOrOpts: number[] | MilestoneCascadeOpts = [1, 2, 3, 4, 5],
   holidays: string[] = []
 ): PreviewCascadeResult {
+  const opts: MilestoneCascadeOpts = Array.isArray(workingDaysOrOpts)
+    ? { workingDays: workingDaysOrOpts, holidays }
+    : workingDaysOrOpts;
+  const wd       = opts.workingDays ?? [1, 2, 3, 4, 5];
+  const hols     = opts.holidays    ?? [];
+  const excludes = opts.excludeIds  ?? new Set<number>();
+  const overrides = opts.overrides  ?? {};
+
   if (!edit || edit.field == null) return { affected: [], error: null };
   const scheduleFields = ["plannedStart", "plannedEnd", "duration", "predecessor", "lag"];
   if (!scheduleFields.includes(edit.field)) return { affected: [], error: null };
 
   const hypothetical: ScheduleMilestone[] = milestones.map((m) => {
-    if (m.id !== edit.id) return { ...m };
-    const copy: ScheduleMilestone = { ...m, [edit.field]: edit.value };
-    if (edit.field === "duration" && copy.plannedStart) {
-      const dur = parseInt(String(copy.duration)) || 1;
-      copy.plannedEnd = addWorkingDays(copy.plannedStart, dur - 1, workingDays, holidays) ?? undefined;
+    if (m.id === edit.id) {
+      const copy: ScheduleMilestone = { ...m, [edit.field]: edit.value };
+      if (edit.field === "duration" && copy.plannedStart) {
+        const dur = parseInt(String(copy.duration)) || 1;
+        copy.plannedEnd = addWorkingDays(copy.plannedStart, dur - 1, wd, hols) ?? undefined;
+      }
+      return copy;
     }
-    return copy;
+    // M20: apply exclusion / override
+    if (overrides[m.id] !== undefined) {
+      const dur = parseInt(String(m.duration ?? 1)) || 1;
+      const newEnd = overrides[m.id];
+      const newStart = addWorkingDays(newEnd, -(dur - 1), wd, hols) ?? m.plannedStart;
+      return { ...m, plannedEnd: newEnd, plannedStart: newStart, lockDate: true };
+    }
+    if (excludes.has(m.id)) {
+      return { ...m, lockDate: true };
+    }
+    return { ...m };
   });
 
-  const cascadeResult = cascade(hypothetical, workingDays, holidays);
+  const cascadeResult = cascade(hypothetical, wd, hols);
   if (cascadeResult.error) return { affected: [], error: cascadeResult.error };
 
   const originalById: Record<number, ScheduleMilestone> = {};
@@ -386,6 +417,19 @@ export interface TaskCascadeEdit {
   newDueDate: string;
 }
 
+// M20: optional per-row overrides for selective cascade.
+// - excludeIds: tasks PM decided NOT to shift. They keep their original date
+//   and do not propagate (their downstream sees no push from them).
+// - overrides:  taskId → manual newDate the PM typed. Used in place of the
+//   engine's computed earliest-allowed; propagation continues from that
+//   override (may be earlier or later than the engine suggested).
+export interface CascadeOpts {
+  excludeIds?: Set<string>;
+  overrides?: Record<string, string>;
+  workingDays?: number[];
+  holidays?: string[];
+}
+
 export interface TaskCascadeResult {
   tasks: TaskScheduleEntry[]; // updated tasks (originals not mutated)
   affected: {
@@ -401,9 +445,19 @@ export interface TaskCascadeResult {
 export function previewTaskCascade(
   tasks: TaskScheduleEntry[],
   edit: TaskCascadeEdit,
-  workingDays: number[] = [1, 2, 3, 4, 5],
+  workingDaysOrOpts: number[] | CascadeOpts = [1, 2, 3, 4, 5],
   holidays: string[] = []
 ): TaskCascadeResult {
+  // Back-compat: previewTaskCascade(tasks, edit, workingDays, holidays)
+  // M20 form:   previewTaskCascade(tasks, edit, { excludeIds, overrides, workingDays, holidays })
+  const opts: CascadeOpts = Array.isArray(workingDaysOrOpts)
+    ? { workingDays: workingDaysOrOpts, holidays }
+    : workingDaysOrOpts;
+  const workingDays = opts.workingDays ?? [1, 2, 3, 4, 5];
+  const hols        = opts.holidays    ?? [];
+  const excludeIds  = opts.excludeIds  ?? new Set<string>();
+  const overrides   = opts.overrides   ?? {};
+
   // Reverse index: taskId → tasks that depend on it
   const dependents: Record<string, string[]> = {};
   tasks.forEach((t) => {
@@ -441,22 +495,39 @@ export function previewTaskCascade(
     for (const dId of downstreams) {
       const dep = byId[dId];
       if (!dep) continue;
+
+      // M20: if PM explicitly excluded this task, keep its date and don't
+      // propagate from it. Skip without enqueueing — its downstreams won't
+      // see a push from it (only from their other upstreams, if any).
+      if (excludeIds.has(dId)) continue;
+
+      // M20: if PM overrode this task's new date, use that instead of the
+      // engine's computed earliest-allowed. Propagate from the override.
+      const overrideDate = overrides[dId];
+
       // Required earliest due = max(all of its deps' due) + 1 working day
       const allDeps = (dep.dependsOn ?? [])
         .map((id) => byId[id]?.dueDate)
         .filter((d): d is string => !!d);
-      if (allDeps.length === 0) continue;
-      const latestDep = allDeps.reduce((a, b) => (a > b ? a : b));
-      const earliestAllowed = addWorkingDays(latestDep, 1, workingDays, holidays);
-      if (!earliestAllowed) continue;
-      if (compare(dep.dueDate, earliestAllowed) < 0) {
-        const oldDue = dep.dueDate;
-        const newDue = earliestAllowed;
-        dep.dueDate = newDue;
-        const days = daysBetween(oldDue, newDue);
-        affected.push({ id: dep.id, name: dep.name, oldDue, newDue, daysShifted: days });
-        queue.push(dId);
+      const computedEarliest = allDeps.length > 0
+        ? addWorkingDays(allDeps.reduce((a, b) => (a > b ? a : b)), 1, workingDays, hols)
+        : null;
+
+      let newDue: string | null = null;
+      if (overrideDate) {
+        newDue = overrideDate;
+      } else if (computedEarliest && compare(dep.dueDate, computedEarliest) < 0) {
+        newDue = computedEarliest;
       }
+      if (!newDue) continue;
+
+      const oldDue = dep.dueDate;
+      if (newDue === oldDue) continue;
+
+      dep.dueDate = newDue;
+      const days = daysBetween(oldDue, newDue);
+      affected.push({ id: dep.id, name: dep.name, oldDue, newDue, daysShifted: days });
+      queue.push(dId);
     }
   }
 
@@ -465,6 +536,53 @@ export function previewTaskCascade(
   // the originator is always the user's edit, surfaced separately by the UI.)
   void oldEditedDue;
   return { tasks: Object.values(byId), affected, error: null };
+}
+
+// ─── Constraint violation detection (M20) ────────────────────────────────────
+//
+// After the PM applies exclusions / overrides, some task dependencies may end
+// up violated (a task is now due before its upstream). We don't block — but we
+// surface these so the PM owns the decision.
+
+export interface ConstraintViolation {
+  taskId: string;
+  taskName?: string;
+  taskDue: string;
+  depId: string;
+  depName?: string;
+  depDue: string;
+  daysBehind: number; // positive = task is N working days short of dep+1
+}
+
+export function findConstraintViolations(
+  tasks: TaskScheduleEntry[],
+  workingDays: number[] = [1, 2, 3, 4, 5],
+  holidays: string[] = []
+): ConstraintViolation[] {
+  const byId: Record<string, TaskScheduleEntry> = {};
+  tasks.forEach((t) => { byId[t.id] = t; });
+
+  const violations: ConstraintViolation[] = [];
+  tasks.forEach((t) => {
+    (t.dependsOn ?? []).forEach((depId) => {
+      const dep = byId[depId];
+      if (!dep) return;
+      const earliest = addWorkingDays(dep.dueDate, 1, workingDays, holidays);
+      if (!earliest) return;
+      if (compare(t.dueDate, earliest) < 0) {
+        violations.push({
+          taskId: t.id,
+          taskName: t.name,
+          taskDue: t.dueDate,
+          depId: dep.id,
+          depName: dep.name,
+          depDue: dep.dueDate,
+          daysBehind: daysBetween(t.dueDate, earliest),
+        });
+      }
+    });
+  });
+  return violations;
 }
 
 // Cross-entity: when a milestone's plannedDate moves, find tasks that link to

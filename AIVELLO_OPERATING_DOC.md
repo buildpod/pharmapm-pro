@@ -92,6 +92,56 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M20.4 — Cascade algorithm formalization & verification
+**Goal:** The cascade engine drives SteerCo decisions about cost / resources / vendor commits. If it's quietly wrong in an edge case, real money decisions get made on bad data and the audit log (M20.2) immortalises the wrong action. Before adding any more cascade UI on top (M20.3 just shipped) or building anything that consumes cascade output downstream (M21+ all do), spend one session getting the engine **formally specified, exhaustively tested, and cross-checked against prior art**. No UI changes this session.
+
+**DoD:**
+- **`CASCADE_ALGORITHM.md`** at repo root (or `/v2/docs/`) — formal spec covering:
+  - Entities & fields used by the engine (milestone, task, working-day calendar, holidays)
+  - Constraint types we support today + explicitly what we do NOT support (no SS/FF/SF — only FS with +1-working-day; no lag on task deps; no soft constraints)
+  - Lock semantics (`milestone.lockDate`, `task` exclusion equivalent)
+  - The 4 cascade modes: milestone→milestone, task→task, milestone→task (conflicts + slack), task→milestone (push)
+  - Override propagation rules (overridden node = new propagation root)
+  - Exclude propagation rules (excluded node = wall, downstream still computed from its own deps not the excluded one)
+  - Cycle handling (Kahn's topo sort → error message naming the cycle members)
+  - Pre-existing inconsistencies — engine reports, never silently fixes
+  - Working-day arithmetic + holiday handling exact rules
+  - Explicit non-goals (resource leveling, multi-project critical chain, soft-constraint relaxation, SS/FF/SF, deadline buffers, Monte Carlo)
+- **Test matrix** — new `lib/domain/scheduling.algorithm.test.ts` with ~30–40 cases organised by category:
+  - Topology: linear (3), fan-out (2), fan-in (2), diamond (2), cycle errors (3), self-loop (1), disconnected (1)
+  - Operations: forward shift (3), backward shift (2), lock-mid-chain (2), override-mid-chain (3), exclude-mid-chain (3), combined override+exclude (2)
+  - Calendar: Fri→Mon boundary (2), holiday mid-chain (2), task-vs-milestone lag interaction (2)
+  - Cross-entity: 3-hop task→milestone→tasks (2), task→milestone with binding-constraint task (1), milestone→task slack (2), milestone→task conflicts (2)
+  - Hygiene: pre-existing violation surfaces but doesn't propagate (2), empty cascade (1), single-node "cascade" (1)
+- **Prior-art cross-check section** in `CASCADE_ALGORITHM.md` — short paragraphs (no code), one each:
+  - PMBOK §6.5 Schedule Network Analysis — what it prescribes; where we conform / deviate
+  - MS Project auto-schedule vs manually-scheduled tasks — published constraint hierarchy
+  - Primavera P6 constraint types (hard vs soft)
+  - Theory of Constraints / Critical Chain (Goldratt) — buffer protection model & whether we adopt
+- **Punch list** at the end of the doc: every behaviour the tests revealed that disagrees with the formal spec OR with prior art. Each item gets a severity (P0 wrong / P1 surprising / P2 cosmetic) and a one-line fix sketch. These become M20.5 scope, not this session.
+- All 73+ existing tests still pass. New tests added — some may fail and that's the **expected output** of this session (they document the gaps).
+
+**Out of scope (deferred to M20.5 or later):**
+- Fixing any gaps the punch list reveals — that's M20.5
+- UI changes — none
+- Adding SS/FF/SF constraint types — separate module if we want them
+- Resource leveling / Monte Carlo / EVM — out
+- Multi-project critical chain — out
+- New libraries — out (stay in pure TS)
+
+**Why this module exists:** Vineet flagged it explicitly: *"cascde functionality as its very imp feature and must work correctly as this only can possibly provide details impact to steero co as well that can becaise cost resource or any other issues"*. A wrong cascade output that flows to a SteerCo deck is a hard-to-recover-from credibility hit. Better to find gaps in a test session than in a vendor meeting.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M20.3 Completion summary (2026-05-17)
+
+**Module:** M20.3 — Bidirectional task↔milestone cascade + tone discipline
+**Status:** ✅ Complete (commit `d897cf4`)
+**Outcome:** see Session Log entry below. Bidirectional cascade (task→milestone push default-checked; milestone→task split into conflicts/slack) live in the impact drawer. Tone discipline cleanup: redundant `toast.warning("Task due after its milestone")` removed; drawer owns the signal. 70 → 73 tests pass; build clean. Vineet's followup question on the deployed-vs-local UI confusion + algorithm trust drove the pivot to M20.4.
+
+### M20.3 original goal/DoD (preserved for traceability)
+
 **Module:** M20.3 — Bidirectional task↔milestone cascade + tone discipline
 **Goal:** Close the cross-entity cascade gap. Today task↔task and milestone↔milestone cascade properly, but task↔milestone only fires a fleeting toast warning. PMs need to see the implied milestone shift when a task slides past it (and vice versa) inside the same impact drawer they already use. Also: codify tone semantics so positive updates ("slack created", "risk resolved") read as info, not alerts — the small quality detail Vineet flagged.
 
@@ -807,6 +857,52 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M20.4 — cascade algorithm formalization & verification)
+
+**Strategic context:**
+After M20.3 shipped, Vineet's question — *"do we think a session to ensure proper algorithm first for cascde functionality as its very imp feature and must work correctly as this only can possibly provide details impact to steero co as well that can becaise cost resource or any other issues"* — drove a pivot. The cascade engine is the foundation that SteerCo decisions, audit log entries, and downstream modules (M21+) all consume. Silent edge-case wrongness compounds into real money / resource / vendor consequences. Burned this session formally specifying what the engine does, exhaustively testing it, and cross-checking against PMBOK / MS Project / Primavera / CCM.
+
+**Built M20.4 (not yet committed — pending Vineet review):**
+- **`v2/docs/CASCADE_ALGORITHM.md`** (~600 lines, 11 sections):
+  - §1 Entities & fields (milestone, task, calendar)
+  - §2 Constraint model — what we support (FS+1WD only), what we explicitly don't (SS/FF/SF, lag on tasks, multi-predecessor milestones, resource leveling, Monte Carlo, CCM buffers, EVM)
+  - §3 Working-day arithmetic exact rules
+  - §4 The 4 cascade modes (M→M, T→T, M→T conflicts/slack, T→M push) with their algorithms
+  - §5 Selective-cascade layer (M20) — exclude vs override semantics with apply order
+  - §6 Cycle handling — Kahn's topo, naming members in errors
+  - §7 Pre-existing inconsistencies principle
+  - §8 Critical path math (forward/backward pass, slack, CP definition)
+  - §9 Prior-art cross-check — PMBOK §6.5, MS Project auto-vs-manual, Primavera P6, Goldratt CCM, mid-market gap analysis
+  - §10 Punch list (11 items, severities P0–P2, fix sketches)
+  - §11 Test matrix index
+- **`v2/lib/domain/scheduling.algorithm.test.ts`** — 42 new tests organised by spec section (topology, operations, calendar, cross-entity, hygiene, punch-list reproductions, selective-cascade sanity). 34 pass; 8 are `it.skip` documenting gaps (one each for PL-1, PL-2, PL-3, PL-4, PL-5, PL-6, PL-9, PL-11).
+- Final state: **107 tests pass, 8 skipped (= punch list)** across all 3 test files. Build clean, bundles unchanged.
+
+**Punch list — gaps the formal spec + tests revealed:**
+- **PL-2 (P0)** — Task→milestone push is **one-hop only**. M20.3's claim of "fully transitive" is currently false: if task t1 pushes milestone m6, the engine does NOT then run `previewCascade` to see if m6 pushes m7 (which depends on m6). Single hardest gap to live with given SteerCo's reliance on accurate downstream impact.
+- **PL-11 (P0)** — Cascade silently **"auto-fixes" pre-existing violations** downstream of any edit, even a no-op edit. A phantom save can quietly re-date tasks that were always wrong. Discovered while writing the hygiene tests — the engine doesn't distinguish "real edit" from "re-save of same value" and the drawer attributes the auto-corrections to "this edit". Needs a `respectPreExisting` flag.
+- **PL-1, PL-3, PL-4, PL-5, PL-6, PL-7, PL-8, PL-9, PL-10** — P1/P2 items (in-progress pull protection documentation, calendar-vs-working-day daysShifted display, gate buffer on task→milestone push, cycle handling in CP, scheduleBackward feasibility check, override-vs-exclude UI symmetry, missing-dep reference validation, user-introduced-cycle distinction, holiday validation). Each has a one-line fix sketch in the algorithm doc.
+
+**Decided:**
+- **One module = one focused output.** This session is doc + tests only. No engine changes. Fixes go to M20.5.
+- **PL-2 + PL-11 are M20.5's mandatory scope** (both P0). Others are scope candidates ordered by impact.
+- **Skipped tests are living documentation, not technical debt to ignore.** Each `it.skip` in `scheduling.algorithm.test.ts` will be flipped to `it()` as M20.5 lands the fix. If a fix is rejected by Vineet, the skip becomes the permanent documentation that "we chose to keep this behaviour, here's why" — comment updated accordingly.
+- **Prior-art cross-check confirmed we are CPM-correct on the basics** (forward pass, backward pass, slack=0 = CP). Deviations from MS Project / Primavera are intentional (no SS/FF/SF, no constraint hierarchy beyond `lockDate`, in-progress forward-pull protection). CCM is referenced philosophically only — no formal feeding/project buffers.
+
+**Followup discoveries beyond the punch list:**
+- The cascade engine's edit-trigger whitelist (`plannedStart`, `plannedEnd`, `duration`, `predecessor`, `lag`) is correct — status / owner / name changes correctly don't trigger. Sanity test added.
+- `daysBetween` is calendar days, used for display, but constraints are working-day. Mixed semantics surface to PM (PL-3). Worth fixing in M20.5.
+- Working-week customisation works (Sun–Thu Mid-East week test passes). This was untested before.
+- Holiday handling correctly skips holidays in `addWorkingDays` mid-chain. Test confirms.
+- `topologicalSort([])` returns clean empty + no cycle. Edge case test passes.
+
+**Pending next:**
+- Commit M20.4 (doc + tests) after Vineet reviews `v2/docs/CASCADE_ALGORITHM.md` — especially §10 Punch List. Vineet may want to:
+  - Re-prioritise any P1 to P0 based on real-project criticality.
+  - Add a Veeva-specific scenario to the test matrix.
+  - Reject the framing of any PL item (e.g. "PL-1 is correct as-is, don't fix").
+- M20.5 scope set after Vineet's review: at minimum PL-2 + PL-11. Likely also PL-3 (working-day daysShifted) and PL-4 (gate buffer) since they directly affect SteerCo number accuracy.
 
 ### Session — 2026-05-16 → 2026-05-17 (M20.3 — bidirectional cascade + tone discipline)
 

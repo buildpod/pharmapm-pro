@@ -684,6 +684,8 @@ export function TasksGrid() {
                 };
               }
 
+              // M20.6 — pass workstream as `group` for collapsible sub-sections in the drawer
+              const taskById = new Map(projTasks.map((t) => [t.id, t]));
               const tasksSection: ImpactSection = {
                 kind: "tasks",
                 title: "Downstream tasks that will shift",
@@ -691,6 +693,7 @@ export function TasksGrid() {
                   id: a.id, name: a.name,
                   oldDate: a.oldDue, newDate: a.newDue,
                   daysShifted: a.daysShifted,
+                  group: taskById.get(a.id)?.workstream,
                 })),
               };
 
@@ -702,6 +705,7 @@ export function TasksGrid() {
                 r.tasks, scheduleMilestones, msNumToStr,
                 { workingDays: settings.workingDays, holidays: settings.holidays }
               );
+              // M20.6 — surface PL-2 transitive ancestry as a caption on each row
               const milestonesSection: ImpactSection = {
                 kind: "milestones",
                 title: "Linked milestones that will shift",
@@ -709,6 +713,9 @@ export function TasksGrid() {
                   id: p.milestoneId, name: p.milestoneName,
                   oldDate: p.oldPlannedDate, newDate: p.proposedNewDate,
                   daysShifted: p.daysShifted,
+                  ancestry: p.transitive
+                    ? `${p.drivenByTaskId.toUpperCase()} (via predecessor chain)`
+                    : p.drivenByTaskId.toUpperCase(),
                 })),
               };
 

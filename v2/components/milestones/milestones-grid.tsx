@@ -653,6 +653,8 @@ export function MilestonesGrid() {
             summary={cascadePreview.summary}
             recompute={(excludeIds, overrides) => {
               const r = runMilestoneCascade(excludeIds, overrides);
+              // M20.6 — pass phase as `group` for collapsible drawer sub-sections
+              const msById = new Map(projectMilestones.map((m) => [toId(m.id), m]));
               const milestonesSection: ImpactSection = {
                 kind: "milestones",
                 title: "Milestones that will shift",
@@ -664,6 +666,7 @@ export function MilestonesGrid() {
                     newDate: a.newEnd ?? "—",
                     daysShifted: a.daysShifted,
                     isCritical: cascadePreview!.criticalIds.has(a.id),
+                    group: msById.get(a.id)?.phase,
                   }))
                   .sort((a, b) => (b.isCritical ? 1 : 0) - (a.isCritical ? 1 : 0)),
               };

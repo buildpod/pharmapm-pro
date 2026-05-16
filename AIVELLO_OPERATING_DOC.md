@@ -92,6 +92,46 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M20.6 — Cascade impact drawer UX polish
+**Goal:** Engine is now PMBOK-correct (M20.4 + M20.5). The drawer's information design still reads as functional rather than as the enterprise PM tool we're competing against. Four targeted improvements turn it from "works" to "feels expensive". No engine changes this session — pure UI on top of M20.5 output.
+
+**DoD:**
+- **Mini-timeline visualisation per row.** Replace the bare `oldDate → newDate` text with a small horizontal bar showing each affected entity's position on a shared timeline scaled to the min-max range across the drawer. PM sees the shape of the schedule shift at a glance instead of parsing date strings. Pure CSS / no SVG library.
+- **Workstream / phase grouping.** When rows have a `group` field (workstream for tasks, phase for milestones), the drawer renders collapsible sub-sections per group with a count chip. Default open. Single-group cascades stay flat (no group header needed). Engine-error / warnings sections are never grouped.
+- **Ancestry trace for transitive milestone shifts.** Transitive proposals from PL-2 already carry `drivenByTaskId`. Surface as a small "← driven by T1" caption under the milestone name so the PM understands why m7 is in the list. No tooltip needed — readable inline.
+- **Apply-count label fix.** Today the button says `Apply ${includedShifts + 1} of ${totalShifts + 1} changes` — the `+1` accounts for the originator but it's a hack that double-counts when the originator and an excluded row coincide. Compute count cleanly from the included set; show originator as a separate prefix ("Apply edit · N of M shifts" reads cleaner). When all shifts excluded: "Apply edit only".
+- All 121 tests still pass. New drawer rendering paths spot-tested visually (no DOM tests — they'd be brittle to design churn).
+- Build clean; bundles within budget. `/tasks` + `/milestones` may grow up to ~1 kB for the timeline rendering; flag if more.
+- `v2/components/ui/impact-drawer.tsx` is the primary surface; ImpactRow / ImpactSection types extended minimally; callers (tasks-grid, milestones-grid) updated to pass `group` and `ancestry` where available.
+
+**Out of scope (defer to later polish modules):**
+- Animated transitions when recompute changes section sizes (jitter is rarely distracting in practice; if it becomes painful we add it later)
+- Quick-action buttons ("uncheck all non-CP", "exclude all in workstream X") — nice-to-have, lower per-session ROI
+- Tooltips with full impact reasoning paragraphs — ancestry caption is enough
+- Drag-to-resize Gantt bars or fully-interactive timeline — that's a separate Gantt-overhaul module
+- Empty-state mockup polish — current single info row is fine
+- Mobile / narrow-viewport responsive — drawer is desktop-first, ≥1024px
+
+**Why this matters:** Vineet's dogfood comment after M20.5: *"i hope the whole cascading and all have better UI as well or its in later phase"*. The engine fixes give us correct numbers; the UI polish gives us a credible-looking display of those numbers when the PM shows the drawer to a SteerCo member or vendor. A timeline visual lands an enterprise-tool feel without animation choreography or icon libraries.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M20.5 Completion summary (2026-05-17)
+
+**Module:** M20.5 — Cascade engine fixes (PL-2, PL-3, PL-4, PL-11)
+**Status:** ✅ Complete (commit `c654b62`)
+**Outcome:**
+- PL-2: transitive task→milestone push (predecessor chains propagate)
+- PL-3: working-day shift display via new `workingDaysBetween` helper
+- PL-4: configurable gate buffer (default 1 WD) on task→milestone push
+- PL-11: phantom-save guard via `respectPreExisting` default-true opt
+- 4 punch-list it.skip tests flipped to passing + 7 new tests
+- 121 pass / 4 skipped (PL-1 + PL-5/6/9 documented / deferred)
+- Build clean. `/tasks` 7.23 → 7.22 kB
+
+### M20.5 original goal/DoD (preserved for traceability)
+
 **Module:** M20.5 — Cascade engine fixes (PL-2, PL-3, PL-4, PL-11)
 **Goal:** Land the four highest-impact gaps the M20.4 formal spec revealed. Two are P0 (transitive task→milestone push; silent auto-fix of pre-existing violations); two are P1 that directly affect SteerCo number accuracy (working-day daysShifted display; gate buffer on task→milestone push). With these in, the cascade engine matches the §10 punch-list spec for everything Vineet flagged as SteerCo-critical.
 
@@ -892,6 +932,62 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M20.6 — cascade impact drawer UX polish)
+
+**Strategic context:**
+Vineet's dogfood feedback after M20.5: *"i hope the whole cascading and all have better UI as well or its in later phase"*. Engine is now PMBOK-correct; drawer UX still functional rather than enterprise-looking. Four targeted UI changes turn it from "works" to "feels expensive". No engine changes.
+
+**Built (not yet committed — pending Vineet review):**
+
+- **Mini-timeline per row** (`MiniTimeline` in `components/ui/impact-drawer.tsx`):
+  - Thin horizontal bar showing each affected row's old → new position on a shared axis scaled to the drawer's full date range
+  - Grey tick = old position; colored solid pill = new position; colored segment connects them
+  - Rose for forward shifts (slip), emerald for backward shifts (pull-in)
+  - Dimmed when row is excluded
+  - Pure CSS divs, no SVG library; ~50 lines
+
+- **Workstream / phase grouping** (`renderShiftRows` + `GroupBlock`):
+  - When any row in a section has a `group` field, the section renders collapsible sub-sections per group
+  - Group header shows name + included/total chip (e.g. "Configuration · 3/5")
+  - Default open; click to collapse
+  - Single-group cascades stay flat (no header noise)
+  - Tasks-grid passes `workstream` as `group`; milestones-grid passes `phase`
+  - Warnings + info sections never group (they're flat by design)
+
+- **Ancestry trace** for transitive milestone proposals:
+  - New `ancestry?: string` field on `ImpactRow`
+  - Tasks-grid sets it from PL-2 transitive-push data: `"T1"` for direct, `"T1 (via predecessor chain)"` for transitive
+  - Renders as small italic caption under the row name: `← driven by T1`
+  - Lets PM read "why is m7 in this list?" inline without a tooltip
+
+- **Apply-count semantics fix**:
+  - Old: `Apply ${included+1} of ${total+1} changes` — `+1` hack double-counts in edge cases
+  - New: clean separation. `Apply edit` (no shifts) / `Apply edit only` (all excluded) / `Apply edit · N of M shifts` (mixed)
+  - Originator is conceptually separate from selectable shifts; the label now reflects that
+
+- **Bonus fixes during the rewrite**:
+  - `shiftRows` filter now strictly counts milestones + tasks (info / slack rows no longer leak into shift totals — was a latent bug in M20.3)
+  - Mini-timeline reads the live `overrides[id]` when computing the new-position marker, so PM edits to a row's date update the timeline visualization in real time
+
+**Test + build:**
+- 121 pass / 4 skipped — no test regressions
+- `/tasks` 7.22 → 7.31 kB (+0.09 kB); `/milestones` 130 → 131 kB First Load. Within budget.
+- No new tests added — drawer DOM tests would be brittle to design churn and the rendering paths are simple enough to verify visually.
+
+**Decided:**
+- **Mini-timeline as 1.5-px-tall bar, not a full Gantt strip.** Lightweight glance-value, not a full visualization. A full Gantt would compete with the Gantt view and bloat the drawer height.
+- **Grouping is opt-in via the `group` field** rather than a flag — keeps the ImpactRow shape composable; future callers can choose to group or stay flat without an API change.
+- **Ancestry is a short string, not a structured object.** Caller decides the wording. Drawer just renders. Avoids the drawer growing knowledge of which entity types can be ancestors of which.
+- **Group collapse state is per-group local, not lifted.** Resets when drawer reopens — that's fine; cascade drawers are short-lived.
+
+**Followup observations:**
+- The drawer's section icons (Milestone / CheckSquare / Info / AlertTriangle) carry the kind affordance well; group headers don't need their own icon.
+- Bundle delta is tiny because the new code reuses Tailwind classes already in use elsewhere.
+- The mini-timeline's tooltips on the old/new markers (`title={...}`) give a precise ISO date readout without competing visual weight.
+
+**Pending:**
+- Commit + push M20.6 after Vineet reviews / dogfoods.
 
 ### Session — 2026-05-17 (M20.5 — cascade engine fixes PL-2 + PL-3 + PL-4 + PL-11)
 

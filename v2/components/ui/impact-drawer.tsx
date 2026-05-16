@@ -22,6 +22,14 @@ export interface ImpactRow {
   newDate: string;
   daysShifted: number;
   isCritical?: boolean;
+  // M20.6 — optional grouping bucket (workstream for tasks, phase for milestones).
+  // If any row in a section has a `group`, the drawer renders collapsible
+  // sub-sections per group. Sections where no row sets `group` render flat.
+  group?: string;
+  // M20.6 — ancestry trace for transitive proposals. E.g. a milestone shift
+  // driven by a task push surfaces as "← driven by T1". Caller supplies a
+  // short human-readable hint string. Renders as a small caption below the name.
+  ancestry?: string;
 }
 
 export interface ViolationRow {
@@ -61,6 +69,73 @@ export interface ImpactSummary {
 // the cascade engine with the new opts and returns fresh sections.
 export interface RecomputeResult {
   sections: ImpactSection[];
+}
+
+// ─── Mini-timeline (M20.6) ──────────────────────────────────────────────────
+//
+// A thin horizontal bar showing each row's old → new position on a shared
+// axis scaled to the drawer's full date range. Two markers:
+//   - old position: small grey tick
+//   - new position: solid colored pill (rose if forward, emerald if backward)
+// A colored segment connects them. Gives PMs the *shape* of the shift at a
+// glance — far more legible than reading two ISO dates and computing the delta.
+
+function MiniTimeline({
+  tMin, tMax, oldDate, newDate, daysShifted, excluded,
+}: {
+  tMin: string; tMax: string;
+  oldDate: string; newDate: string;
+  daysShifted: number;
+  excluded?: boolean;
+}) {
+  if (!tMin || !tMax || tMin === tMax) return null;
+  const minMs = new Date(tMin).getTime();
+  const maxMs = new Date(tMax).getTime();
+  const span  = maxMs - minMs;
+  if (span <= 0) return null;
+  const pct = (d: string) => {
+    const ms = new Date(d).getTime();
+    return Math.max(0, Math.min(100, ((ms - minMs) / span) * 100));
+  };
+  const oldPct = pct(oldDate);
+  const newPct = pct(newDate);
+  const segStart = Math.min(oldPct, newPct);
+  const segWidth = Math.max(0.5, Math.abs(newPct - oldPct));
+  const forwardShift = daysShifted > 0;
+
+  return (
+    <div
+      className={cn(
+        "relative mt-2 h-1.5 w-full rounded-full bg-muted",
+        excluded && "opacity-40"
+      )}
+      aria-hidden
+    >
+      {/* connecting segment */}
+      <div
+        className={cn(
+          "absolute top-0 h-1.5 rounded-full",
+          forwardShift ? "bg-rose-300" : "bg-emerald-300"
+        )}
+        style={{ left: `${segStart}%`, width: `${segWidth}%` }}
+      />
+      {/* old marker — grey tick */}
+      <div
+        className="absolute top-1/2 h-2.5 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-muted-foreground/60"
+        style={{ left: `${oldPct}%` }}
+        title={`Before: ${oldDate}`}
+      />
+      {/* new marker — colored solid pill */}
+      <div
+        className={cn(
+          "absolute top-1/2 h-3 w-1 -translate-x-1/2 -translate-y-1/2 rounded-sm shadow-sm",
+          forwardShift ? "bg-rose-600" : "bg-emerald-600"
+        )}
+        style={{ left: `${newPct}%` }}
+        title={`After: ${newDate}`}
+      />
+    </div>
+  );
 }
 
 // ─── Main component ─────────────────────────────────────────────────────────
@@ -110,16 +185,29 @@ export function ImpactDrawer({
 
   if (!open) return null;
 
-  const includedShifts = sections
-    .filter((s): s is Extract<ImpactSection, { kind: "milestones" | "tasks" }> => s.kind !== "warnings")
-    .flatMap((s) => s.rows)
-    .filter((r) => !excludeIds.has(r.id))
-    .length;
+  // M20.6 — info-kind rows aren't shifts; they're read-only nudges.
+  // Strictly count only milestones + tasks for shift totals.
+  const shiftRows = sections
+    .filter((s): s is Extract<ImpactSection, { kind: "milestones" | "tasks" }> =>
+      s.kind === "milestones" || s.kind === "tasks")
+    .flatMap((s) => s.rows);
+  const includedShifts = shiftRows.filter((r) => !excludeIds.has(r.id)).length;
+  const totalShifts = shiftRows.length;
 
-  const totalShifts = sections
-    .filter((s): s is Extract<ImpactSection, { kind: "milestones" | "tasks" }> => s.kind !== "warnings")
-    .flatMap((s) => s.rows)
-    .length;
+  // M20.6 — compute timeline range across the originator + every shift row so
+  // each row's mini-timeline bar is scaled to the same axis. Falls back to a
+  // single-point window if all dates collide (rare in practice).
+  const allDates: string[] = [summary.oldDate, summary.newDate];
+  sections.forEach((s) => {
+    if (s.kind === "milestones" || s.kind === "tasks") {
+      s.rows.forEach((r) => { allDates.push(r.oldDate, r.newDate); });
+    } else if (s.kind === "info") {
+      s.rows.forEach((r) => { allDates.push(r.oldDate, r.newDate); });
+    }
+  });
+  const validDates = allDates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  const tMin = validDates.length ? validDates.reduce((a, b) => a < b ? a : b) : "";
+  const tMax = validDates.length ? validDates.reduce((a, b) => a > b ? a : b) : "";
 
   const totalWarnings = sections
     .filter((s): s is Extract<ImpactSection, { kind: "warnings" }> => s.kind === "warnings")
@@ -272,6 +360,8 @@ export function ImpactDrawer({
                   onToggle={toggleExclude}
                   onOverride={setOverride}
                   onClearOverride={clearOverride}
+                  tMin={tMin}
+                  tMax={tMax}
                 />
               );
             })
@@ -291,9 +381,14 @@ export function ImpactDrawer({
               onClick={() => onApply(excludeIds, overrides)}
               className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
+              {/* M20.6 — clean count semantics. Originator is the user's edit
+                  (always applied); shifts are the engine's downstream proposals
+                  (selectively included). Separate them for readability. */}
               {totalShifts === 0
-                ? "Apply change"
-                : `Apply ${includedShifts + 1} of ${totalShifts + 1} changes`}
+                ? "Apply edit"
+                : includedShifts === 0
+                  ? "Apply edit only"
+                  : `Apply edit · ${includedShifts} of ${totalShifts} shift${totalShifts === 1 ? "" : "s"}`}
             </button>
           </div>
         </footer>
@@ -311,6 +406,8 @@ function Section({
   onToggle,
   onOverride,
   onClearOverride,
+  tMin,
+  tMax,
 }: {
   section: ImpactSection;
   excludeIds: Set<string>;
@@ -318,6 +415,8 @@ function Section({
   onToggle: (id: string) => void;
   onOverride: (id: string, newDate: string) => void;
   onClearOverride: (id: string) => void;
+  tMin: string;
+  tMax: string;
 }) {
   const sectionStyle =
     section.kind === "warnings"
@@ -383,74 +482,161 @@ function Section({
                 </div>
               </li>
             ))
-          : section.rows.map((row) => {
-              const excluded = excludeIds.has(row.id);
-              const hasOverride = row.id in overrides;
-              return (
-                <li key={row.id} className={cn("px-4 py-2.5 transition-opacity", excluded && "opacity-50")}>
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={!excluded}
-                      onChange={() => onToggle(row.id)}
-                      className="mt-1 h-3.5 w-3.5 shrink-0 rounded border-border accent-primary"
-                      title={excluded ? "Include in cascade" : "Exclude — keep this row's date"}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium text-foreground">
-                        <span className="font-mono text-[10px] font-bold text-muted-foreground">{row.id.toUpperCase()}</span>
-                        {row.name && <> · {row.name}</>}
-                        {section.kind === "milestones" && row.isCritical && (
-                          <span className="ml-1.5 rounded-full border border-rose-200 bg-rose-50 px-1.5 text-[9px] font-bold text-rose-700">
-                            CP
-                          </span>
-                        )}
-                      </p>
-                      <div className="mt-1 flex items-center gap-2 text-[11px] tabular-nums">
-                        <span className="text-muted-foreground line-through">{row.oldDate}</span>
-                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                        {excluded ? (
-                          <span className="font-semibold text-muted-foreground italic">unchanged</span>
-                        ) : (
-                          <>
-                            <input
-                              type="date"
-                              value={row.newDate}
-                              onChange={(e) => onOverride(row.id, e.target.value)}
-                              className={cn(
-                                "rounded border bg-background px-1.5 py-0.5 text-[11px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-ring",
-                                hasOverride ? "border-blue-300" : "border-border"
-                              )}
-                              title={hasOverride ? "Override (engine would have suggested differently)" : "Suggested by engine — edit to override"}
-                            />
-                            {hasOverride && (
-                              <button
-                                onClick={() => onClearOverride(row.id)}
-                                className="text-[10px] font-medium text-blue-700 hover:underline"
-                                title="Revert to engine-suggested date"
-                              >
-                                ↺ revert
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {!excluded && (
-                      <span className={cn(
-                        "mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold tabular-nums",
-                        row.daysShifted > 0
-                          ? "bg-rose-50 text-rose-700 border-rose-200"
-                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
-                      )}>
-                        {row.daysShifted > 0 ? `+${row.daysShifted}d` : `${row.daysShifted}d`}
-                      </span>
-                    )}
-                  </div>
-                </li>
-              );
+          : renderShiftRows(section.rows, section.kind, {
+              excludeIds, overrides, onToggle, onOverride, onClearOverride, tMin, tMax,
             })}
       </ul>
     </section>
+  );
+}
+
+// ─── Shift rows renderer — handles grouping (M20.6) ─────────────────────────
+
+interface ShiftRowDeps {
+  excludeIds: Set<string>;
+  overrides: Record<string, string>;
+  onToggle: (id: string) => void;
+  onOverride: (id: string, newDate: string) => void;
+  onClearOverride: (id: string) => void;
+  tMin: string;
+  tMax: string;
+}
+
+function renderShiftRows(rows: ImpactRow[], kind: "milestones" | "tasks", deps: ShiftRowDeps) {
+  // M20.6 — group rows by `row.group` when at least one row has it. Single-
+  // group cascades stay flat (no header noise). Groups render as collapsible
+  // sub-sections.
+  const hasGroups = rows.some((r) => !!r.group);
+  if (!hasGroups) {
+    return rows.map((row) => renderShiftRow(row, kind, deps));
+  }
+  const groups: Record<string, ImpactRow[]> = {};
+  rows.forEach((r) => {
+    const g = r.group ?? "Other";
+    (groups[g] ||= []).push(r);
+  });
+  const orderedNames = Object.keys(groups);
+  return orderedNames.map((g) => (
+    <GroupBlock key={g} name={g} rows={groups[g]} kind={kind} deps={deps} />
+  ));
+}
+
+function GroupBlock({
+  name, rows, kind, deps,
+}: {
+  name: string;
+  rows: ImpactRow[];
+  kind: "milestones" | "tasks";
+  deps: ShiftRowDeps;
+}) {
+  const [open, setOpen] = useState(true);
+  const includedHere = rows.filter((r) => !deps.excludeIds.has(r.id)).length;
+  return (
+    <li className="bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 border-b border-border bg-muted/30 px-4 py-1.5 text-left transition-colors hover:bg-muted/50"
+        aria-expanded={open}
+      >
+        <span className={cn("inline-block h-2 w-2 shrink-0 rounded-sm transition-transform", open ? "rotate-90" : "")}>
+          ▸
+        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {name}
+        </span>
+        <span className="ml-auto rounded-full bg-card px-1.5 text-[10px] font-bold tabular-nums text-muted-foreground">
+          {includedHere}/{rows.length}
+        </span>
+      </button>
+      {open && (
+        <ul className="divide-y divide-border">
+          {rows.map((row) => renderShiftRow(row, kind, deps))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function renderShiftRow(row: ImpactRow, kind: "milestones" | "tasks", deps: ShiftRowDeps) {
+  const { excludeIds, overrides, onToggle, onOverride, onClearOverride, tMin, tMax } = deps;
+  const excluded = excludeIds.has(row.id);
+  const hasOverride = row.id in overrides;
+  return (
+    <li key={row.id} className={cn("px-4 py-2.5 transition-opacity", excluded && "opacity-50")}>
+      <div className="flex items-start gap-3">
+        <input
+          type="checkbox"
+          checked={!excluded}
+          onChange={() => onToggle(row.id)}
+          className="mt-1 h-3.5 w-3.5 shrink-0 rounded border-border accent-primary"
+          title={excluded ? "Include in cascade" : "Exclude — keep this row's date"}
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium text-foreground">
+            <span className="font-mono text-[10px] font-bold text-muted-foreground">{row.id.toUpperCase()}</span>
+            {row.name && <> · {row.name}</>}
+            {kind === "milestones" && row.isCritical && (
+              <span className="ml-1.5 rounded-full border border-rose-200 bg-rose-50 px-1.5 text-[9px] font-bold text-rose-700">
+                CP
+              </span>
+            )}
+          </p>
+          {/* M20.6 — ancestry caption (e.g. transitive milestone push driven by task) */}
+          {row.ancestry && (
+            <p className="mt-0.5 truncate text-[10px] text-muted-foreground italic">
+              ← driven by {row.ancestry}
+            </p>
+          )}
+          <div className="mt-1 flex items-center gap-2 text-[11px] tabular-nums">
+            <span className="text-muted-foreground line-through">{row.oldDate}</span>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            {excluded ? (
+              <span className="font-semibold text-muted-foreground italic">unchanged</span>
+            ) : (
+              <>
+                <input
+                  type="date"
+                  value={row.newDate}
+                  onChange={(e) => onOverride(row.id, e.target.value)}
+                  className={cn(
+                    "rounded border bg-background px-1.5 py-0.5 text-[11px] font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-ring",
+                    hasOverride ? "border-blue-300" : "border-border"
+                  )}
+                  title={hasOverride ? "Override (engine would have suggested differently)" : "Suggested by engine — edit to override"}
+                />
+                {hasOverride && (
+                  <button
+                    onClick={() => onClearOverride(row.id)}
+                    className="text-[10px] font-medium text-blue-700 hover:underline"
+                    title="Revert to engine-suggested date"
+                  >
+                    ↺ revert
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+          {/* M20.6 — mini-timeline (skips invalid date inputs gracefully) */}
+          <MiniTimeline
+            tMin={tMin} tMax={tMax}
+            oldDate={row.oldDate}
+            newDate={excluded ? row.oldDate : (overrides[row.id] ?? row.newDate)}
+            daysShifted={row.daysShifted}
+            excluded={excluded}
+          />
+        </div>
+        {!excluded && (
+          <span className={cn(
+            "mt-0.5 shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold tabular-nums",
+            row.daysShifted > 0
+              ? "bg-rose-50 text-rose-700 border-rose-200"
+              : "bg-emerald-50 text-emerald-700 border-emerald-200"
+          )}>
+            {row.daysShifted > 0 ? `+${row.daysShifted}d` : `${row.daysShifted}d`}
+          </span>
+        )}
+      </div>
+    </li>
   );
 }

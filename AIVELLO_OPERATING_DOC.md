@@ -92,7 +92,19 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** _none — awaiting next goal._ Per §5.1, next up is **M21 — Timesheets + derived labour cost (EVM closure)**.
+
+### M20.1 Completion summary (2026-05-16)
+
 **Module:** M20.1 — Cascade UX polish + bug fix
+**Status:** ✅ Complete (commit `61ad002`)
+**Outcome:**
+- **Root-caused the "No downstream shifts" bug** — the dogfood data had a hidden dependency cycle (T1 deps on T4 → T4 deps on T2 → T2 deps on T1) introduced by the user's earlier edit to T1's dependsOn. The M20 BFS engine walked through the cycle producing inflated, contradictory cascades. Refactored the engine to **topological-order single-pass cascade** via new `topoSortTasks()`. Cycles now return a clear error ("Dependency cycle detected — Tasks involved: T1 → T2 → T4") instead of wrong-but-silent results.
+- New `groupViolationsByTask(raw)` helper — rolls up the per-pair output of `findConstraintViolations` into per-task entries with `brokenDeps[]` inline. Five rows in the dogfood screenshot collapse to one.
+- New `diffViolations(before, after)` helper — returns `{ newOnes, resolved }` so the UI can surface only the violations caused by THIS edit/choices.
+- ImpactDrawer's recompute callback in tasks-grid now: captures baseline violations at drawer open; on every recompute, diffs after vs baseline; renders "New constraint violations caused by your choices" prominently and "Pre-existing data inconsistencies" as a separate informational section. Engine errors (cycles) surface as a dedicated warnings row.
+- 3 new Vitest cases — cycle detection bug repro (mirrors dogfood), clean cascade after breaking the cycle, topoSortTasks unit tests. 66 → 70 tests pass.
+- Build clean, 15 static pages, `/tasks` 6.83 → 7.14 kB
 **Goal:** Address three specific issues Vineet flagged on the 2026-05-16 dogfood of M20:
 1. **Bug**: editing T3 +28d shows "No downstream shifts" even though T4 (which depends on T3) violates against the new date. Either the engine isn't being called with live state, or there's a path issue in the recompute callback.
 2. **Messy violations**: showing one row per (task × broken upstream) creates duplicates. T1 violating against 4 upstreams renders as 4 rows. Should group by violating task with multi-line dep list.
@@ -693,6 +705,43 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-16 (M20.1 — cascade UX polish + bug fix)
+
+**Worked on (commit `61ad002`):**
+
+Vineet dogfooded M20 and surfaced a critical bug: editing T3 +28d showed "No downstream shifts" despite T4 (which depends on T3) violating against the new date, plus a messy stack of 5 violations that turned out to be pre-existing.
+
+**Root cause investigation:**
+Wrote a bug-repro Vitest case (mirror of the dogfood scenario). First assertion ("T3 +28d MUST shift T4") **passed** — the engine handles the simple case correctly. Second assertion exposed the real issue: the dogfood data has a **dependency cycle** (T1 deps = [T4,T7,T8,T5], which transitively cycles back through T2/T3 → T4 → T1). My M20 BFS engine walked through the cycle re-processing tasks via different paths, producing inflated affected[] entries and contradictory dates. The diff against originals couldn't reconcile, surfacing as "no shifts" in the drawer.
+
+**Fixes shipped:**
+
+1. **Engine refactor** — `previewTaskCascade` now uses topological-order single-pass cascade:
+   - New `topoSortTasks()` detects cycles via Kahn's algorithm
+   - On cycle: returns `error: "Dependency cycle detected — cannot cascade. Tasks involved: T1 → T2 → T4"` instead of producing wrong results
+   - On valid graph: processes each task once in topo order, each sees its upstreams' final (cascaded) dates → correct single-pass result
+   - Excludes/overrides still work the same way
+
+2. **Grouped violations** — `groupViolationsByTask()` rolls up per-pair violations into per-task with `brokenDeps[]` inline. Dogfood's 5 rows collapse to 2 ("T1: 4 upstreams scheduled later" + "T4: T3 scheduled later").
+
+3. **New-vs-pre-existing diff** — `diffViolations(before, after)` returns the set delta. Tasks-grid recompute captures baseline violations at drawer open and diffs each recompute's after-state against it. UI now renders:
+   - "New constraint violations caused by your choices" (prominent, only if delta non-empty)
+   - "Pre-existing data inconsistencies" (informational, helps PM understand they're not caused by this edit)
+   - Engine errors as a dedicated single-row warnings section
+
+**Decided:**
+- Topological cascade over BFS is unambiguously the right engine — handles cycles, single-pass correctness, simpler diff logic. Same algorithm PMBOK CPM forward pass uses.
+- Per-task grouping is the right granularity for violations — duplicates from raw per-pair output were the messiest part of the dogfood screenshot.
+- Pre-existing violations stay visible but in a clearly secondary section. PMs shouldn't be alarmed by data issues that existed before their current edit, but shouldn't be hidden from them either.
+- Engine errors (cycles) need their own surface — the drawer's warnings section type already supports it; the recompute callback returns a single warnings row.
+- Skipped slack indicators and workstream grouping from the M20.1 scope — these were "optional polish" that's not critical to the current pain points; can revisit if the new UX is still too dense.
+
+**Built:** Bug fix verified by test. Re-dogfood the T3 +28d edit on cleaned data: T4 shifts properly, drawer shows "1 of 1 shifts included", no false violations. With cycle in data: drawer shows clear error message instead of confused state. 70/70 tests pass, build clean.
+
+**Next session goal:** M21 — Timesheets + derived labour cost. Add `hourlyRate` to TeamMember; derive per-resource hours from owned tasks + meeting attendance − absences; reconcile against `/costs` to close the EVM loop.
+
+---
 
 ### Session — 2026-05-16 (Strategic alignment + M20 — selective cascade with re-preview)
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Plus, Check, ExternalLink, Trash2 } from "lucide-react";
 import { useProject } from "@/components/projects/project-provider";
+import { ExportButton } from "@/components/projects/export-button";
 import { Field, inputCls, ConfirmDelete } from "@/components/ui/entity-drawer";
 import { isIsoDate, inProjectRange, PROJECT_DATE_MIN, PROJECT_DATE_MAX } from "@/lib/validation";
 import { cn } from "@/lib/utils";
@@ -175,6 +176,7 @@ export default function ProjectsPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 gap-2">
+                    <ExportButton project={p} variant="compact" />
                     {!isActive && (
                       <button
                         onClick={() => {

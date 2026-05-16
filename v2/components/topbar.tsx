@@ -1,12 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Menu, Sun, Moon, Download } from "lucide-react";
+import { Menu, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { SidebarContent } from "@/components/sidebar";
 import { CommandPaletteTrigger } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
+import { ExportButton } from "@/components/projects/export-button";
 import { useTheme } from "@/components/theme-provider";
 import { useProject } from "@/components/projects/project-provider";
 import { useState } from "react";
@@ -72,11 +73,10 @@ export function Topbar() {
         {/* Alerts — live derived from project entities */}
         <NotificationBell />
 
-        {/* Export — hidden on mobile */}
-        <Button variant="outline" size="sm" className="hidden sm:flex gap-1.5 h-8">
-          <Download className="h-3.5 w-3.5" />
-          Export
-        </Button>
+        {/* Export — wired in M19: produces the 8-sheet project workbook */}
+        <div className="hidden sm:flex">
+          <ExportButton project={activeProject} />
+        </div>
       </div>
     </header>
   );

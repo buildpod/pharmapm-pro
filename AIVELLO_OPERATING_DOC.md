@@ -92,7 +92,30 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M19 — Clean project export workbook**.
+**Module:** M19 — Clean project export workbook
+**Goal:** One-click export of the active project as a multi-sheet Excel workbook covering everything a PM, SteerCo chair, or sponsor needs. Audit-friendly, handover-ready, prints cleanly.
+
+**DoD:**
+- New dep: `xlsx-js-style` (drop-in styled fork of `xlsx`, ~80 KB) — loaded via dynamic import so it stays out of the initial bundle
+- New `lib/exporter.ts` exporting `exportProjectWorkbook({ project, milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, settings })` — pure function (no React imports) that builds the workbook and triggers a browser download
+- 8 sheets:
+  1. **Summary** — project metadata, RAG snapshot, KPIs, key dates, generated-on stamp
+  2. **Gantt** — week-grid calendar, one row per milestone, cells coloured rose for critical path / blue for normal / amber for at-risk / emerald for complete, today column highlighted
+  3. **Milestones** — register: ID, name, phase, planned, forecast, variance, duration, predecessor, RAG, owner, locked
+  4. **Tasks** — register grouped by workstream (visible section headers): ID, name, priority, status, progress, owner, due, milestone link, dependencies
+  5. **Documents** — RACI exploded: ID, abbreviation, name, type, phase, version, status, due, owner (Responsible), reviewers serialized as "name (status, date); …", approvers same, pending count
+  6. **Risks** — register: ID, title, category, P, I, score, band, status, owner, mitigation
+  7. **Costs** — category, description, contract, budget $k, actual $k, burn %, owner; totals footer row
+  8. **Resources + Meetings** — three blocks: Team members · Recurring meetings (with attendees by mandatory/optional) · Absences (with reason)
+- Export button: dashboard topbar "Export" wired (currently no-op); projects page per-row "Export" button on the active project row
+- Filename: `{ProjectName}_{YYYY-MM-DD}.xlsx` (slug-safe)
+- Sonner toast on success / on failure
+- Build clean, lint clean, tests still pass
+
+**Out of scope:** anonymise-personal-data toggle (defer to a future config); export-as-PDF (Excel only); per-sheet template customisation (fixed for now); image-embedded charts (cells-only).
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M18 Completion summary (2026-05-16)
 

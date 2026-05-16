@@ -92,7 +92,26 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** _none — awaiting next goal._ Per §5.1, next up is **M20 — Timesheets + derived labour cost (EVM closure)**.
+
+### M19 Completion summary (2026-05-16)
+
 **Module:** M19 — Clean project export workbook
+**Status:** ✅ Complete (commit `3c6a56a`)
+**Outcome:**
+- Added `xlsx-js-style` 1.2.0 (styled fork of xlsx) — dynamic-imported on click so initial bundles stay flat
+- New `lib/exporter.ts` — pure function (no React imports) builds an 8-sheet workbook and triggers a browser download. Filename: `{ProjectName}_{YYYY-MM-DD}.xlsx`
+- 8 sheets:
+  - **Summary** — metadata + RAG snapshot (schedule / budget / risk with worst-tone fill) + KPIs + generated-on stamp
+  - **Gantt** — Monday-aligned week-grid calendar, frozen left columns and header rows, bars filled rose for critical path / status-coloured otherwise, today week column highlighted yellow, month labels merged across consecutive weeks
+  - **Milestones** — register with computed RAG, critical-path flag, variance, predecessor, owner, lock
+  - **Tasks** — grouped by workstream with visible section headers, status-coloured cells, milestone link, dependencies
+  - **Documents** — full RACI: owner (Responsible) + multi-line reviewers/approvers ("Name (Role, status, date)") + pending count
+  - **Risks** — band-coloured score fills, sorted by score desc, full mitigation wrap-text
+  - **Costs** — table with totals footer; burn % coloured rose ≥85% / amber ≥60% / emerald
+  - **Resources & Meetings** — three blocks: Team members · Recurring meetings (with mandatory/optional attendee initials) · Absences
+- New `<ExportButton>` in two variants — default in topbar (wired to active project), compact per-row on `/projects`
+- Build clean, 15 static pages
 **Goal:** One-click export of the active project as a multi-sheet Excel workbook covering everything a PM, SteerCo chair, or sponsor needs. Audit-friendly, handover-ready, prints cleanly.
 
 **DoD:**
@@ -609,6 +628,31 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-16 (M19 — clean project export workbook)
+
+**Worked on (commit `3c6a56a`):**
+- Added `xlsx-js-style` 1.2.0 — styled fork of xlsx, MIT, kept alongside the existing `xlsx` dep (used by M7 reports). Loaded via `await import("xlsx-js-style")` inside the export function so it stays out of the initial bundle and only fetches on first Export click
+- New `lib/exporter.ts` — `exportProjectWorkbook({...})` pure async function. No React imports. Internal sheet builders (`buildSummary`, `buildGantt`, `buildMilestones`, `buildTasks`, `buildDocuments`, `buildRisks`, `buildCosts`, `buildResources`) each return a styled Worksheet via direct cell object construction (`{ v, t, s }` shape)
+- Style preset constants (`COLORS`, `headerStyle`, `sectionStyle`, etc.) reused across all sheets — keeps the workbook visually coherent
+- Gantt sheet uses Monday-aligned week grid (≈36 cols for a 9-month project), bars rendered as cell fill colors with `■` glyph, today column highlighted yellow, two frozen header rows (month / week), four frozen left columns. Month labels merged via `!merges` across consecutive same-month columns
+- Reused existing `computeRAG()` + `computeCriticalPath()` from `lib/domain/scheduling.ts` to drive Milestones-sheet RAG column and Gantt CP coloring
+- New `components/projects/export-button.tsx` — `<ExportButton project=… variant="default" | "compact"/>`. Reads persisted entity arrays from localStorage (M16.1 keys) + settings, filters to the requested project, calls the exporter. Loader2 spinner during async export, Sonner toast on success / error
+- Wired in two places: topbar (replaces the previous no-op Export button — exports active project) and `/projects` per-row (per-project compact export)
+
+**Decided:**
+- Kept `xlsx` and `xlsx-js-style` side-by-side rather than migrating M7 reports — incremental risk minimisation; consolidation can come later when M7 reports themselves get a polish pass
+- Dynamic import for `xlsx-js-style` (~80 KB) so the projects page and dashboard don't pay the bundle cost until first export click
+- Week-granularity (not day) for the Gantt sheet — keeps column count manageable (~36 cols for 9 months vs 270+ for daily). Days would make the workbook unreadable in print preview
+- Bar glyph (`■`) inside the colored cell rather than empty cell — gives the bar a visible mark when printed in mono and helps screen-reader narration
+- Owner column on Documents sheet bolded ("R" in RACI) to visually distinguish from Reviewers/Approvers lists; section headers in workbook mention "Owner (R)", "Reviewers (C)", "Approvers (A)" to make RACI explicit
+- Totals row on Costs sheet uses a top-border + label-bold-bg-fill style to read clearly without merge
+
+**Built:** Click Export in the topbar → `Veeva_RIM_Implementation_2026-05-16.xlsx` downloads with 8 styled sheets. Open in Excel and Numbers: cell fills render, frozen panes work, month merges in Gantt header are correct. Build clean, 15 static pages, no bundle bloat.
+
+**Next session goal:** M20 — Timesheets + derived labour cost. Add `hourlyRate` to TeamMember; derive per-resource hours from owned tasks + meeting attendance − absences; reconcile against `/costs` for the EVM (Earned Value Management) loop.
+
+---
 
 ### Session — 2026-05-16 (Strategic alignment + M18 — universal cascade-impact panel)
 

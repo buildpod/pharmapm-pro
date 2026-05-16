@@ -13,6 +13,9 @@ import {
 import { TaskFormDrawer } from "./task-form";
 import { useProject } from "@/components/projects/project-provider";
 import { useLocalStorageState } from "@/lib/useLocalStorageState";
+import { useSettings } from "@/lib/settingsStore";
+import { previewTaskCascade, type TaskScheduleEntry } from "@/lib/domain/scheduling";
+import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
 import { cn } from "@/lib/utils";
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -351,9 +354,17 @@ function WorkstreamGroup({
 
 type TaskDrawerState = { mode: "closed" } | { mode: "new" } | { mode: "edit"; task: Task };
 
+interface TaskCascadePreviewState {
+  affected: { id: string; name?: string; oldDue: string; newDue: string; daysShifted: number }[];
+  pendingTasks: Task[];
+  summary: ImpactSummary;
+}
+
 export function TasksGrid() {
   const { activeProjectId } = useProject();
+  const { settings } = useSettings();
   const [tasks, setTasks]                       = useLocalStorageState<Task[]>("aivello_tasks_v1", initialTasks);
+  const [cascadePreview, setCascadePreview]     = useState<TaskCascadePreviewState | null>(null);
   const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
   const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
   const [filterWorkstream, setFilterWorkstream] = useState<string>("All");
@@ -365,6 +376,59 @@ export function TasksGrid() {
 
   function handleDrawerSave(t: Task) {
     const withProj: Task = { ...t, projectId: t.projectId || activeProjectId };
+    const existing = tasks.find((x) => x.id === withProj.id);
+
+    // M18: if dueDate moved later on an existing task, run cascade preview.
+    // (New tasks and earlier-due edits don't push anything downstream.)
+    const dueMovedLater =
+      !!existing && existing.dueDate !== withProj.dueDate && withProj.dueDate > existing.dueDate;
+
+    if (dueMovedLater) {
+      // Cascade through the project's tasks
+      const projTasks = tasks.filter((x) => x.projectId === activeProjectId);
+      const entries: TaskScheduleEntry[] = projTasks.map((x) => ({
+        id: x.id, name: x.name, dueDate: x.dueDate,
+        dependsOn: x.dependsOn, milestoneId: x.milestoneId,
+      }));
+      const result = previewTaskCascade(
+        entries,
+        { id: withProj.id, newDueDate: withProj.dueDate },
+        settings.workingDays, settings.holidays
+      );
+
+      // Build the post-cascade task list (apply the edit + every shift)
+      const shiftedById: Record<string, string> = {};
+      result.affected.forEach((a) => { shiftedById[a.id] = a.newDue; });
+      const pendingTasks = tasks.map((x) => {
+        if (x.id === withProj.id) return withProj;
+        if (shiftedById[x.id]) return { ...x, dueDate: shiftedById[x.id] };
+        return x;
+      });
+
+      const daysShifted = Math.ceil(
+        (new Date(withProj.dueDate).getTime() - new Date(existing.dueDate).getTime()) / 86_400_000
+      );
+
+      if (result.affected.length > 0) {
+        // Show ImpactDrawer with the cascade — Apply commits, Cancel drops the edit
+        setCascadePreview({
+          affected: result.affected,
+          pendingTasks,
+          summary: {
+            originatorKind: "task",
+            originatorId: withProj.id,
+            originatorName: withProj.name,
+            oldDate: existing.dueDate,
+            newDate: withProj.dueDate,
+            daysShifted,
+          },
+        });
+        setDrawer({ mode: "closed" });
+        return;
+      }
+    }
+
+    // No cascade impact (or no due-date change) — apply directly
     setTasks((prev) => {
       const idx = prev.findIndex((x) => x.id === withProj.id);
       if (idx >= 0) {
@@ -534,6 +598,37 @@ export function TasksGrid() {
           ))}
         </div>
       )}
+
+      {/* M18 — Cascade impact drawer (fires when a task due-date moves later) */}
+      {cascadePreview && (() => {
+        const sections: ImpactSection[] = [{
+          kind: "tasks" as const,
+          title: "Downstream tasks that will shift",
+          rows: cascadePreview.affected.map((a) => ({
+            id: a.id,
+            name: a.name,
+            oldDate: a.oldDue,
+            newDate: a.newDue,
+            daysShifted: a.daysShifted,
+          })),
+        }];
+        return (
+          <ImpactDrawer
+            open
+            summary={cascadePreview.summary}
+            sections={sections}
+            onApply={() => {
+              setTasks(cascadePreview.pendingTasks);
+              toast.success(
+                `${cascadePreview.affected.length + 1} task${cascadePreview.affected.length === 0 ? "" : "s"} updated`,
+                { description: cascadePreview.summary.originatorName }
+              );
+              setCascadePreview(null);
+            }}
+            onCancel={() => setCascadePreview(null)}
+          />
+        );
+      })()}
 
       {/* Add / Edit drawer — pickers scoped to current project */}
       <TaskFormDrawer

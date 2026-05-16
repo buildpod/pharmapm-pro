@@ -366,6 +366,134 @@ export function computeCriticalPath(
   return result;
 }
 
+// ─── Task cascade (M18) ─────────────────────────────────────────────────────
+//
+// Tasks have a single date (`dueDate`) and FS dependencies via `dependsOn[]`.
+// Cascade rule: for each task, `dueDate >= max(dep.dueDate) + 1 working day`.
+// Forward-walks the reverse-index (taskId → dependents) until no more shifts.
+// Defensive against cycles via a visited set + iteration cap.
+
+export interface TaskScheduleEntry {
+  id: string;
+  name?: string;
+  dueDate: string;
+  dependsOn?: string[];
+  milestoneId?: string;
+}
+
+export interface TaskCascadeEdit {
+  id: string;
+  newDueDate: string;
+}
+
+export interface TaskCascadeResult {
+  tasks: TaskScheduleEntry[]; // updated tasks (originals not mutated)
+  affected: {
+    id: string;
+    name?: string;
+    oldDue: string;
+    newDue: string;
+    daysShifted: number;
+  }[];
+  error: string | null;
+}
+
+export function previewTaskCascade(
+  tasks: TaskScheduleEntry[],
+  edit: TaskCascadeEdit,
+  workingDays: number[] = [1, 2, 3, 4, 5],
+  holidays: string[] = []
+): TaskCascadeResult {
+  // Reverse index: taskId → tasks that depend on it
+  const dependents: Record<string, string[]> = {};
+  tasks.forEach((t) => {
+    (t.dependsOn ?? []).forEach((dep) => {
+      (dependents[dep] ||= []).push(t.id);
+    });
+  });
+
+  // Clone tasks so we don't mutate input
+  const byId: Record<string, TaskScheduleEntry> = {};
+  tasks.forEach((t) => { byId[t.id] = { ...t }; });
+
+  if (!byId[edit.id]) {
+    return { tasks, affected: [], error: "Edited task not found" };
+  }
+
+  // Apply the original edit
+  const oldEditedDue = byId[edit.id].dueDate;
+  byId[edit.id].dueDate = edit.newDueDate;
+
+  const affected: TaskCascadeResult["affected"] = [];
+  const visited = new Set<string>();
+  const queue: string[] = [edit.id];
+  let guard = 0;
+
+  while (queue.length > 0) {
+    if (guard++ > 10_000) {
+      return { tasks: Object.values(byId), affected, error: "Cascade overflow (possible cycle)" };
+    }
+    const curId = queue.shift()!;
+    if (visited.has(curId)) continue;
+    visited.add(curId);
+
+    const downstreams = dependents[curId] ?? [];
+    for (const dId of downstreams) {
+      const dep = byId[dId];
+      if (!dep) continue;
+      // Required earliest due = max(all of its deps' due) + 1 working day
+      const allDeps = (dep.dependsOn ?? [])
+        .map((id) => byId[id]?.dueDate)
+        .filter((d): d is string => !!d);
+      if (allDeps.length === 0) continue;
+      const latestDep = allDeps.reduce((a, b) => (a > b ? a : b));
+      const earliestAllowed = addWorkingDays(latestDep, 1, workingDays, holidays);
+      if (!earliestAllowed) continue;
+      if (compare(dep.dueDate, earliestAllowed) < 0) {
+        const oldDue = dep.dueDate;
+        const newDue = earliestAllowed;
+        dep.dueDate = newDue;
+        const days = daysBetween(oldDue, newDue);
+        affected.push({ id: dep.id, name: dep.name, oldDue, newDue, daysShifted: days });
+        queue.push(dId);
+      }
+    }
+  }
+
+  // Include the originating change in the result for the UI to display the
+  // "edit summary" header. (Stored in affected only if it actually shifted;
+  // the originator is always the user's edit, surfaced separately by the UI.)
+  void oldEditedDue;
+  return { tasks: Object.values(byId), affected, error: null };
+}
+
+// Cross-entity: when a milestone's plannedDate moves, find tasks that link to
+// it and now end after it (logical contradiction). Soft flag only — does not
+// auto-shift, because task→milestone is a logical/rollup link, not a strict
+// precedence the engine should enforce.
+
+export interface MilestoneToTaskWarning {
+  taskId: string;
+  taskName?: string;
+  taskDue: string;
+  milestoneNewDate: string;
+}
+
+export function previewMilestoneToTaskImpact(
+  tasks: TaskScheduleEntry[],
+  milestoneId: string,
+  newPlannedDate: string
+): MilestoneToTaskWarning[] {
+  return tasks
+    .filter((t) => t.milestoneId === milestoneId && compare(t.dueDate, newPlannedDate) > 0)
+    .map((t) => ({
+      taskId: t.id,
+      taskName: t.name,
+      taskDue: t.dueDate,
+      milestoneNewDate: newPlannedDate,
+    }));
+}
+
 export function computeEndFromDuration(
   startDate: string,
   duration: number,

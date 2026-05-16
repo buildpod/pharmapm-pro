@@ -20,21 +20,18 @@ import {
   cascade,
   scheduleBackward,
   previewCascade,
+  previewMilestoneToTaskImpact,
+  computeCriticalPath,
   type ScheduleMilestone,
+  type TaskScheduleEntry,
 } from "@/lib/domain/scheduling";
 import { addWorkingDays } from "@/lib/domain/dates";
+import { tasks as initialTasks, type Task } from "@/lib/mockData";
+import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
 import { useSettings } from "@/lib/settingsStore";
 import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { useProject } from "@/components/projects/project-provider";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-  DialogClose,
-} from "@/components/ui/dialog";
+// (Dialog imports removed in M18 — CascadePreviewDialog replaced by ImpactDrawer)
 import { MilestoneFormDrawer } from "./milestone-form";
 import { GanttView } from "./gantt-view";
 import { LayoutGrid, GanttChartSquare } from "lucide-react";
@@ -115,72 +112,30 @@ function formatDate(iso: string) {
   });
 }
 
-// ─── Cascade preview dialog ───────────────────────────────────────────────────
+// ─── Cascade preview state (M18) ──────────────────────────────────────────────
 
 interface CascadePreviewState {
   affected: { id: number; name?: string; oldEnd?: string; newEnd?: string; daysShifted: number }[];
   pendingMilestones: Milestone[];
+  summary: ImpactSummary;
+  taskWarnings: { taskId: string; taskName?: string; taskDue: string; milestoneNewDate: string }[];
+  criticalIds: Set<number>;
 }
 
-function CascadePreviewDialog({
-  preview,
-  onApply,
-  onDiscard,
-}: {
-  preview: CascadePreviewState;
-  onApply: (ms: Milestone[]) => void;
-  onDiscard: () => void;
-}) {
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open) onDiscard(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Cascade Preview</DialogTitle>
-          <DialogDescription>
-            This date change will shift {preview.affected.length} downstream milestone
-            {preview.affected.length !== 1 ? "s" : ""}. Review before applying.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="px-5 py-3 max-h-72 overflow-y-auto">
-          <ul className="space-y-2">
-            {preview.affected.map((a) => (
-              <li key={a.id} className="flex items-start justify-between gap-3 text-xs">
-                <span className="font-medium text-foreground truncate">{a.name ?? `Milestone ${a.id}`}</span>
-                <div className="text-right shrink-0">
-                  <p className="text-muted-foreground line-through">{a.oldEnd ? formatDate(a.oldEnd) : "—"}</p>
-                  <p className="font-semibold text-foreground">{a.newEnd ? formatDate(a.newEnd) : "—"}</p>
-                  {a.daysShifted !== 0 && (
-                    <p className={cn("text-[10px]", a.daysShifted > 0 ? "text-destructive" : "text-green-600")}>
-                      {a.daysShifted > 0 ? `+${a.daysShifted}d` : `${a.daysShifted}d`}
-                    </p>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <button
-              className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted"
-              onClick={onDiscard}
-            >
-              Discard
-            </button>
-          </DialogClose>
-          <button
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-            onClick={() => onApply(preview.pendingMilestones)}
-          >
-            Apply cascade
-          </button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+// Read persisted tasks (M16.1) — same fallback pattern as the search index.
+function readPersistedTasks(): Task[] {
+  if (typeof window === "undefined") return initialTasks;
+  try {
+    const raw = localStorage.getItem("aivello_tasks_v1");
+    if (!raw) return initialTasks;
+    return JSON.parse(raw) as Task[];
+  } catch {
+    return initialTasks;
+  }
 }
+
+// (CascadePreviewDialog removed in M18 — replaced by the universal
+//  <ImpactDrawer> rendered at the bottom of the grid.)
 
 // ─── Inline date cell ─────────────────────────────────────────────────────────
 
@@ -299,13 +254,17 @@ export function MilestonesGrid() {
   const projectMilestones = milestones.filter((m) => m.projectId === activeProjectId);
   const domainMilestones = projectMilestones.map(toScheduleMs);
 
-  // Apply a planned-date change: run cascade preview, show modal if needed
+  // Apply a planned-date change: run cascade preview + cross-entity task scan,
+  // show <ImpactDrawer> with the full picture before committing.
   function handlePlannedDateChange(id: string, newDate: string) {
     const numId = toId(id);
+    const original = milestones.find((m) => m.id === id);
+    if (!original) return;
+
     const edit = { id: numId, field: "plannedEnd" as const, value: newDate };
     const preview = previewCascade(domainMilestones, edit, workingDays, holidays);
 
-    // Build the "already-applied" milestone state so we can hand it to the modal
+    // Build the "already-applied" milestone state for Apply
     const cascadeResult = cascade(
       domainMilestones.map((sm) => sm.id === numId ? { ...sm, plannedEnd: newDate } : sm),
       workingDays,
@@ -313,11 +272,45 @@ export function MilestonesGrid() {
     );
     const pending = applyDomainResult(milestones, cascadeResult.milestones);
 
-    if (preview.affected.length > 0) {
-      setCascadePreview({ affected: preview.affected, pendingMilestones: pending });
+    // Cross-entity: which tasks (in this project) would now be after the milestone
+    const projectTasksForCheck = readPersistedTasks()
+      .filter((t) => t.projectId === activeProjectId)
+      .map<TaskScheduleEntry>((t) => ({
+        id: t.id, name: t.name, dueDate: t.dueDate,
+        dependsOn: t.dependsOn, milestoneId: t.milestoneId,
+      }));
+    const taskWarnings = previewMilestoneToTaskImpact(projectTasksForCheck, id, newDate);
+
+    // Critical-path ids (helps render CP flag in the drawer)
+    const cp = computeCriticalPath(domainMilestones, workingDays, holidays);
+
+    const daysShifted = Math.ceil(
+      (new Date(newDate).getTime() - new Date(original.plannedDate).getTime()) / 86_400_000
+    );
+
+    const summary: ImpactSummary = {
+      originatorKind: "milestone",
+      originatorId: original.id,
+      originatorName: original.name,
+      oldDate: original.plannedDate,
+      newDate,
+      daysShifted,
+    };
+
+    // Open drawer if any cascade, task warning, or even if no impact — gives
+    // PM visibility either way (Apply still works on zero-impact changes).
+    if (preview.affected.length > 0 || taskWarnings.length > 0) {
+      setCascadePreview({
+        affected: preview.affected,
+        pendingMilestones: pending,
+        summary,
+        taskWarnings,
+        criticalIds: cp.criticalIds,
+      });
     } else {
-      // No downstream impact — apply directly
+      // No downstream impact — apply directly (and toast for visibility)
       setMilestones(pending);
+      toast.success("Date updated", { description: original.name });
     }
   }
 
@@ -625,17 +618,58 @@ export function MilestonesGrid() {
       </div>
       )}
 
-      {/* Cascade preview modal */}
-      {cascadePreview && (
-        <CascadePreviewDialog
-          preview={cascadePreview}
-          onApply={(ms) => {
-            setMilestones(ms);
-            setCascadePreview(null);
-          }}
-          onDiscard={() => setCascadePreview(null)}
-        />
-      )}
+      {/* M18 — Universal cascade impact drawer */}
+      {cascadePreview && (() => {
+        const sections: ImpactSection[] = [];
+
+        // Milestone shifts (sorted by criticality, then date)
+        if (cascadePreview.affected.length > 0) {
+          sections.push({
+            kind: "milestones",
+            title: "Milestones that will shift",
+            rows: cascadePreview.affected
+              .map((a) => ({
+                id: `m${a.id}`,
+                name: a.name,
+                oldDate: a.oldEnd ?? "—",
+                newDate: a.newEnd ?? "—",
+                daysShifted: a.daysShifted,
+                isCritical: cascadePreview.criticalIds.has(a.id),
+              }))
+              .sort((a, b) => (b.isCritical ? 1 : 0) - (a.isCritical ? 1 : 0)),
+          });
+        }
+
+        // Task warnings (cross-entity)
+        if (cascadePreview.taskWarnings.length > 0) {
+          sections.push({
+            kind: "warnings",
+            title: "Tasks linked to this milestone now end after its new date",
+            rows: cascadePreview.taskWarnings.map((w) => ({
+              id: w.taskId,
+              name: w.taskName,
+              message: `Task due ${w.taskDue} is after milestone's new ${w.milestoneNewDate}. Review the task's due date.`,
+            })),
+          });
+        }
+
+        return (
+          <ImpactDrawer
+            open
+            summary={cascadePreview.summary}
+            sections={sections}
+            onApply={() => {
+              setMilestones(cascadePreview.pendingMilestones);
+              toast.success(
+                `${cascadePreview.affected.length} milestone${cascadePreview.affected.length === 1 ? "" : "s"} shifted`,
+                { description: cascadePreview.summary.originatorName }
+              );
+              setCascadePreview(null);
+            }}
+            onCancel={() => setCascadePreview(null)}
+          />
+        );
+      })()}
 
       {/* Add / Edit drawer — predecessor picker scoped to current project */}
       <MilestoneFormDrawer

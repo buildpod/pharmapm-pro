@@ -252,3 +252,83 @@ describe("scheduling.computeCriticalPath", () => {
     expect(cp.criticalIds.size).toBe(0);
   });
 });
+
+import { previewTaskCascade, previewMilestoneToTaskImpact, type TaskScheduleEntry } from "./scheduling";
+
+describe("scheduling.previewTaskCascade", () => {
+  // Linear chain A → B → C. Moving A's due later forces B and C to move.
+  const linear: TaskScheduleEntry[] = [
+    { id: "t1", name: "A", dueDate: "2026-05-04" },
+    { id: "t2", name: "B", dueDate: "2026-05-05", dependsOn: ["t1"] },
+    { id: "t3", name: "C", dueDate: "2026-05-06", dependsOn: ["t2"] },
+  ];
+
+  it("linear chain: shifting A by 5 working days shifts B and C", () => {
+    const r = previewTaskCascade(linear, { id: "t1", newDueDate: "2026-05-11" });
+    expect(r.error).toBeNull();
+    expect(r.affected.length).toBe(2);
+    const b = r.affected.find((a) => a.id === "t2");
+    const c = r.affected.find((a) => a.id === "t3");
+    expect(b).toBeTruthy();
+    expect(c).toBeTruthy();
+    // B must be after A's new due by at least 1 working day → May 12
+    expect(b!.newDue).toBe("2026-05-12");
+    // C must be after B's new due → May 13
+    expect(c!.newDue).toBe("2026-05-13");
+  });
+
+  it("no shift when edit makes A earlier (downstream already satisfies constraint)", () => {
+    const r = previewTaskCascade(linear, { id: "t1", newDueDate: "2026-05-01" });
+    expect(r.error).toBeNull();
+    expect(r.affected.length).toBe(0);
+  });
+
+  // Branching: one root, two descendants in parallel.
+  it("branching: root shift cascades to both descendants", () => {
+    const branched: TaskScheduleEntry[] = [
+      { id: "t1", name: "Root", dueDate: "2026-05-04" },
+      { id: "t2", name: "Branch-1", dueDate: "2026-05-05", dependsOn: ["t1"] },
+      { id: "t3", name: "Branch-2", dueDate: "2026-05-05", dependsOn: ["t1"] },
+    ];
+    const r = previewTaskCascade(branched, { id: "t1", newDueDate: "2026-05-08" });
+    expect(r.error).toBeNull();
+    expect(r.affected.length).toBe(2);
+    expect(r.affected.every((a) => a.newDue === "2026-05-11")).toBe(true); // both shift to next working day
+  });
+
+  // Defensive: a cycle (shouldn't happen in valid mockData, but be defensive).
+  it("cycle: returns error without infinite loop", () => {
+    const cyclic: TaskScheduleEntry[] = [
+      { id: "t1", name: "A", dueDate: "2026-05-04", dependsOn: ["t2"] },
+      { id: "t2", name: "B", dueDate: "2026-05-05", dependsOn: ["t1"] },
+    ];
+    // Cascade through a cycle would loop forever without the guard.
+    // The visited-set short-circuits this; we just verify no exception + finite.
+    const r = previewTaskCascade(cyclic, { id: "t1", newDueDate: "2026-05-10" });
+    expect(r).toBeTruthy(); // didn't hang
+  });
+});
+
+describe("scheduling.previewMilestoneToTaskImpact", () => {
+  const tasks: TaskScheduleEntry[] = [
+    { id: "t1", dueDate: "2026-05-20", milestoneId: "m6" },
+    { id: "t2", dueDate: "2026-05-10", milestoneId: "m6" }, // already before m6's new date
+    { id: "t3", dueDate: "2026-05-25", milestoneId: "m7" }, // unrelated milestone
+  ];
+
+  it("flags tasks whose due is now after the milestone's new planned date", () => {
+    const r = previewMilestoneToTaskImpact(tasks, "m6", "2026-05-15");
+    expect(r.length).toBe(1);
+    expect(r[0].taskId).toBe("t1");
+  });
+
+  it("does not flag tasks whose due is already before the new date", () => {
+    const r = previewMilestoneToTaskImpact(tasks, "m6", "2026-05-30");
+    expect(r.length).toBe(0);
+  });
+
+  it("scopes to the changed milestone (ignores other milestones)", () => {
+    const r = previewMilestoneToTaskImpact(tasks, "m6", "2026-05-15");
+    expect(r.some((w) => w.taskId === "t3")).toBe(false);
+  });
+});

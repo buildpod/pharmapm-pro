@@ -92,7 +92,31 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M18 — CSV / Excel import + project templates**, or **M19 — Comments + activity feed**.
+**Module:** M18 — Universal cascade-impact panel (task-level + cross-entity)
+**Goal:** Today only milestone-to-milestone cascade has a preview modal (M4B). Tasks have no schedule cascade at all — `dependsOn` is just a visual tag. Cross-entity is missing entirely — moving milestone m6 doesn't flag tasks linked to it. Vineet flagged this as the biggest gap during the 2026-05-16 dogfood. PMBOK §4.6 (Integrated Change Control) and Theory-of-Constraints both require "no schedule change without impact assessment first."
+
+**DoD:**
+- New `previewTaskCascade(tasks, edit, workingDays?, holidays?)` in `lib/domain/scheduling.ts` — forward-walks through `dependsOn` reverse-index. For each downstream task, enforces `task.dueDate >= max(dep.dueDate) + 1 working day`. Returns `{ affected: { id, name, oldDue, newDue, daysShifted }[], error }`. Defensive against cycles.
+- New `previewMilestoneToTaskImpact(milestones, tasks, milestoneEdit)` — when milestone m's plannedDate moves, returns tasks where `task.milestoneId === m.id && task.dueDate > newPlannedDate` (soft flag — doesn't auto-shift; task-milestone is a logical link, not a strict precedence).
+- 3 new Vitest cases on task cascade: linear A→B→C chain, branching (one root, two descendants), cycle defense.
+- New `<ImpactDrawer>` component (`components/ui/impact-drawer.tsx`) — right-anchored drawer (re-uses EntityDrawer's positioning idea but is a separate component because it has different semantics). Shows:
+  - Originating change at the top (entity ID, before/after, delta days)
+  - Sectioned list: Milestones affected · Tasks affected · Tasks-vs-milestone warnings (soft)
+  - For each row: ID, name, before/after dates, delta in days, critical-path flag if applicable
+  - Apply / Cancel buttons in footer
+- `milestones-grid.tsx`: existing `CascadePreviewDialog` replaced by `<ImpactDrawer>`. Milestone date edit now ALSO computes task impact via `previewMilestoneToTaskImpact()` and surfaces it as a warning section in the drawer.
+- `tasks-grid.tsx`: saving a task with a changed dueDate now fires `previewTaskCascade()`. If downstream impact > 0, opens `<ImpactDrawer>` with the cascade. Apply → updates affected tasks; Cancel → reverts the edit.
+- Sonner toast on Apply: "N items shifted." On Cancel: no toast, edit dropped.
+
+**Out of scope (deferred to later modules):**
+- Inline date editor on task rows (currently only in drawer) — keeps the cascade-trigger surface minimal
+- Project-level "recent shifts" feed (this is essentially activity feed → future module)
+- Buffer consumption visualization (Theory-of-Constraints discipline — needs estimates first)
+- Auto-resolution suggestions (LLM territory)
+- Resource leveling (depends on timesheets — M20)
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M17 Completion summary (2026-05-13)
 
@@ -455,23 +479,51 @@ Following the 2026-05-11 dogfood walkthrough (logged below as the "what's missin
 
 **Definition of done:** typing "FRS" in ⌘K finds the document; "data migration" finds the risk + milestone + tasks. `/my-items` lists overdue / due-this-week / blocked rows across entities.
 
-### M18 — CSV / Excel import + project templates
+### M18 — Universal cascade-impact panel (task-level + cross-entity)
 
-**Goal:** Today users would have to add 30–50 milestones one by one. Add CSV import for milestones / tasks / risks. Seed a "Veeva RIM standard implementation" template that creates a starter project in one click.
+**Goal:** Extend the cascade engine to operate on tasks and across entities (milestone → tasks). Replace the existing milestone-only cascade modal with a richer impact drawer that shows the full downstream picture.
 
-**Definition of done:** Import button on each grid opens a CSV mapper; Create Project form has a "Start from template" option with at least one Veeva RIM template seeded.
+**Source:** PMBOK §4.6 (Integrated Change Control) + Critical Chain Method (Goldratt) — schedule change must surface its impact before commit.
 
-### M19 — Comments + activity feed (in-app only, no email yet)
+**Definition of done:** see §4.
 
-**Goal:** Per-entity comments (no @mentions or email yet — that's M20). Per-entity activity feed showing every change (add / edit / status cycle / decision recorded).
+### M19 — Clean project export workbook
 
-**Definition of done:** Drawer for any entity has a Comments tab and an Activity tab; comments are stored in component state; activity log records mutations automatically.
+**Goal:** One-click export of the active project as a multi-sheet Excel workbook covering Summary, Gantt, Milestones, Tasks, Documents (with full RACI), Risks, Costs, Resources + Meetings. Audit-friendly and handover-ready.
 
-### M20 — Report executive commentary + report snapshots
+**Definition of done:** Export button on dashboard + projects page produces `{Project}_{YYYY-MM-DD}.xlsx`. Gantt sheet uses calendar-grid cell colouring (via `xlsx-js-style`) with CP rows in rose. Filename and content stamped with date.
 
-**Goal:** Two governance polish items the SteerCo pre-brief needs: (a) free-text executive commentary block at the top of each report, persisted; (b) "Snapshot for this SteerCo" button that freezes the report state to an immutable record listed under `/reports/history`.
+### M20 — Timesheets + derived labour cost (EVM closure)
 
-**Definition of done:** Reports page has a commentary field that persists per report-type; snapshot history accessible and viewable.
+**Goal:** Auto-derive per-resource hours from task ownership + meeting attendance − absences. With `hourlyRate` on team members, surface **actual labour cost** so we can close the Earned Value Management loop (PV vs EV vs AC).
+
+**Definition of done:** Resources tab gains a Timesheets sub-view per member showing derived hours by week with cost roll-up. `/costs` reconciles against derived labour. Reads from existing mock data (tasks, meetings, absences); no manual time entry yet.
+
+### M21 — AI-agent team-member type + token-cost calc
+
+**Goal:** First-class support for AI agents as team members. `TeamMember.kind: "human" | "ai-agent"`. Agents have `model`, `tokensPerTask`, `costPerMTokens` instead of hourly rate. Resources view shows mixed human/AI roster with cost-per-effort.
+
+**Definition of done:** Add agent in Resources form; agents can be assigned as task owners; cost on `/costs` and `/my-items` includes token-derived spend. Positions the tool as the first PM software designed for human + AI hybrid teams.
+
+### M22 — Change Request entity + impact-driven workflow
+
+**Goal:** PMBOK §4.6 implemented natively. New `ChangeRequest` entity captures scope changes with rationale + business value. System auto-computes impact on iron triangle (scope, schedule, cost) + risk delta. CR routes through CCB, on approval auto-applies cascade.
+
+**Definition of done:** Submit CR from any entity → impact panel computes 3-parameter delta → route to configured approvers → on approve, auto-apply with audit log entry. CR list and Change Log accessible per project.
+
+### M23 — Configurable CCB + risk-realization auto-CR
+
+**Goal:** Settings page configures CCB approver chain (per-project levels, default OOTB chain). Risk transitioning open → realized auto-generates a CR using the risk's mitigation cost / schedule estimate as the impact baseline.
+
+**Definition of done:** Settings page has a Change Control section with configurable approver levels. Changing a risk to "realized" pops the CR submission form prefilled with the risk's data. Closes the loop on unplanned change handling.
+
+### Deferred to a later round (not currently slotted)
+
+- CSV / Excel import + project templates (originally M18 — useful for onboarding new projects but lower urgency than the cascade/export/EVM track)
+- Comments + activity feed (per-entity discussion threads)
+- Report executive commentary + snapshots
+- Buffer consumption visualization (Critical Chain Method discipline — needs effort estimates first)
+- Resource leveling (depends on M20 timesheets)
 
 ### Beyond M20 — Path C platform decisions (not scoped yet)
 

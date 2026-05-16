@@ -660,10 +660,16 @@ export function findConstraintViolations(
   return violations;
 }
 
-// Cross-entity: when a milestone's plannedDate moves, find tasks that link to
-// it and now end after it (logical contradiction). Soft flag only — does not
-// auto-shift, because task→milestone is a logical/rollup link, not a strict
-// precedence the engine should enforce.
+// Cross-entity (M20.3): bidirectional task↔milestone cascade.
+//
+// When a milestone's plannedDate moves earlier than a linked task, that task
+// becomes a conflict (its dueDate is now after its supporting milestone) and
+// needs to shift back. When the milestone moves later, linked tasks gain slack
+// (informational only, no shift required).
+//
+// previewMilestoneToTaskImpact returns:
+//   - conflicts:  tasks whose dueDate > new milestone planned date (rose)
+//   - slack:      tasks whose dueDate < new milestone planned date (blue, info)
 
 export interface MilestoneToTaskWarning {
   taskId: string;
@@ -672,19 +678,106 @@ export interface MilestoneToTaskWarning {
   milestoneNewDate: string;
 }
 
+export interface MilestoneToTaskSlackInfo {
+  taskId: string;
+  taskName?: string;
+  taskDue: string;
+  milestoneNewDate: string;
+  slackDays: number;          // working days of headroom now available
+}
+
 export function previewMilestoneToTaskImpact(
   tasks: TaskScheduleEntry[],
   milestoneId: string,
-  newPlannedDate: string
-): MilestoneToTaskWarning[] {
-  return tasks
-    .filter((t) => t.milestoneId === milestoneId && compare(t.dueDate, newPlannedDate) > 0)
-    .map((t) => ({
-      taskId: t.id,
-      taskName: t.name,
-      taskDue: t.dueDate,
-      milestoneNewDate: newPlannedDate,
-    }));
+  newPlannedDate: string,
+  workingDays: number[] = [1, 2, 3, 4, 5],
+  holidays: string[] = []
+): {
+  conflicts: MilestoneToTaskWarning[];
+  slack: MilestoneToTaskSlackInfo[];
+} {
+  const conflicts: MilestoneToTaskWarning[] = [];
+  const slack: MilestoneToTaskSlackInfo[] = [];
+
+  tasks
+    .filter((t) => t.milestoneId === milestoneId)
+    .forEach((t) => {
+      if (compare(t.dueDate, newPlannedDate) > 0) {
+        // Task due AFTER new milestone planned — conflict
+        conflicts.push({
+          taskId: t.id, taskName: t.name,
+          taskDue: t.dueDate, milestoneNewDate: newPlannedDate,
+        });
+      } else if (compare(t.dueDate, newPlannedDate) < 0) {
+        // Task due BEFORE new milestone planned — slack created
+        // Compute working-day slack between taskDue and milestoneNewDate
+        let cursor = t.dueDate;
+        let days = 0;
+        let guard = 0;
+        while (compare(cursor, newPlannedDate) < 0 && guard < 10_000) {
+          const next = addWorkingDays(cursor, 1, workingDays, holidays);
+          if (!next || next === cursor) break;
+          cursor = next;
+          days++;
+          guard++;
+        }
+        slack.push({
+          taskId: t.id, taskName: t.name,
+          taskDue: t.dueDate, milestoneNewDate: newPlannedDate,
+          slackDays: days,
+        });
+      }
+    });
+
+  return { conflicts, slack };
+}
+
+// M20.3: task → milestone propagation. When a task shifts past its linked
+// milestone, the milestone needs to shift too (or the user must explicitly
+// opt-out via M20 exclusion). Computed AFTER the task cascade has been run
+// so it sees the cascaded task dueDates.
+export interface TaskToMilestonePush {
+  milestoneId: string;
+  milestoneName?: string;
+  oldPlannedDate: string;
+  proposedNewDate: string;
+  drivenByTaskId: string;
+  drivenByTaskName?: string;
+  daysShifted: number;
+}
+
+export function previewTaskToMilestonePush(
+  cascadedTasks: TaskScheduleEntry[],
+  milestones: ScheduleMilestone[],
+  msIdToString: (n: number) => string,
+): TaskToMilestonePush[] {
+  // For each task with milestoneId, find the linked milestone. If task.dueDate
+  // is now AFTER the milestone's plannedEnd, propose pushing the milestone.
+  // Group by milestone — the binding constraint is the latest task driving the push.
+  const proposalsByMs: Record<string, TaskToMilestonePush> = {};
+
+  cascadedTasks.forEach((t) => {
+    if (!t.milestoneId) return;
+    // Find milestone — IDs are stringified in tasks, numeric in ScheduleMilestone
+    const ms = milestones.find((m) => msIdToString(m.id) === t.milestoneId);
+    if (!ms || !ms.plannedEnd) return;
+    if (compare(t.dueDate, ms.plannedEnd) <= 0) return;
+
+    const existing = proposalsByMs[t.milestoneId];
+    if (existing && compare(t.dueDate, existing.proposedNewDate) <= 0) return;
+
+    proposalsByMs[t.milestoneId] = {
+      milestoneId: t.milestoneId,
+      milestoneName: ms.name,
+      oldPlannedDate: ms.plannedEnd,
+      proposedNewDate: t.dueDate,
+      drivenByTaskId: t.id,
+      drivenByTaskName: t.name,
+      daysShifted: daysBetween(ms.plannedEnd, t.dueDate),
+    };
+  });
+
+  return Object.values(proposalsByMs);
 }
 
 export function computeEndFromDuration(

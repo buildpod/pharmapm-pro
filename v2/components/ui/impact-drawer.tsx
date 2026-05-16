@@ -30,10 +30,22 @@ export interface ViolationRow {
   message: string;
 }
 
+// M20.3 — read-only info row (blue tone). Used for "slack created" entries
+// where a milestone moving later leaves linked tasks with headroom — no shift
+// required, just a positive informational nudge.
+export interface InfoRow {
+  id: string;
+  name?: string;
+  oldDate: string;       // e.g. task due
+  newDate: string;       // e.g. milestone new planned
+  slackDays: number;     // working-day slack gained
+}
+
 export type ImpactSection =
   | { kind: "milestones"; title: string; rows: ImpactRow[] }
   | { kind: "tasks";      title: string; rows: ImpactRow[] }
-  | { kind: "warnings";   title: string; rows: ViolationRow[] };
+  | { kind: "warnings";   title: string; rows: ViolationRow[] }
+  | { kind: "info";       title: string; rows: InfoRow[] };
 
 export interface ImpactSummary {
   originatorKind: "milestone" | "task";
@@ -111,6 +123,11 @@ export function ImpactDrawer({
 
   const totalWarnings = sections
     .filter((s): s is Extract<ImpactSection, { kind: "warnings" }> => s.kind === "warnings")
+    .flatMap((s) => s.rows)
+    .length;
+
+  const totalInfo = sections
+    .filter((s): s is Extract<ImpactSection, { kind: "info" }> => s.kind === "info")
     .flatMap((s) => s.rows)
     .length;
 
@@ -225,12 +242,17 @@ export function ImpactDrawer({
                 {Object.keys(overrides).length} override{Object.keys(overrides).length === 1 ? "" : "s"}
               </span>
             )}
+            {totalInfo > 0 && (
+              <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
+                {totalInfo} slack gain{totalInfo === 1 ? "" : "s"}
+              </span>
+            )}
           </div>
         </header>
 
         {/* Body */}
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          {totalShifts === 0 && totalWarnings === 0 ? (
+          {totalShifts === 0 && totalWarnings === 0 && totalInfo === 0 ? (
             <div className="rounded-lg border border-dashed border-border bg-muted/20 py-8 text-center">
               <Info className="mx-auto mb-2 h-5 w-5 text-muted-foreground/50" />
               <p className="text-sm font-medium text-foreground">No cascading impact</p>
@@ -302,11 +324,14 @@ function Section({
       ? "border-rose-200 bg-rose-50/40"
       : section.kind === "milestones"
         ? "border-blue-200 bg-blue-50/40"
-        : "border-amber-200 bg-amber-50/40";
+        : section.kind === "info"
+          ? "border-blue-200 bg-blue-50/30"
+          : "border-amber-200 bg-amber-50/40";
 
   const Icon =
     section.kind === "warnings" ? AlertTriangle
     : section.kind === "milestones" ? MilestoneIcon
+    : section.kind === "info" ? Info
     : CheckSquare;
 
   return (
@@ -321,7 +346,29 @@ function Section({
         </span>
       </div>
       <ul className="divide-y divide-border bg-card">
-        {section.kind === "warnings"
+        {section.kind === "info"
+          ? section.rows.map((row) => (
+              <li key={row.id} className="flex items-start gap-3 px-4 py-2.5">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                  <Info className="h-3 w-3" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-foreground">
+                    <span className="font-mono text-[10px] font-bold text-muted-foreground">{row.id.toUpperCase()}</span>
+                    {row.name && <> · {row.name}</>}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] tabular-nums text-blue-700">
+                    <span>{row.oldDate}</span>
+                    <ArrowRight className="h-3 w-3" />
+                    <span>{row.newDate}</span>
+                    <span className="ml-1 rounded-full border border-blue-200 bg-blue-50 px-1.5 py-0 text-[10px] font-bold text-blue-700">
+                      +{row.slackDays}d slack
+                    </span>
+                  </p>
+                </div>
+              </li>
+            ))
+          : section.kind === "warnings"
           ? section.rows.map((row) => (
               <li key={row.id} className="flex items-start gap-3 px-4 py-2.5">
                 <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-700">

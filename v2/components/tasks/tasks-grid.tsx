@@ -15,8 +15,14 @@ import { useEntityStore } from "@/lib/stores/entity-store";
 import { useSettings } from "@/lib/settingsStore";
 import {
   previewTaskCascade, findConstraintViolations, groupViolationsByTask, diffViolations,
-  type TaskScheduleEntry,
+  previewTaskToMilestonePush,
+  type TaskScheduleEntry, type ScheduleMilestone,
 } from "@/lib/domain/scheduling";
+
+// Local helpers — match the conversion used in milestones-grid so a task linked
+// to "m6" resolves to the milestone whose id is 6 in the engine.
+function msStrToNum(id: string): number { return parseInt(id.replace("m", "")); }
+function msNumToStr(id: number): string { return `m${id}`; }
 import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
 import { cn } from "@/lib/utils";
 
@@ -374,6 +380,9 @@ export function TasksGrid() {
   const updateTask        = useEntityStore((s) => s.updateTask);
   const deleteTaskAction  = useEntityStore((s) => s.deleteTask);
   const replaceAllTasks   = useEntityStore((s) => s.replaceAllTasks);
+  // M20.3 — bidirectional cascade needs live milestones to propose pushes
+  const liveMilestones    = useEntityStore((s) => s.milestones);
+  const replaceAllMilestones = useEntityStore((s) => s.replaceAllMilestones);
   const [cascadePreview, setCascadePreview]     = useState<TaskCascadePreviewState | null>(null);
   const [filterPriority, setFilterPriority]     = useState<TaskPriority | "All">("All");
   const [filterStatus, setFilterStatus]         = useState<TaskStatus | "All">("All");
@@ -406,7 +415,21 @@ export function TasksGrid() {
         { workingDays: settings.workingDays, holidays: settings.holidays }
       );
 
-      if (initial.affected.length > 0) {
+      // M20.3 — also probe task→milestone push so the drawer opens when the
+      // shift impacts a linked milestone, even with no downstream task shifts.
+      const projMs = liveMilestones.filter((m) => m.projectId === activeProjectId);
+      const probeMs: ScheduleMilestone[] = projMs.map((m) => ({
+        id: msStrToNum(m.id),
+        predecessor: m.predecessor ? msStrToNum(m.predecessor) : undefined,
+        lag: m.lag ?? 0, duration: m.duration ?? 1,
+        plannedStart: m.plannedDate, plannedEnd: m.plannedDate,
+        status: "Not Started", lockDate: m.locked,
+      }));
+      const msPushProbe = previewTaskToMilestonePush(
+        initial.tasks, probeMs, msNumToStr
+      );
+
+      if (initial.affected.length > 0 || msPushProbe.length > 0) {
         const daysShifted = Math.ceil(
           (new Date(withProj.dueDate).getTime() - new Date(existing.dueDate).getTime()) / 86_400_000
         );
@@ -599,13 +622,31 @@ export function TasksGrid() {
         </div>
       )}
 
-      {/* M20.1 — Selective cascade impact drawer (topo cascade + grouped violations + new-vs-existing) */}
+      {/* M20.1 — Selective cascade impact drawer (topo cascade + grouped violations + new-vs-existing)
+          M20.3 — also surfaces linked-milestone pushes (task→milestone cascade) */}
       {cascadePreview && (() => {
         // Snapshot tasks at drawer open so recompute is deterministic
         const projTasks = tasks.filter((x) => x.projectId === activeProjectId);
         const entries: TaskScheduleEntry[] = projTasks.map((x) => ({
           id: x.id, name: x.name, dueDate: x.dueDate,
           dependsOn: x.dependsOn, milestoneId: x.milestoneId,
+        }));
+
+        // M20.3 — snapshot live milestones for task→milestone push detection
+        const projMilestones = liveMilestones.filter((m) => m.projectId === activeProjectId);
+        const scheduleMilestones: ScheduleMilestone[] = projMilestones.map((m) => ({
+          id: msStrToNum(m.id),
+          predecessor: m.predecessor ? msStrToNum(m.predecessor) : undefined,
+          lag: m.lag ?? 0,
+          duration: m.duration ?? 1,
+          plannedStart: m.plannedDate,
+          plannedEnd: m.plannedDate,
+          status:
+            m.status === "complete"      ? "Complete"
+            : m.status === "in-progress" ? "In Progress"
+            : m.status === "at-risk"     ? "Blocked"
+            : "Not Started",
+          lockDate: m.locked,
         }));
 
         // Baseline violations exist BEFORE any edit — computed once, used to
@@ -650,6 +691,22 @@ export function TasksGrid() {
                 })),
               };
 
+              // M20.3 — task → milestone push. Compute against the cascaded
+              // task state (r.tasks). Default-checked (PM must opt out per
+              // Vineet's confirmed preference for schedule integrity).
+              const msPushes = previewTaskToMilestonePush(
+                r.tasks, scheduleMilestones, msNumToStr
+              );
+              const milestonesSection: ImpactSection = {
+                kind: "milestones",
+                title: "Linked milestones that will shift",
+                rows: msPushes.map((p) => ({
+                  id: p.milestoneId, name: p.milestoneName,
+                  oldDate: p.oldPlannedDate, newDate: p.proposedNewDate,
+                  daysShifted: p.daysShifted,
+                })),
+              };
+
               // After-state violations, diffed against baseline to show only NEW ones
               const after = findConstraintViolations(
                 r.tasks, settings.workingDays, settings.holidays
@@ -688,6 +745,7 @@ export function TasksGrid() {
               return {
                 sections: [
                   tasksSection,
+                  ...(milestonesSection.rows.length > 0 ? [milestonesSection] : []),
                   newSection,
                   ...(existingSection ? [existingSection] : []),
                 ],
@@ -707,10 +765,34 @@ export function TasksGrid() {
                 return x;
               });
               replaceAllTasks(pendingTasks, { source: "cascade", note: "task cascade apply" });
+
+              // M20.3 — apply task → milestone pushes (default-checked, unless
+              // the PM unchecked them in the drawer)
+              const msPushes = previewTaskToMilestonePush(
+                r.tasks, scheduleMilestones, msNumToStr
+              );
+              const includedPushes = msPushes.filter((p) => !excludeIds.has(p.milestoneId));
+              if (includedPushes.length > 0) {
+                const pushById: Record<string, string> = {};
+                includedPushes.forEach((p) => {
+                  // overrides on milestone rows let PM dial in an even-later date
+                  pushById[p.milestoneId] = overrides[p.milestoneId] ?? p.proposedNewDate;
+                });
+                const pendingMilestones = liveMilestones.map((m) =>
+                  pushById[m.id] ? { ...m, plannedDate: pushById[m.id] } : m
+                );
+                replaceAllMilestones(pendingMilestones, { source: "cascade", note: "task→milestone push" });
+              }
+
               const applied = r.affected.length;
+              const msApplied = includedPushes.length;
               toast.success(
                 `${applied + 1} task${applied === 0 ? "" : "s"} updated`,
-                { description: cascadePreview!.summary.originatorName }
+                {
+                  description: msApplied > 0
+                    ? `${cascadePreview!.summary.originatorName} · ${msApplied} milestone${msApplied === 1 ? "" : "s"} also shifted`
+                    : cascadePreview!.summary.originatorName,
+                }
               );
               setCascadePreview(null);
             }}

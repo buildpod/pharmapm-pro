@@ -253,7 +253,7 @@ describe("scheduling.computeCriticalPath", () => {
   });
 });
 
-import { previewTaskCascade, previewMilestoneToTaskImpact, type TaskScheduleEntry } from "./scheduling";
+import { previewTaskCascade, previewMilestoneToTaskImpact, previewTaskToMilestonePush, type TaskScheduleEntry } from "./scheduling";
 
 describe("scheduling.previewTaskCascade", () => {
   // Linear chain A → B → C. Moving A's due later forces B and C to move.
@@ -318,18 +318,62 @@ describe("scheduling.previewMilestoneToTaskImpact", () => {
 
   it("flags tasks whose due is now after the milestone's new planned date", () => {
     const r = previewMilestoneToTaskImpact(tasks, "m6", "2026-05-15");
-    expect(r.length).toBe(1);
-    expect(r[0].taskId).toBe("t1");
+    expect(r.conflicts.length).toBe(1);
+    expect(r.conflicts[0].taskId).toBe("t1");
   });
 
-  it("does not flag tasks whose due is already before the new date", () => {
+  it("does not flag tasks whose due is already before the new date — but reports slack", () => {
+    // m6 moves to 2026-05-30: both t1 (05-20) and t2 (05-10) now have slack
     const r = previewMilestoneToTaskImpact(tasks, "m6", "2026-05-30");
-    expect(r.length).toBe(0);
+    expect(r.conflicts.length).toBe(0);
+    expect(r.slack.length).toBe(2);
+    expect(r.slack.every((s) => s.slackDays > 0)).toBe(true);
   });
 
   it("scopes to the changed milestone (ignores other milestones)", () => {
     const r = previewMilestoneToTaskImpact(tasks, "m6", "2026-05-15");
-    expect(r.some((w) => w.taskId === "t3")).toBe(false);
+    expect(r.conflicts.some((w) => w.taskId === "t3")).toBe(false);
+    expect(r.slack.some((s) => s.taskId === "t3")).toBe(false);
+  });
+});
+
+describe("scheduling.previewTaskToMilestonePush — M20.3", () => {
+  const milestones: ScheduleMilestone[] = [
+    { id: 6, duration: 1, plannedStart: "2026-05-15", plannedEnd: "2026-05-15", status: "Not Started", lockDate: false },
+    { id: 7, duration: 1, plannedStart: "2026-06-01", plannedEnd: "2026-06-01", status: "Not Started", lockDate: false },
+  ];
+  const msNumToStr = (n: number) => `m${n}`;
+
+  it("proposes pushing a milestone when its linked task moves past it", () => {
+    const cascaded: TaskScheduleEntry[] = [
+      { id: "t1", dueDate: "2026-05-20", milestoneId: "m6" },
+    ];
+    const pushes = previewTaskToMilestonePush(cascaded, milestones, msNumToStr);
+    expect(pushes.length).toBe(1);
+    expect(pushes[0].milestoneId).toBe("m6");
+    expect(pushes[0].proposedNewDate).toBe("2026-05-20");
+    expect(pushes[0].drivenByTaskId).toBe("t1");
+  });
+
+  it("groups by milestone — picks the latest driving task as the binding constraint", () => {
+    const cascaded: TaskScheduleEntry[] = [
+      { id: "t1", dueDate: "2026-05-18", milestoneId: "m6" },
+      { id: "t2", dueDate: "2026-05-22", milestoneId: "m6" }, // binding
+      { id: "t3", dueDate: "2026-05-20", milestoneId: "m6" },
+    ];
+    const pushes = previewTaskToMilestonePush(cascaded, milestones, msNumToStr);
+    expect(pushes.length).toBe(1);
+    expect(pushes[0].proposedNewDate).toBe("2026-05-22");
+    expect(pushes[0].drivenByTaskId).toBe("t2");
+  });
+
+  it("ignores tasks whose due is still on or before the milestone", () => {
+    const cascaded: TaskScheduleEntry[] = [
+      { id: "t1", dueDate: "2026-05-15", milestoneId: "m6" }, // on the date
+      { id: "t2", dueDate: "2026-05-10", milestoneId: "m6" }, // before
+    ];
+    const pushes = previewTaskToMilestonePush(cascaded, milestones, msNumToStr);
+    expect(pushes.length).toBe(0);
   });
 });
 

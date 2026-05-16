@@ -92,7 +92,30 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1, next up is **M21 — Timesheets + derived labour cost (EVM closure)**.
+**Module:** M20.3 — Bidirectional task↔milestone cascade + tone discipline
+**Goal:** Close the cross-entity cascade gap. Today task↔task and milestone↔milestone cascade properly, but task↔milestone only fires a fleeting toast warning. PMs need to see the implied milestone shift when a task slides past it (and vice versa) inside the same impact drawer they already use. Also: codify tone semantics so positive updates ("slack created", "risk resolved") read as info, not alerts — the small quality detail Vineet flagged.
+
+**DoD:**
+- Engine extends `previewTaskCascade` to also return `affectedMilestones[]` when a task's shift pushes its linked milestone past current planned date. The milestone shift propagates onward through `previewCascade` (milestone-to-milestone) which may push other linked tasks → fully transitive.
+- Engine extends `previewCascade` (milestones) to also return `affectedTasks[]` when a milestone moves earlier than its linked tasks' due dates (conflict — task must shift back) AND `slackCreated[]` when a milestone moves later than its linked tasks (info — tasks gain buffer).
+- New `previewUnifiedCascade(state, edit, opts)` orchestrates both engines and returns a single normalised result with three classified sections: `affectedTasks` + `affectedMilestones` (rose/amber by criticality) + `slackCreated` (blue, info).
+- ImpactDrawer renders all three sections in one preview. The selective include/exclude/override controls (M20) apply to both task and milestone rows; slack-created rows are read-only info.
+- For task→milestone cascades, the linked milestone is **default-checked** (included). PM must opt out, per Vineet's confirmed preference for schedule integrity.
+- For milestone→task slack: drawer shows a "Slack created" info section (blue tone). Also fires a single `toast.info` (not warning) on apply: "3 tasks now have +N days slack" — informational, no badge / no alarm.
+- Apply commits all included shifts atomically through the M20.2 store action layer. Audit log records as a single `cascade-apply` action with multi-entity before/after snapshots.
+- Remove the now-redundant `toast.warning` paths for task-due-after-milestone (still trigger inside the drawer when needed — just not as separate toasts on save).
+- Pre-existing inconsistencies surface in the M20.2 Project Health card; the drawer only surfaces what THIS edit changes.
+
+**New §5.3 — Design tokens & tone semantics** added to the operating doc. Codifies: rose = blocking violation; amber = soft conflict (consider); blue = informational / opportunity; emerald = success / resolved; slate = neutral. Applies across toasts, badges, card borders, drawer sections, notification bell items. Future modules reference this.
+
+**Out of scope (deferred):**
+- Document due dates as cascade targets (documents don't have a strict dependency model yet)
+- Risk-realization auto-CR (still M24)
+- Quick-action date buttons in the drawer
+- Animated transitions when recomputing the drawer
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M20.2 Completion summary (2026-05-16)
 
@@ -724,6 +747,31 @@ A new module that **introduces** debt must log the item here. A checkpoint modul
 
 ---
 
+## 5.3 — Design tokens & tone semantics
+
+These are non-negotiable across the app. Vineet codified them in M20.3 after observing that the M14.1 cross-entity warning toasts felt alarming when they should have been informational. Tone is half of perceived quality.
+
+| Tone | Used for | Tailwind base | When to use |
+|---|---|---|---|
+| **rose** | Blocking violation, hard error, missed deadline | `rose-50` bg + `rose-200` border + `rose-700` text | Constraint violation that requires PM action to clear (FS rule break, milestone past go-live, overdue task) |
+| **amber** | Soft conflict, requires consideration | `amber-50` bg + `amber-200` border + `amber-700` text | At-risk milestone, due-soon task, budget approaching threshold |
+| **blue** | Informational, opportunity, awareness | `blue-50` bg + `blue-200` border + `blue-700` text | **Slack created**, schedule headroom found, project ahead of plan, project metadata. **NOT for warnings.** |
+| **emerald** | Success, resolved, on-track | `emerald-50` bg + `emerald-200` border + `emerald-700` text | Task complete, decision approved, milestone met on time, "all clear" empty states |
+| **slate** | Neutral, no signal | `slate-100` / `slate-600` | Default text, draft status, unscheduled items, supporting metadata |
+| **violet/indigo/primary** | Active selection, in-progress, primary action | `primary` token (deep indigo) | Active project, in-progress status, primary CTA buttons |
+
+Apply consistently across:
+- **Sonner toasts** — `toast.error` (rose), `toast.warning` (amber), `toast.info` (blue), `toast.success` (emerald). Never use `toast.warning` for opportunity information; never use `toast.success` for actions that succeeded-but-left-a-problem.
+- **Card borders + section fills** — rose for violations, blue for info-summary boxes, emerald for "no issues" empty states.
+- **Badge pills** — colour matches the status semantics, not the entity type.
+- **Drawer sections** — Impact / Warnings / Info each get a tone-classified header.
+- **Notification bell** — info items get a blue dot (not red); only blocking issues drive the red count.
+- **Project Health card** — high severity = rose, medium = amber, low = slate (NOT rose).
+
+Avoid mixing tones in a single message. If a save succeeded but left a problem, the surface is the impact drawer (which can show both the change you made AND the issue that needs attention) — not two competing toasts.
+
+---
+
 ## 6 — Known issues being managed
 
 | Issue | Mitigation |
@@ -759,6 +807,44 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-16 → 2026-05-17 (M20.3 — bidirectional cascade + tone discipline)
+
+**Strategic context:**
+After dogfooding M20, Vineet flagged that cascade UX still didn't feel "quality": competing toasts ("Task updated" success + "Task due after its milestone" amber warning) on the same action read as illogical, and the cascade was one-directional — editing a task that pushed past its linked milestone showed only a fleeting toast instead of surfacing the implied milestone shift in the same impact drawer. Vineet quote: *"these are minor things but really differentiate from quality to cheap product"*. Confirmed two design calls before coding: (Q1) milestone-shift proposals default-CHECKED in the task drawer because schedule integrity beats opt-in convenience; (Q2) when a milestone moving later creates slack on linked tasks, surface as blue/info toast (not amber alert) — informational, not alarming.
+
+**Built M20.3:**
+- **Engine — `lib/domain/scheduling.ts`:**
+  - Changed `previewMilestoneToTaskImpact()` return shape from a flat `Warning[]` to `{ conflicts: MilestoneToTaskWarning[], slack: MilestoneToTaskSlackInfo[] }`. Conflicts (task due > new milestone date) are the existing rose path. Slack (task due < new milestone date) is new — computes working-day headroom via `addWorkingDays` cursor walk.
+  - Added `previewTaskToMilestonePush(cascadedTasks, milestones, msIdToString)` — task→milestone propagation. Groups proposals by milestone with the binding constraint task (latest due) driving the push. Computes `daysShifted` via `daysBetween`.
+- **ImpactDrawer — `components/ui/impact-drawer.tsx`:**
+  - New `info` section kind (blue tone, read-only, no checkbox/no editable date) for slack-gained rows. Each row shows `taskDue → milestoneNewDate` plus a `+Nd slack` badge. Totals strip gained a "N slack gain(s)" blue pill.
+  - Empty-state check now requires `totalShifts === 0 && totalWarnings === 0 && totalInfo === 0`.
+- **Milestones grid — `components/milestones/milestones-grid.tsx`:**
+  - `CascadePreviewState` now carries `slackInfo`. Drawer recompute returns three sections: milestones (existing), warnings (existing — conflicts), info (new — slack created).
+  - When edit has no downstream impact at all but does create slack, the no-drawer path fires a single `toast.info` (not warning) with the slack summary.
+  - On apply, if slack was created, also fires the informational toast as a positive nudge.
+- **Tasks grid — `components/tasks/tasks-grid.tsx`:**
+  - Subscribes to live `milestones` and `replaceAllMilestones` from the store. Drawer's recompute now also runs `previewTaskToMilestonePush(r.tasks, scheduleMilestones, msNumToStr)` and renders proposed milestone shifts as a `milestones` section (default-checked, exclude-able, override-able).
+  - Cascade-trigger condition extended: drawer opens when `affected.length > 0 || msPushProbe.length > 0` so a task pushing past its milestone with no downstream tasks still surfaces the milestone proposal.
+  - Apply commits both `replaceAllTasks` and (when milestone pushes are included) `replaceAllMilestones`. Success toast describes both: "5 tasks updated · 1 milestone also shifted".
+- **Tone cleanup — `components/tasks/task-form.tsx`:** removed the redundant `toast.warning("Task due after its milestone")`. The cascade drawer now owns that signal inline.
+- **Tests:** existing `previewMilestoneToTaskImpact` cases adapted to the new `{ conflicts, slack }` shape. Added 3 new cases for `previewTaskToMilestonePush` — single proposal, group-by-milestone with binding constraint, ignore on-or-before tasks. 70 → 73 tests pass.
+- Build clean, 15 static pages, `/tasks` 7.14 → 7.23 kB, `/milestones` 11.5 kB (unchanged).
+
+**Decided:**
+- **Default-checked milestone shifts in the task drawer** — Vineet Q1 confirmation. PMs deal with integrity-breaking changes by default; opt-out is explicit. Matches PMBOK §4.6 Integrated Change Control philosophy.
+- **Slack-created is info-only, not selectable** — read-only in the drawer (no checkbox, no editable date). It's not a proposed change; it's a status report. Blue tone per §5.3.
+- **Engine return shape changed (breaking)** — `previewMilestoneToTaskImpact` now returns an object, not an array. Only one call site outside tests; updated cleanly. Worth the API clarity over additive-only evolution.
+- **Live store reads in tasks-grid for milestones** — the old `import { milestones }` from mockData was stale for the cascade probe. Now uses `useEntityStore((s) => s.milestones)` so the drawer sees what the user actually has.
+
+**Status:** ready for Vineet to dogfood (M20.2 confirm-before-commit protocol). Not committed yet.
+
+**Pending verify:**
+- Walk through: edit a task to push past linked milestone → drawer opens showing both downstream tasks AND the proposed milestone shift (default checked). Apply both. Audit log captures `cascade` actions.
+- Walk through: edit a milestone earlier → drawer opens with task conflict warnings. Apply.
+- Walk through: edit a milestone later (creates slack) → if no downstream milestone shifts, single blue toast "N tasks gained slack". If there are downstream shifts, drawer shows slack section in blue at bottom.
+- Walk through: edit a task earlier (no impact) → directly saves, no drawer.
 
 ### Session — 2026-05-16 (Competitive check + M20.2 — architectural pre-flight)
 

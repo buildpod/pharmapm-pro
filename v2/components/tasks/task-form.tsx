@@ -90,15 +90,8 @@ export function TaskFormDrawer({
       });
     }
 
-    // Soft warnings — don't block save, just nudge
-    if (milestoneId) {
-      const ms = allMilestones.find((m) => m.id === milestoneId);
-      if (ms && dueDate > ms.plannedDate) {
-        toast.warning("Task due after its milestone", {
-          description: `${ms.name} is planned for ${ms.plannedDate}`,
-        });
-      }
-    }
+    // M20.3 — removed the "Task due after its milestone" toast.warning;
+    // the cascade drawer now shows the linked-milestone push proposal inline.
     if (dependsOn.length > 0) {
       const laterDeps = dependsOn
         .map((id) => allTasks.find((t) => t.id === id))

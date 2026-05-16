@@ -119,6 +119,7 @@ interface CascadePreviewState {
   newPlannedDate: string;    // the user's edit
   summary: ImpactSummary;
   taskWarnings: { taskId: string; taskName?: string; taskDue: string; milestoneNewDate: string }[];
+  slackInfo:    { taskId: string; taskName?: string; taskDue: string; milestoneNewDate: string; slackDays: number }[]; // M20.3
   criticalIds: Set<number>;
 }
 
@@ -279,20 +280,33 @@ export function MilestonesGrid() {
         id: t.id, name: t.name, dueDate: t.dueDate,
         dependsOn: t.dependsOn, milestoneId: t.milestoneId,
       }));
-    const taskWarnings = previewMilestoneToTaskImpact(projectTasksForCheck, id, newDate);
+    // M20.3: cross-entity returns both conflicts (rose, action) AND slack (blue, info).
+    const taskImpact = previewMilestoneToTaskImpact(
+      projectTasksForCheck, id, newDate, workingDays, holidays
+    );
+    const taskWarnings = taskImpact.conflicts;
+    const slackInfo = taskImpact.slack;
 
     const daysShifted = Math.ceil(
       (new Date(newDate).getTime() - new Date(original.plannedDate).getTime()) / 86_400_000
     );
 
-    if (probe.affected.length === 0 && taskWarnings.length === 0) {
+    if (probe.affected.length === 0 && taskWarnings.length === 0 && slackInfo.length === 0) {
       // No downstream impact — apply directly
       const result = cascade(
         domainMilestones.map((sm) => sm.id === numId ? { ...sm, plannedEnd: newDate } : sm),
         workingDays, holidays
       );
       replaceAllMilestones(applyDomainResult(milestones, result.milestones), { source: "cascade", note: "date edit, no downstream impact" });
-      toast.success("Date updated", { description: original.name });
+      // M20.3: emit info toast about slack gained, if any (positive nudge, not alarm)
+      if (slackInfo.length > 0) {
+        const total = slackInfo.reduce((s, x) => s + x.slackDays, 0);
+        toast.info(`${slackInfo.length} task${(slackInfo.length as number) === 1 ? "" : "s"} gained slack`, {
+          description: `${total} working day${total === 1 ? "" : "s"} of headroom — reallocate if useful`,
+        });
+      } else {
+        toast.success("Date updated", { description: original.name });
+      }
       return;
     }
 
@@ -301,6 +315,7 @@ export function MilestonesGrid() {
       editedId: id,
       newPlannedDate: newDate,
       taskWarnings,
+      slackInfo,
       criticalIds: cp.criticalIds,
       summary: {
         originatorKind: "milestone",
@@ -659,7 +674,17 @@ export function MilestonesGrid() {
                   message: `Task due ${w.taskDue} is after milestone's new ${w.milestoneNewDate}. Review the task's due date.`,
                 })),
               };
-              return { sections: [milestonesSection, warningsSection] };
+              // M20.3 — slack created for linked tasks (info-only, blue tone)
+              const infoSection: ImpactSection = {
+                kind: "info",
+                title: "Linked tasks gain slack",
+                rows: cascadePreview!.slackInfo.map((s) => ({
+                  id: s.taskId, name: s.taskName,
+                  oldDate: s.taskDue, newDate: s.milestoneNewDate,
+                  slackDays: s.slackDays,
+                })),
+              };
+              return { sections: [milestonesSection, warningsSection, infoSection] };
             }}
             onApply={(excludeIds, overrides) => {
               const r = runMilestoneCascade(excludeIds, overrides);
@@ -689,6 +714,14 @@ export function MilestonesGrid() {
                 `${count} milestone${count === 1 ? "" : "s"} shifted`,
                 { description: cascadePreview!.summary.originatorName }
               );
+              // M20.3 — positive info nudge if linked tasks gained slack
+              if (cascadePreview!.slackInfo.length > 0) {
+                const total = cascadePreview!.slackInfo.reduce((s, x) => s + x.slackDays, 0);
+                toast.info(
+                  `${cascadePreview!.slackInfo.length} task${(cascadePreview!.slackInfo.length as number) === 1 ? "" : "s"} gained slack`,
+                  { description: `${total} working day${total === 1 ? "" : "s"} of headroom — reallocate if useful` }
+                );
+              }
               setCascadePreview(null);
             }}
             onCancel={() => setCascadePreview(null)}

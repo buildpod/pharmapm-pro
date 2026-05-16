@@ -92,7 +92,21 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** _none — awaiting next goal._ Per §5.1 plan, next up is **M19 — Clean project export workbook**.
+
+### M18 Completion summary (2026-05-16)
+
 **Module:** M18 — Universal cascade-impact panel (task-level + cross-entity)
+**Status:** ✅ Complete (commit `aa2544d`)
+**Outcome:**
+- `lib/domain/scheduling.ts` gained `previewTaskCascade(tasks, edit, workingDays?, holidays?)` — forward-walks the `dependsOn` reverse-index from the edited task; enforces `dueDate >= max(dep.due) + 1 working day`; cycle-defensive
+- `previewMilestoneToTaskImpact(tasks, milestoneId, newPlannedDate)` — cross-entity soft warning when a moving milestone leaves its linked tasks ending after it
+- 7 new Vitest cases (linear chain, branching, no-shift-on-earlier, cycle defense, cross-entity flagging, scoping). 51 → 58 tests pass
+- New `<ImpactDrawer>` component — right-anchored drawer that replaces M4B's `CascadePreviewDialog`. Shows originating change summary at the top, sectioned body (Milestones, Tasks, Warnings) with CP badge on critical-path rows, totals strip, Apply/Cancel footer
+- Milestones grid: edit a planned date → drawer opens with milestone cascade **plus** any tasks linked to that milestone that now end after its new date. Apply commits both
+- Tasks grid: save a task with a later due date → drawer opens with the full downstream task cascade. Apply commits the entire chain
+- New tasks, earlier-due edits, and edits with no impact skip the drawer entirely
+- Build clean — `/milestones` 12.1 → 8.19 kB (CascadePreviewDialog dropped); `/tasks` 6.45 → 6.65 kB
 **Goal:** Today only milestone-to-milestone cascade has a preview modal (M4B). Tasks have no schedule cascade at all — `dependsOn` is just a visual tag. Cross-entity is missing entirely — moving milestone m6 doesn't flag tasks linked to it. Vineet flagged this as the biggest gap during the 2026-05-16 dogfood. PMBOK §4.6 (Integrated Change Control) and Theory-of-Constraints both require "no schedule change without impact assessment first."
 
 **DoD:**
@@ -572,6 +586,50 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-16 (Strategic alignment + M18 — universal cascade-impact panel)
+
+**Strategic alignment session before code:**
+
+Vineet brought four big ideas and asked me to evaluate against PM principles before scoping any of them as modules:
+1. **Clean multi-sheet Excel export** (project plan + Gantt + documents with RACI) — recurring SteerCo / handover artifact
+2. **Auto-generated timesheets** from tasks + meetings − absences, with `hourlyRate` per resource, AND token-cost calculation for AI-agent team members
+3. **Scope-creep / change-request workflow** with impact assessment on the iron triangle, configurable CCB approval levels, audit trail — also unplanned risk realization
+4. **Cascading impact visibility** — bigger gap than originally thought; tasks have no cascade at all, milestone→task is invisible
+
+Mapped each to mature PM frameworks (PMBOK §4.6 Integrated Change Control, PRINCE2 Issue Management, ICH Q9 QRM for pharma, Theory of Constraints / Critical Chain Method, Earned Value Management). Proposed revised §5.1 sequence:
+
+| # | Module | Reason for order |
+|---|---|---|
+| M18 | Universal cascade-impact panel | Daily use, biggest current gap |
+| M19 | Clean project export workbook | Periodic use, ships value quickly |
+| M20 | Timesheets / derived labour cost | Closes EVM loop |
+| M21 | AI-agent team-member type + token cost | Differentiator narrative |
+| M22 | Change Request entity + impact workflow | Implements PMBOK §4.6 |
+| M23 | Configurable CCB + risk-realization auto-CR | Completes change-control story |
+
+Original M18 (CSV import + templates) and prior M19/M20 (comments, exec commentary) demoted to the §5.1 "Deferred" list — useful but lower urgency than the cascade/export/EVM/change-control track.
+
+**Built M18 (commit `aa2544d`):**
+
+- `lib/domain/scheduling.ts` — added `previewTaskCascade()` (forward walk through `dependsOn` reverse-index, cycle-defensive, respects workingDays + holidays) and `previewMilestoneToTaskImpact()` (cross-entity warning when a milestone moves past its linked tasks' due dates)
+- 7 new Vitest cases — linear, branching, cycle defense, cross-entity flagging, scoping. 51 → 58 tests, all pass
+- New `<ImpactDrawer>` (`components/ui/impact-drawer.tsx`) — universal right-anchored drawer replacing the M4B `CascadePreviewDialog`. Originating-change summary at the top (before→after + delta days), sectioned body (Milestones / Tasks / Warnings) with CP badge on critical-path rows, totals strip, Apply/Cancel footer
+- `milestones-grid.tsx` — `CascadePreviewDialog` deleted; `handlePlannedDateChange` extended to read persisted tasks, compute cross-entity warnings, and compute CP id set so drawer can flag critical-path rows; Sonner toast on Apply with milestone count
+- `tasks-grid.tsx` — cascade preview fires only when save moves dueDate later; new tasks, earlier-due edits, and zero-impact edits skip the drawer
+
+**Decided:**
+- Soft flag (warning) for task→milestone rather than auto-shift, because task-milestone is a logical/rollup link not a strict FS precedence
+- Task cascade only fires on later-than dueDate edits — earlier dates don't push anything downstream
+- Persisted task state read via direct localStorage call from milestones-grid (matches M16.1 + M17 pattern) — avoids prop drilling
+- Cross-entity warnings appear as a separate `<Section>` with rose styling in the drawer; doesn't block Apply (PM may want to manage tasks separately)
+- ImpactDrawer is a fresh component rather than extending EntityDrawer — different semantics (preview-vs-apply rather than form), different sections, simpler to keep them separate
+
+**Built:** Edit milestone m6's planned date by a few days → ImpactDrawer opens showing downstream milestones shifting + any linked tasks flagged. Save a task with a later due date → drawer shows the dependency chain rippling. Build clean, 15 static pages.
+
+**Next session goal:** M19 — Clean project export workbook (8 sheets: Summary / Gantt / Milestones / Tasks / Documents / Risks / Costs / Resources + Meetings) using `xlsx-js-style` for the Gantt cell colouring.
+
+---
 
 ### Session — 2026-05-13 (M16.1 — persistence + bell + M17 — search + My Items + owner-me)
 

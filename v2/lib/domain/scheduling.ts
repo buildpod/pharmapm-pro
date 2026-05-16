@@ -442,6 +442,41 @@ export interface TaskCascadeResult {
   error: string | null;
 }
 
+// Topological sort for tasks with dependsOn[] adjacency.
+// Returns sorted = null if there's a cycle. Used by previewTaskCascade to
+// guarantee single-pass correctness and reject invalid data shapes.
+export function topoSortTasks(
+  tasks: TaskScheduleEntry[]
+): { sorted: string[] | null; hasCycle: boolean; cyclePath?: string[] } {
+  const inDegree: Record<string, number> = {};
+  const outEdges: Record<string, string[]> = {};
+  tasks.forEach((t) => { inDegree[t.id] = 0; outEdges[t.id] = []; });
+  tasks.forEach((t) => {
+    (t.dependsOn ?? []).forEach((dep) => {
+      if (outEdges[dep] !== undefined && inDegree[t.id] !== undefined) {
+        outEdges[dep].push(t.id);
+        inDegree[t.id]++;
+      }
+    });
+  });
+  const queue: string[] = [];
+  Object.keys(inDegree).forEach((id) => { if (inDegree[id] === 0) queue.push(id); });
+  const sorted: string[] = [];
+  while (queue.length) {
+    const n = queue.shift()!;
+    sorted.push(n);
+    outEdges[n].forEach((succ) => {
+      inDegree[succ]--;
+      if (inDegree[succ] === 0) queue.push(succ);
+    });
+  }
+  if (sorted.length === tasks.length) return { sorted, hasCycle: false };
+
+  // Surface the cycle's tasks (those still with in-degree > 0) for the UI
+  const cyclePath = Object.keys(inDegree).filter((id) => inDegree[id] > 0);
+  return { sorted: null, hasCycle: true, cyclePath };
+}
+
 export function previewTaskCascade(
   tasks: TaskScheduleEntry[],
   edit: TaskCascadeEdit,
@@ -458,83 +493,77 @@ export function previewTaskCascade(
   const excludeIds  = opts.excludeIds  ?? new Set<string>();
   const overrides   = opts.overrides   ?? {};
 
-  // Reverse index: taskId → tasks that depend on it
-  const dependents: Record<string, string[]> = {};
-  tasks.forEach((t) => {
-    (t.dependsOn ?? []).forEach((dep) => {
-      (dependents[dep] ||= []).push(t.id);
-    });
-  });
+  // M20.1: topo-sort first. Cycles are surfaced as errors rather than
+  // producing wrong results via a runaway BFS.
+  const topo = topoSortTasks(tasks);
+  if (!topo.sorted) {
+    return {
+      tasks: tasks.slice(),
+      affected: [],
+      error: `Dependency cycle detected — cannot cascade. Tasks involved: ${(topo.cyclePath ?? []).map((id) => id.toUpperCase()).join(" → ")}`,
+    };
+  }
 
-  // Clone tasks so we don't mutate input
+  // Clone tasks (no input mutation)
   const byId: Record<string, TaskScheduleEntry> = {};
   tasks.forEach((t) => { byId[t.id] = { ...t }; });
 
   if (!byId[edit.id]) {
-    return { tasks, affected: [], error: "Edited task not found" };
+    return { tasks: tasks.slice(), affected: [], error: "Edited task not found" };
   }
 
-  // Apply the original edit
-  const oldEditedDue = byId[edit.id].dueDate;
+  // Snapshot originals for the diff at the end
+  const originalDates: Record<string, string> = {};
+  tasks.forEach((t) => { originalDates[t.id] = t.dueDate; });
+
+  // Apply the user's edit
   byId[edit.id].dueDate = edit.newDueDate;
 
-  const affected: TaskCascadeResult["affected"] = [];
-  const visited = new Set<string>();
-  const queue: string[] = [edit.id];
-  let guard = 0;
+  // Single pass in topological order. Each task sees its upstreams' final
+  // (possibly shifted) dates because they're processed first.
+  for (const id of topo.sorted) {
+    if (id === edit.id) continue;
+    const t = byId[id];
 
-  while (queue.length > 0) {
-    if (guard++ > 10_000) {
-      return { tasks: Object.values(byId), affected, error: "Cascade overflow (possible cycle)" };
+    // Excluded → keep its original date and don't propagate effects from it
+    if (excludeIds.has(id)) continue;
+
+    // Override → use the manual value, regardless of what the engine would suggest
+    const overrideDate = overrides[id];
+    if (overrideDate !== undefined) {
+      t.dueDate = overrideDate;
+      continue;
     }
-    const curId = queue.shift()!;
-    if (visited.has(curId)) continue;
-    visited.add(curId);
 
-    const downstreams = dependents[curId] ?? [];
-    for (const dId of downstreams) {
-      const dep = byId[dId];
-      if (!dep) continue;
+    // Otherwise compute earliest from upstreams and shift if needed
+    const upstreamDates = (t.dependsOn ?? [])
+      .map((depId) => byId[depId]?.dueDate)
+      .filter((d): d is string => !!d);
+    if (upstreamDates.length === 0) continue;
 
-      // M20: if PM explicitly excluded this task, keep its date and don't
-      // propagate from it. Skip without enqueueing — its downstreams won't
-      // see a push from it (only from their other upstreams, if any).
-      if (excludeIds.has(dId)) continue;
-
-      // M20: if PM overrode this task's new date, use that instead of the
-      // engine's computed earliest-allowed. Propagate from the override.
-      const overrideDate = overrides[dId];
-
-      // Required earliest due = max(all of its deps' due) + 1 working day
-      const allDeps = (dep.dependsOn ?? [])
-        .map((id) => byId[id]?.dueDate)
-        .filter((d): d is string => !!d);
-      const computedEarliest = allDeps.length > 0
-        ? addWorkingDays(allDeps.reduce((a, b) => (a > b ? a : b)), 1, workingDays, hols)
-        : null;
-
-      let newDue: string | null = null;
-      if (overrideDate) {
-        newDue = overrideDate;
-      } else if (computedEarliest && compare(dep.dueDate, computedEarliest) < 0) {
-        newDue = computedEarliest;
-      }
-      if (!newDue) continue;
-
-      const oldDue = dep.dueDate;
-      if (newDue === oldDue) continue;
-
-      dep.dueDate = newDue;
-      const days = daysBetween(oldDue, newDue);
-      affected.push({ id: dep.id, name: dep.name, oldDue, newDue, daysShifted: days });
-      queue.push(dId);
+    const latest = upstreamDates.reduce((a, b) => (a > b ? a : b));
+    const earliest = addWorkingDays(latest, 1, workingDays, hols);
+    if (!earliest) continue;
+    if (compare(t.dueDate, earliest) < 0) {
+      t.dueDate = earliest;
     }
   }
 
-  // Include the originating change in the result for the UI to display the
-  // "edit summary" header. (Stored in affected only if it actually shifted;
-  // the originator is always the user's edit, surfaced separately by the UI.)
-  void oldEditedDue;
+  // Diff
+  const affected: TaskCascadeResult["affected"] = [];
+  for (const id of topo.sorted) {
+    if (id === edit.id) continue;
+    const t = byId[id];
+    const original = originalDates[id];
+    if (t.dueDate !== original) {
+      affected.push({
+        id: t.id, name: t.name,
+        oldDue: original, newDue: t.dueDate,
+        daysShifted: daysBetween(original, t.dueDate),
+      });
+    }
+  }
+
   return { tasks: Object.values(byId), affected, error: null };
 }
 
@@ -552,6 +581,52 @@ export interface ConstraintViolation {
   depName?: string;
   depDue: string;
   daysBehind: number; // positive = task is N working days short of dep+1
+}
+
+// M20.1: grouped representation — one entry per violating task with its
+// full list of broken upstreams. Cleaner for the UI than the per-pair shape.
+export interface GroupedViolation {
+  taskId: string;
+  taskName?: string;
+  taskDue: string;
+  brokenDeps: {
+    depId: string;
+    depName?: string;
+    depDue: string;
+    daysBehind: number;
+  }[];
+}
+
+export function groupViolationsByTask(raw: ConstraintViolation[]): GroupedViolation[] {
+  const byTask: Record<string, GroupedViolation> = {};
+  raw.forEach((v) => {
+    const g = byTask[v.taskId] ||= {
+      taskId: v.taskId,
+      taskName: v.taskName,
+      taskDue: v.taskDue,
+      brokenDeps: [],
+    };
+    g.brokenDeps.push({
+      depId: v.depId, depName: v.depName,
+      depDue: v.depDue, daysBehind: v.daysBehind,
+    });
+  });
+  return Object.values(byTask);
+}
+
+// M20.1: returns the violations that are NEW relative to a baseline.
+// Same (taskId, depId) pair = same violation, even if dates changed.
+// Used by the drawer to surface only violations caused by THIS edit/choices.
+export function diffViolations(
+  before: ConstraintViolation[],
+  after: ConstraintViolation[]
+): { newOnes: ConstraintViolation[]; resolved: ConstraintViolation[] } {
+  const beforeKeys = new Set(before.map((b) => `${b.taskId}|${b.depId}`));
+  const afterKeys  = new Set(after.map((a) => `${a.taskId}|${a.depId}`));
+  return {
+    newOnes:  after.filter((a) => !beforeKeys.has(`${a.taskId}|${a.depId}`)),
+    resolved: before.filter((b) => !afterKeys.has(`${b.taskId}|${b.depId}`)),
+  };
 }
 
 export function findConstraintViolations(

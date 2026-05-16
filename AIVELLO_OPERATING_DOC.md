@@ -92,7 +92,28 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** _none — awaiting next goal._ Per §5.1, next up is **M21 — Timesheets + derived labour cost (EVM closure)**.
+**Module:** M20.1 — Cascade UX polish + bug fix
+**Goal:** Address three specific issues Vineet flagged on the 2026-05-16 dogfood of M20:
+1. **Bug**: editing T3 +28d shows "No downstream shifts" even though T4 (which depends on T3) violates against the new date. Either the engine isn't being called with live state, or there's a path issue in the recompute callback.
+2. **Messy violations**: showing one row per (task × broken upstream) creates duplicates. T1 violating against 4 upstreams renders as 4 rows. Should group by violating task with multi-line dep list.
+3. **Pre-existing vs new violations confused**: violations that existed BEFORE the current edit are surfaced as if caused by it. Should distinguish "new violations from this edit/your choices" vs "pre-existing data inconsistencies".
+
+**DoD:**
+- New Vitest case that reproduces the screenshot scenario deterministically (T1 with deps `[t4,t7,t8,t5]`, T4 with deps `[t2,t3]`, T3 moves +28d → must shift T4)
+- Engine bug fixed if present; if engine is correct, fix the UI path so the drawer sees the right data
+- New `groupViolationsByTask()` helper or refactor `findConstraintViolations` output shape to group by violating task with `brokenDeps[]` array per task
+- New parameter on `findConstraintViolations` or a wrapper `diffViolations(before, after)` that returns only NEW violations
+- ImpactDrawer's warnings section shows one row per task with broken-dep list inline; new vs pre-existing visually distinguished (filled rose for new, outlined slate for informational)
+- Builds clean, all 66+ tests pass
+
+**Out of scope (already deferred):**
+- Slack indicator per row
+- Workstream grouping
+- Quick-action date buttons
+- Mini-Gantt preview
+
+**Started:** (this session)
+**Status:** in progress
 
 ### M20 Completion summary (2026-05-16)
 

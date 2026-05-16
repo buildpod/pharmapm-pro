@@ -14,7 +14,10 @@ import { TaskFormDrawer } from "./task-form";
 import { useProject } from "@/components/projects/project-provider";
 import { useLocalStorageState } from "@/lib/useLocalStorageState";
 import { useSettings } from "@/lib/settingsStore";
-import { previewTaskCascade, findConstraintViolations, type TaskScheduleEntry } from "@/lib/domain/scheduling";
+import {
+  previewTaskCascade, findConstraintViolations, groupViolationsByTask, diffViolations,
+  type TaskScheduleEntry,
+} from "@/lib/domain/scheduling";
 import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
 import { cn } from "@/lib/utils";
 
@@ -593,7 +596,7 @@ export function TasksGrid() {
         </div>
       )}
 
-      {/* M20 — Selective cascade impact drawer */}
+      {/* M20.1 — Selective cascade impact drawer (topo cascade + grouped violations + new-vs-existing) */}
       {cascadePreview && (() => {
         // Snapshot tasks at drawer open so recompute is deterministic
         const projTasks = tasks.filter((x) => x.projectId === activeProjectId);
@@ -601,6 +604,12 @@ export function TasksGrid() {
           id: x.id, name: x.name, dueDate: x.dueDate,
           dependsOn: x.dependsOn, milestoneId: x.milestoneId,
         }));
+
+        // Baseline violations exist BEFORE any edit — computed once, used to
+        // diff against post-cascade state so we surface only NEW violations.
+        const baselineViolations = findConstraintViolations(
+          entries, settings.workingDays, settings.holidays
+        );
 
         function runCascade(excludeIds: Set<string>, overrides: Record<string, string>) {
           return previewTaskCascade(entries, cascadePreview!.edit, {
@@ -616,7 +625,18 @@ export function TasksGrid() {
             summary={cascadePreview.summary}
             recompute={(excludeIds, overrides) => {
               const r = runCascade(excludeIds, overrides);
-              // Tasks section (shifts only)
+
+              // Engine error (cycle, missing task) → single warnings row
+              if (r.error) {
+                return {
+                  sections: [{
+                    kind: "warnings",
+                    title: "Cascade engine error",
+                    rows: [{ id: "engine-error", name: undefined, message: r.error }],
+                  }],
+                };
+              }
+
               const tasksSection: ImpactSection = {
                 kind: "tasks",
                 title: "Downstream tasks that will shift",
@@ -626,22 +646,56 @@ export function TasksGrid() {
                   daysShifted: a.daysShifted,
                 })),
               };
-              // Violations against the resulting task list (after cascade applied)
-              const violations = findConstraintViolations(
+
+              // After-state violations, diffed against baseline to show only NEW ones
+              const after = findConstraintViolations(
                 r.tasks, settings.workingDays, settings.holidays
               );
-              const violationsSection: ImpactSection = {
+              const { newOnes, resolved } = diffViolations(baselineViolations, after);
+              const groupedNew = groupViolationsByTask(newOnes);
+
+              const newSection: ImpactSection = {
                 kind: "warnings",
-                title: "Dependency constraints violated by your choices",
-                rows: violations.map((v) => ({
-                  id: v.taskId, name: v.taskName,
-                  message: `Due ${v.taskDue} but upstream ${v.depId.toUpperCase()} is ${v.depDue} (needs +${v.daysBehind} working day${v.daysBehind === 1 ? "" : "s"})`,
+                title: `New constraint violations caused by your choices`,
+                rows: groupedNew.map((g) => ({
+                  id: g.taskId,
+                  name: g.taskName,
+                  message: `Due ${g.taskDue} but upstream${g.brokenDeps.length > 1 ? "s" : ""}: ${g.brokenDeps.map((d) => `${d.depId.toUpperCase()} ${d.depDue}`).join(", ")} (needs +${Math.max(...g.brokenDeps.map((d) => d.daysBehind))} working days)`,
                 })),
               };
-              return { sections: [tasksSection, violationsSection] };
+
+              // Pre-existing violations: informational, collapsed-style. Only show
+              // a small "data health" note if any exist (helps PM understand context
+              // without confusing them about what this edit caused).
+              const groupedExisting = groupViolationsByTask(
+                baselineViolations.filter((b) =>
+                  !resolved.some((r) => r.taskId === b.taskId && r.depId === b.depId)
+                )
+              );
+              const existingSection: ImpactSection | null = groupedExisting.length > 0 ? {
+                kind: "warnings",
+                title: `Pre-existing data inconsistencies (not caused by this edit)`,
+                rows: groupedExisting.map((g) => ({
+                  id: `pre-${g.taskId}`,
+                  name: g.taskName,
+                  message: `${g.taskId.toUpperCase()} due ${g.taskDue} but ${g.brokenDeps.length} upstream${g.brokenDeps.length === 1 ? "" : "s"} scheduled later — review the task's dependencies`,
+                })),
+              } : null;
+
+              return {
+                sections: [
+                  tasksSection,
+                  newSection,
+                  ...(existingSection ? [existingSection] : []),
+                ],
+              };
             }}
             onApply={(excludeIds, overrides) => {
               const r = runCascade(excludeIds, overrides);
+              if (r.error) {
+                toast.error("Cannot apply cascade", { description: r.error });
+                return;
+              }
               const shiftedById: Record<string, string> = {};
               r.affected.forEach((a) => { shiftedById[a.id] = a.newDue; });
               const pendingTasks = tasks.map((x) => {

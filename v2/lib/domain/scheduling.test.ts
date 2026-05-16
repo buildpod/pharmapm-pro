@@ -333,7 +333,7 @@ describe("scheduling.previewMilestoneToTaskImpact", () => {
   });
 });
 
-import { findConstraintViolations } from "./scheduling";
+import { findConstraintViolations, topoSortTasks } from "./scheduling";
 
 describe("scheduling.previewTaskCascade — M20 selective cascade", () => {
   // Linear chain A → B → C. Default behaviour: A shifts → B + C both shift.
@@ -449,5 +449,65 @@ describe("scheduling.previewCascade — M20 milestone selective cascade", () => 
     expect(r.error).toBeNull();
     expect(r.affected.find((a) => a.id === 2)).toBeUndefined();
     expect(r.affected.find((a) => a.id === 3)).toBeUndefined();
+  });
+});
+
+describe("scheduling.previewTaskCascade — M20.1 (topo + cycle detection)", () => {
+  // Mirrors the dogfood screenshot: the user manually set T1.dependsOn to
+  // [T4,T7,T8,T5], creating a cycle (T1 → T2,T3 → T4 → T1). The M20 BFS
+  // engine ran through the cycle producing wrong results ("No downstream
+  // shifts"). M20.1 detects the cycle and errors out cleanly so the UI
+  // can show a clear message.
+  const dogfoodTasksWithCycle: TaskScheduleEntry[] = [
+    { id: "t1", name: "Set up user roles",     dueDate: "2026-05-22", dependsOn: ["t4", "t7", "t8", "t5"] },
+    { id: "t2", name: "Configure workspace",   dueDate: "2026-05-30", dependsOn: ["t1"] },
+    { id: "t3", name: "Set up workflow rules", dueDate: "2026-05-30", dependsOn: ["t1"] },
+    { id: "t4", name: "Document templates",    dueDate: "2026-06-02", dependsOn: ["t2", "t3"] },
+    { id: "t5", name: "Draft IQ protocol",     dueDate: "2026-06-15", dependsOn: ["t1"] },
+    { id: "t6", name: "Prepare OQ scripts",    dueDate: "2026-07-01", dependsOn: ["t5"] },
+    { id: "t7", name: "UAT traceability",      dueDate: "2026-07-20", dependsOn: ["t6"] },
+    { id: "t8", name: "Validation summary",    dueDate: "2026-08-15", dependsOn: ["t7"] },
+  ];
+
+  it("dogfood data has a cycle and the engine returns an error", () => {
+    const r = previewTaskCascade(dogfoodTasksWithCycle, { id: "t3", newDueDate: "2026-06-27" });
+    expect(r.error).not.toBeNull();
+    expect(r.error).toMatch(/cycle/i);
+    expect(r.affected.length).toBe(0);
+  });
+
+  it("after breaking the cycle (T1 with no forward deps), T3 +28d shifts T4 properly", () => {
+    const clean = dogfoodTasksWithCycle.map((t) =>
+      t.id === "t1" ? { ...t, dependsOn: undefined } : t
+    );
+    const r = previewTaskCascade(clean, { id: "t3", newDueDate: "2026-06-27" });
+    expect(r.error).toBeNull();
+    const t4 = r.affected.find((a) => a.id === "t4");
+    expect(t4).toBeDefined();
+    expect(t4!.newDue).toBe("2026-06-29"); // next Monday after Sat Jun 27
+  });
+});
+
+describe("scheduling.topoSortTasks", () => {
+  it("linear chain sorts correctly", () => {
+    const tasks: TaskScheduleEntry[] = [
+      { id: "a", dueDate: "2026-01-01" },
+      { id: "b", dueDate: "2026-01-02", dependsOn: ["a"] },
+      { id: "c", dueDate: "2026-01-03", dependsOn: ["b"] },
+    ];
+    const r = topoSortTasks(tasks);
+    expect(r.sorted).toEqual(["a", "b", "c"]);
+    expect(r.hasCycle).toBe(false);
+  });
+
+  it("detects 2-task cycle", () => {
+    const tasks: TaskScheduleEntry[] = [
+      { id: "a", dueDate: "2026-01-01", dependsOn: ["b"] },
+      { id: "b", dueDate: "2026-01-02", dependsOn: ["a"] },
+    ];
+    const r = topoSortTasks(tasks);
+    expect(r.sorted).toBeNull();
+    expect(r.hasCycle).toBe(true);
+    expect(r.cyclePath?.sort()).toEqual(["a", "b"]);
   });
 });

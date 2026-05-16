@@ -92,7 +92,22 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** _none — awaiting next goal._ Per §5.1, next up is **M21 — Timesheets + derived labour cost (EVM closure)**.
+
+### M20.2 Completion summary (2026-05-16)
+
 **Module:** M20.2 — Architectural pre-flight refactor
+**Status:** ✅ Complete (commit `86b2a2a`)
+**Outcome:**
+- **Central entity store (Zustand)** at `lib/stores/entity-store.ts` — single source of truth for 8 entity types with add/update/delete/replaceAll per type. All 8 grids migrated from `useLocalStorageState` to store reads + action dispatches.
+- **Audit log infrastructure** at `lib/stores/audit.ts` — every mutation flows through `buildAction()` + `appendAudit()`. Per-project log capped at 500 actions, persisted to localStorage. Foundation for undo, M23 Change Request audit trail, future "what changed today" feeds.
+- **`EntityRepository<T>` interface** at `lib/repositories/entity-repository.ts` — store talks to repositories via composition. `LocalStorageRepository` today; `InMemoryRepository` for tests; `SupabaseRepository` becomes a one-file swap for Path C.
+- **Cross-entity validator** at `lib/validation/project-validator.ts` — 5 rules covering milestone-after-go-live, task-after-milestone, cost-over-budget, doc-in-review-without-reviewers, risk-without-owner. Returns `{ healthScore, issues, totalsBy }`.
+- **Project Health card on dashboard** — user-visible payoff. Shows score, severity counts, top 5 issues with click-through.
+- **Hydration triggered in `app/(app)/layout.tsx`** via tiny `<EntityStoreHydrator>` client component.
+- Operating doc §5.2 (Tech-debt index) added — live ledger reviewed at every checkpoint.
+- Operating doc §9.9 (Periodic checkpoint rule) added — after every 4 feature modules, the next slot is a checkpoint session (tests + competitive scan + tech-debt review).
+- Build clean. 70/70 tests pass. Bundle sizes within budget; some routes shrunk (Resources 12.4 → 10.5 kB, Costs 6.45 → 4.63 kB, Risks 7.01 → 5.26 kB) because store-driven state is leaner than per-component state + localStorage hooks.
 **Goal:** Before adding more feature modules (M21+), put the four foundations in place that the remaining roadmap depends on. The cost is one session now; the benefit is patch-safe future work and a clean Path C transition.
 
 **DoD:**
@@ -744,6 +759,37 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-16 (Competitive check + M20.2 — architectural pre-flight)
+
+**Strategic context:**
+Vineet asked for a competitive check against Monday/Smartsheet/Asana/Linear/MS Project/Jira to confirm we're on track before more feature work, plus an architectural look at how easily we'd patch in the future. Did the scorecard honestly: we already beat the mid-market on cascade engine + RACI + resources + SteerCo pre-brief, trail enterprise on PMBOK breadth (Charter / WBS / RAID / EVM / Closure / Quality). Found four real architectural debt items that would compound through M21–M27. Proposed M20.2 as a focused pre-flight refactor before continuing — Vineet agreed and asked to bake periodic checks in as a discipline.
+
+**Built M20.2 (commit `86b2a2a`):**
+- Installed `zustand` 5.0.13 (~5 KB). Created `lib/stores/entity-store.ts` — central store with one slice per entity type (8 total: milestones / tasks / risks / documents / costLines / teamMembers / meetings / absences). Each slice exposes `addX` / `updateX` / `deleteX` / `replaceAllX` actions. Hydration loads persisted state on mount.
+- Created `lib/stores/audit.ts` — `buildAction()` + `appendAudit()`. Every mutation records `{ id, type, entityKind, entityId, before, after, source, projectId, timestamp, note }` to a per-project audit log capped at 500 actions.
+- Created `lib/repositories/entity-repository.ts` — `EntityRepository<T>` interface with `LocalStorageRepository<T>` and `InMemoryRepository<T>` implementations. Store composes repositories.
+- Created `lib/validation/project-validator.ts` — `validateProjectState({...})` returns `{ healthScore (0–100), issues[], totalsBy }`. 5 cross-entity rules. Health score is weighted deduction.
+- Created `components/dashboard/project-health.tsx` — user-visible payoff. Displays score, severity chips, top 5 issues with click-through.
+- Created `components/stores/entity-store-hydrator.tsx` — one-time hydration trigger inserted in `app/(app)/layout.tsx`.
+- Migrated all 8 grids from `useLocalStorageState` to store. Each setX-style call became a dispatch (`addX`, `updateX`, `deleteX`, `replaceAllX`). Toasts kept inline as before. Store-action `source` and `note` fields used to label each action in the audit log (`user-edit`, `user-inline`, `cascade`, `system`).
+- Added `§5.2 Tech-debt index` to operating doc — live ledger of debt items + severity + origin + proposed clearance. Four items cleared this session, four flagged for follow-up (CommandPalette / NotificationBell / /my-items / exporter still read raw localStorage; they see the same data the store writes but aren't reactive subscribers).
+- Added `§9.9 Periodic architectural checkpoint` anti-drift rule — every 4 feature modules trigger a checkpoint session (tests + competitive scan + tech-debt review). Counted from M21 onward.
+
+**Decided:**
+- **Zustand over Context + reducer** — Zustand is ~5 KB, has the right action+selector ergonomics, doesn't force a Context boundary, and has middleware pattern for future devtools / persistence variants. Anti-drift §9.2 doesn't reject this; it's a new library not a contradicting decision.
+- **One store with 8 slices** rather than 8 separate stores — simpler hydration, simpler audit log (one dispatcher), simpler validation (one snapshot of project state).
+- **Helpers (`runAdd`, `runUpdate`, `runDelete`, `runReplaceAll`) factor out the audit + persist + state pattern** so each entity type's actions are one line each. ~250 lines store, mostly boilerplate-eliminated.
+- **Repository pattern instead of just localStorage in the store** — adds one indirection but the Path C swap becomes trivial. Cost: marginal. Benefit: large when it lands.
+- **Project Health card uses live store reads** with useMemo for the validation pass — runs cheaply (~5ms) on every render, no stale data risk.
+- **Other surfaces (CommandPalette, NotificationBell, /my-items, exporter) NOT migrated this session** — they still work because they read the same localStorage keys the store writes. Their staleness window is bounded by the next render. Logged as M20.3 candidates in §5.2.
+- **Periodic checkpoint cadence (§9.9) every 4 modules** — gives the discipline without overburdening every session. M25 will be the inaugural counted checkpoint.
+
+**Built:** Switch projects, edit a task, watch the Project Health card update reactively. Inspect localStorage and see `aivello_audit_v1_proj-veeva-rim` populating with action entries. Cycle a task status — note the source is `user-inline`. Save a milestone — source `user-edit`. Apply a cascade — source `cascade`. Build clean, 70/70 tests pass, bundles shrunk on 3 routes from leaner state management.
+
+**Next session goal:** M21 — Timesheets + derived labour cost. Now built on a clean store + audit log + repository foundation.
+
+---
 
 ### Session — 2026-05-16 (M20.1 — cascade UX polish + bug fix)
 

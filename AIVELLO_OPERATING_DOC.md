@@ -92,7 +92,21 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** _none — awaiting next goal._ Per §5.1, next up is **M21 — Timesheets + derived labour cost (EVM closure)**.
+
+### M20 Completion summary (2026-05-16)
+
 **Module:** M20 — Selective cascade with re-preview
+**Status:** ✅ Complete (commit `5f70f3c`)
+**Outcome:**
+- `lib/domain/scheduling.ts`: extended `previewTaskCascade()` and `previewCascade()` to accept `CascadeOpts { excludeIds, overrides, workingDays, holidays }`. Back-compat preserved via overloaded signatures. Excluded tasks/milestones keep their dates and don't propagate; overrides use the manual date as propagation root. Milestone exclusions use existing `lockDate: true` mechanism.
+- New `findConstraintViolations()` helper — flags any FS-rule breaks after exclusions/overrides; returns objects with `taskId`, `depId`, `taskDue`, `depDue`, `daysBehind`.
+- 8 new Vitest cases — exclude stops propagation, override changes propagation root, override+exclude combined, branching exclusion, single/no/multi-dep violation cases, milestone-side selective cascade. 58 → 66 tests pass.
+- `<ImpactDrawer>` rewritten as stateful: holds `excludeIds: Set<string>` + `overrides: Record<string, string>`. Parent provides a `recompute(excludeIds, overrides)` callback called on every toggle/edit; drawer re-renders sections.
+- Per-row controls: checkbox (default checked = included) and editable `<input type="date">` (default = engine's suggested date; edits create an override). Overridden rows show a blue border + "↺ revert" link.
+- Totals strip shows "N of M shifts included · K violations · P overrides". Apply button label updates live.
+- Both `tasks-grid.tsx` and `milestones-grid.tsx` updated. `onApply` re-runs the engine with final opts and commits the resulting entity list.
+- Build clean — 15 static pages, `/milestones` 8.38 kB, `/tasks` 6.83 kB
 **Goal:** Today the ImpactDrawer is all-or-nothing — Apply commits every shift, Cancel commits none. PMs don't think that way. They want: include some shifts, exclude others (absorb the buffer), override specific new dates (we negotiated a faster turnaround), and see live what-if every change re-cascades. PMBOK §6.5.2.3 What-If Analysis + Goldratt's Critical Chain Method (buffer protection) both prescribe this pattern. None of Monday / Smartsheet / Asana have it inline; only Planisware and Jira Advanced Roadmaps do, and in a separate workspace. Doing it inline in the drawer is a real product wedge.
 
 **DoD:**
@@ -658,6 +672,44 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-16 (Strategic alignment + M20 — selective cascade with re-preview)
+
+**Strategic alignment (before code):**
+
+Vineet flagged that the M18 ImpactDrawer is rigid — Apply commits every shift, no way to absorb buffer on one row or override a date on another. Asked for it to be planned as a module. I researched the competitive landscape (Microsoft Project clunky, Smartsheet/Monday/Asana absent, Jira AR + Planisware do it but in separate workspaces) and mapped the need to PMBOK §6.5.2.3 What-If Analysis + Goldratt CCM buffer protection. Slotted as M20, pushed timesheets/AI-agent/change-control to M21–M24.
+
+**Built M20 (commit `5f70f3c`):**
+
+- `lib/domain/scheduling.ts`: extended `previewTaskCascade` and `previewCascade` to accept `CascadeOpts { excludeIds, overrides, workingDays?, holidays? }`. Implemented overloaded signatures so M18 call sites keep working (`(tasks, edit, workingDays[], holidays[])`). Walking algorithm respects excludes (skip + no propagate) and overrides (use manual date, propagate from there). Milestone version leverages existing `lockDate: true` for excluded rows and `lockDate + plannedEnd` for overrides.
+- New `findConstraintViolations()` — pure helper scanning tasks for FS-rule breaks after the PM's choices. Used by the drawer's warnings section.
+- Tests: 8 new cases covering exclusion stops downstream propagation, override changes propagation root, override+exclude combined, branching exclusion, single-dep / no / multi-dep-binding violation cases, milestone-side cascade. 58 → 66 tests, all pass.
+
+- `<ImpactDrawer>` rewritten — was presentational (took precomputed sections), now stateful (holds excludeIds + overrides, calls parent-provided `recompute()` on every interaction):
+  - Per-row checkbox controls inclusion; excluded rows dim and show "unchanged" instead of the new date
+  - Per-row `<input type="date">` for override; overridden rows get a blue border + "↺ revert" affordance
+  - Live recompute on every state change (no debouncing — engine is fast at this scale)
+  - Header totals strip: "N of M shifts included · K violations · P overrides"
+  - Apply label updates live: "Apply N of M changes"
+
+- Parent grids (`tasks-grid.tsx`, `milestones-grid.tsx`) updated:
+  - `cascadePreview` state now stores `{ editedId/edit, summary, … }` rather than precomputed affected rows
+  - Each provides a `recompute(excludeIds, overrides)` callback that runs the engine fresh and returns sections
+  - `onApply(excludeIds, overrides)` re-runs the engine with the chosen opts and commits the result to entity state
+  - Milestone parent handles string↔number ID translation (drawer uses string IDs for genericity)
+
+**Decided:**
+- Drawer holds the interaction state; parent owns the cascade logic and entity-state commits. Keeps the drawer presentational-with-state rather than coupled to entity types
+- No debouncing of date input edits — the engine completes in <1ms for project-sized inputs
+- Overrides apply to the new (post-cascade) date, not the original — PMs think "I want this row to land on X", not "shift this row by Y days"
+- Excluding a row drops any prior override on it (consistency — exclusion supersedes override)
+- Violations are surface-level only (no blocking) — PMs may have reasons to accept them and own the consequences
+
+**Built:** Open `/milestones`, edit m6 planned date → drawer shows downstream m7/m8 etc. Uncheck m7 → m8 dependency violation appears in red. Override m8's new date to Jul 15 → blue border on that row + "↺ revert". Apply produces the chosen subset. Same flow on `/tasks` for the t1→t2→t3 chain. Build clean, 66/66 tests pass.
+
+**Next session goal:** M21 — Timesheets + derived labour cost. Add `hourlyRate` to TeamMember; derive per-resource hours from owned tasks + meeting attendance − absences; reconcile against `/costs` to close the EVM loop.
+
+---
 
 ### Session — 2026-05-16 (M19 — clean project export workbook)
 

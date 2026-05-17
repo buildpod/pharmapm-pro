@@ -93,6 +93,33 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M22.2 — Architectural skill expansion
+**Goal:** M22.1's three bugs (form-save parity, pre-existing-state distinction, forecast variance) all evaded the current quality skills because those skills are surface-layer (strings / colors / errors). Add three architectural-layer skills that catch parity / state-distinction / cross-entity-consistency issues at write-time. Plus formalise use of the built-in `review` / `simplify` skills on architectural-module commits.
+
+**DoD:**
+- New skill `save-flow-parity` in `.claude/skills/` — fires when editing `*-grid.tsx` save handlers or `*-form.tsx` save flows. Forces the question "if inline edit on field X triggers behaviour Y, does the form-drawer save on field X also trigger Y?". Concrete grid/form pair inventory included.
+- New skill `pre-existing-state-distinction` in `.claude/skills/` — fires when writing any guard / validator / detector that examines current state. Forces baseline-vs-hypothetical thinking. References PL-11 + M22.1 #2 as canonical failure cases.
+- New skill `cross-entity-parity` in `.claude/skills/` — fires when changing behaviour on one entity surface. Forces the question "do the sibling entity surfaces (milestones, tasks, risks, documents, costs, etc.) need the parallel behaviour?". Includes a behavioural-feature matrix.
+- `.claude/skills/README.md` updated — three new entries + a section on using the built-in `review` and `simplify` skills before commit on architectural modules.
+- `CLAUDE.md` updated — pre-commit discipline: invoke `review` or `simplify` on the diff before any architectural-module commit (M-N feature modules, refactors, new entity types). Skip for pure copy / pure styling commits.
+- All 124 tests still pass (no code changes outside docs / skills). Build clean.
+
+**Out of scope:**
+- Sub-agent architecture-review at commit time — interesting idea, but lower ROI than the three skills + built-in review use. Defer to M22.3 if needed.
+- Authoring custom built-in-skill wrappers — use the existing ones as-is.
+- Retroactive review of M22 / M22.1 commits — those are committed; learnings already captured.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M22.1 Completion summary (2026-05-17)
+
+**Module:** M22.1 — Architectural-consistency hotfix (form save + cycle guard + forecast variance)
+**Status:** ✅ Complete (commit `b9bd936`)
+**Outcome:** Three bugs fixed (form-drawer cascade parity, pre-existing-cycle distinction in form guard, forecast variance toast). All follow patterns already in the codebase — no new types or engine changes. Honest skill assessment captured: current skills are surface-layer, can't catch architectural-consistency issues. M22.2 closes that gap.
+
+### M22.1 original goal/DoD (preserved for traceability)
+
 **Module:** M22.1 — Architectural-consistency hotfix (form save + cycle guard + forecast variance)
 **Goal:** Vineet's M22 dogfood surfaced three architectural-consistency bugs the current quality skills couldn't catch: form-drawer saves bypass cascade preview (inconsistent with inline edits); task form cycle guard blocks legitimate saves when the cycle pre-exists in data (parallel to PL-11); forecast variance has no UX feedback. All three are tightly scoped follow-ups on existing patterns.
 
@@ -1104,6 +1131,31 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M22.2 — architectural skill expansion)
+
+**Strategic context:**
+M22.1's three bugs all evaded the M21 quality skills because those skills target surface concerns (strings / colors / errors). The bugs were architectural — parallel save paths diverging, guards conflating pre-existing with user-caused state, cross-entity asymmetries. M22.2 adds three skills that operate at the code-structure layer + formalises use of the built-in `simplify` / `review` skills before architectural commits.
+
+**Built:**
+- `.claude/skills/save-flow-parity/SKILL.md` — fires on `*-grid.tsx` save handlers and `*-form.tsx` save flows. Includes the project's grid/form pair inventory + verification checklist. References M22.1 #1 as canonical failure case.
+- `.claude/skills/pre-existing-state-distinction/SKILL.md` — fires on any guard / validator / detector / corrector. Codifies the baseline-vs-hypothetical pattern with four-quadrant decision tree. References PL-11 and M22.1 #2 as canonical failure cases.
+- `.claude/skills/cross-entity-parity/SKILL.md` — fires on any change to entity-specific behaviour. Includes the entity-surface feature matrix (12 rows × 6 entities) tracking which behaviour exists where. Distinguishes intentional from accidental asymmetry.
+- `.claude/skills/README.md` extended — three new entries + section on built-in `simplify` / `review` skills for architectural-commit review.
+- `CLAUDE.md` extended — pre-commit discipline: invoke `simplify` on the diff before committing architectural modules.
+
+**Decided:**
+- **Architectural skills as separate category, not embedded in quality skills** — quality skills stay focused on surface concerns; architectural skills cover code-structure. Cleaner separation, easier to maintain individually.
+- **Entity-surface feature matrix in `cross-entity-parity`** — explicit table of which entity has which behaviour. Maintained as part of the skill. Forces deliberate decisions about asymmetry.
+- **Built-in `simplify` skill enforced via CLAUDE.md, not as a wrapper skill** — simpler to instruct (CLAUDE.md is the per-session protocol) than to author a meta-skill that invokes another skill.
+
+**Pending:**
+- Commit + push. M23 candidate: Change Request workflow (PMBOK §4.6) — natural successor to Charter; builds on M20.2 audit log + Charter approval semantics. Other candidates: RAID register, M19 exporter Charter-sheet, milestone-form cycle prevention parity.
+
+**Followup observations:**
+- No code changes this session — pure docs + skills. 124 pass / 4 skipped unchanged. Build clean.
+- All 11 skills now live under `.claude/skills/`. Total markdown content ~25 kB; cost to read at session start is small once `session-bootstrap` is applied (skills are read lazily based on context, not all-at-once).
+- The honest skill assessment in §8 of M22.1 directly drove M22.2's scope. The §8 capture-decisions discipline working as designed.
 
 ### Session — 2026-05-17 (M22.1 — architectural-consistency hotfix)
 

@@ -92,6 +92,41 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M20.7 — Cycle-resilient cascade UX (hotfix)
+**Goal:** Vineet's dogfood of M20.6 revealed a high-impact bug: when seed/persisted data has a dependency cycle (real case in our mock data: T1 → T3 → T4 → T5 → T6 → T7 → T8 → T13 → T14 → T15 → ...), every task save with deps got blocked entirely. The engine correctly detected the cycle but the caller short-circuited both the save AND the drawer rendering — so the polished M20.6 visual (timeline, grouping, ancestry) never appeared, the user's edit was silently dropped, and the only message was a red toast.
+
+**DoD:**
+- `tasks-grid.onApply` on engine error: still commit the originator edit (the user's explicit change). Skip cascade propagation. Surface as `toast.warning("Cascade skipped — cycle in dependency data")`, not `toast.error("Cannot apply cascade")`. Audit log note: `originator saved; cascade skipped due to cycle in data`.
+- `tasks-grid` drawer recompute on engine error: in addition to the warnings row, parse the cycle members from the error message and render them as a `tasks` section ("Tasks in the cycle (dates unchanged)") with `ancestry: "in dependency cycle"`. This preserves the M20.6 visual polish even when the engine couldn't cascade.
+- `ImpactDrawer`: detects `engine-error` row in any warnings section and renames Apply button to `"Apply edit (cascade skipped)"` to be honest about what's happening.
+- New test `PL-12` in `scheduling.algorithm.test.ts` asserting the engine contract callers rely on: on cycle, `r.error` non-null, `r.affected` empty, `r.tasks` is a slice of input (caller responsible for overlaying the user's edit).
+- `CASCADE_ALGORITHM.md` §10 punch list — PL-12 added as P0 ✅ Resolved with one-paragraph outcome.
+- Operating doc §6 (Known issues being managed) — entry added about the cycle in seed data and that the engine fix unblocks usage regardless.
+- Build clean. 121 → 122 tests pass.
+- No engine changes — engine's cycle-detection contract was already correct. The bug was entirely on the caller side. Important for documentation: the cascade engine remains as M20.5 left it.
+
+**Why this is hotfix-shaped not full module:**
+- ~50 lines of code across 4 files (tasks-grid, impact-drawer, algorithm doc, test)
+- No new types, no new behaviour modes, no UX research
+- Discovered in dogfood of just-shipped M20.6; fastest path to unblock real usage
+
+**Out of scope:**
+- Breaking the cycle from inside the drawer (would need new UX — separate module)
+- Auto-suggesting which `dependsOn` to remove (heuristic out)
+- Cleaning the seed data (acknowledged in §6 but separate task)
+- Milestone-side equivalent fix (different code path; milestone cycles are rarer in practice — defer until reported)
+
+**Started:** (this session)
+**Status:** in progress
+
+### M20.6 Completion summary (2026-05-17)
+
+**Module:** M20.6 — Cascade impact drawer UX polish
+**Status:** ✅ Complete (commit `708fe33`)
+**Outcome:** mini-timeline per row, workstream/phase grouping (collapsible), ancestry trace for transitive milestone shifts, apply-count semantics fix. 121 pass / 4 skipped. `/tasks` 7.31 kB.
+
+### M20.6 original goal/DoD (preserved for traceability)
+
 **Module:** M20.6 — Cascade impact drawer UX polish
 **Goal:** Engine is now PMBOK-correct (M20.4 + M20.5). The drawer's information design still reads as functional rather than as the enterprise PM tool we're competing against. Four targeted improvements turn it from "works" to "feels expensive". No engine changes this session — pure UI on top of M20.5 output.
 
@@ -907,6 +942,7 @@ Avoid mixing tones in a single message. If a save succeeded but left a problem, 
 | Claude tends to optimize for "produce something this session" | Each module has a Definition of Done. Sessions don't end without it. |
 | Claude can't run code autonomously between sessions | Vineet runs `pnpm test` and `pnpm dev` and reports results. Claude does not assume. |
 | v1 has comma-separated reviewer strings (the limitation that started this rewrite) | M5 fixes this with proper Decision rows. Until then, v1 stays as-is. |
+| Seed task data has a dependency cycle (T1 → T3 → T4 → T5 → T6 → T7 → T8 → T13 → T14 → T15 → ...) | Discovered during M20.7 dogfood. Cascade engine correctly detects + the caller now gracefully skips propagation while still saving the originator. Underlying data cleanup deferred — the engine fix unblocks usage regardless of seed cleanliness. |
 
 ---
 
@@ -932,6 +968,42 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M20.7 — cycle-resilient cascade UX hotfix)
+
+**Dogfood discovery:**
+Right after M20.6 deployed, Vineet hit a hard bug: editing any task with dependencies in the chain `T1 → T3 → T4 → T5 → T6 → T7 → T8 → T13 → T14 → T15 → …` produced (a) a bare drawer showing only a red engine-error box (none of the M20.6 timeline / grouping / ancestry polish), and (b) on Apply, a `toast.error("Cannot apply cascade")` and the user's edit silently dropped.
+
+**Root cause:** the cascade engine correctly detected a pre-existing dependency cycle in the seed/persisted data, but `tasks-grid` had two problems at the caller layer:
+1. `onApply` hard-returned on any engine error — blocking the user's originator edit entirely.
+2. The drawer's `recompute` short-circuited on engine error and returned only a warnings section — so M20.6's polished sections (mini-timeline, grouping, ancestry caption) never rendered.
+
+Both symptoms had the same root cause. PM was held hostage by data inconsistencies they didn't create, and the drawer looked broken because the cycle blocked all the data the polish depends on.
+
+**Built (not yet committed — pending Vineet review):**
+- `tasks-grid.onApply` on engine error: still commits the originator edit through the store with audit note `originator saved; cascade skipped due to cycle in data`. Toast becomes `warning` not `error` — "Cascade skipped — cycle in dependency data · Your edit to {taskName} saved. Fix the cycle to enable downstream cascade."
+- `tasks-grid` drawer recompute on engine error: parses cycle members from the error message and renders them as a `tasks`-kind section ("Tasks in the cycle (dates unchanged)") with each row carrying `ancestry: "in dependency cycle"`. M20.6's polish (timeline, ancestry caption, group headers) renders normally — just with `daysShifted: 0` since nothing actually shifts.
+- `ImpactDrawer`: detects `engine-error` in any warnings section. Apply button label switches to `"Apply edit (cascade skipped)"` so the PM knows exactly what they're getting.
+- Test PL-12 in `scheduling.algorithm.test.ts` asserts the engine's cycle contract callers rely on (error non-null, affected empty, tasks slice of input).
+- `CASCADE_ALGORITHM.md` §10 punch list: PL-12 added as P0 ✅ M20.7 Resolved.
+- Operating doc §6 (Known issues being managed): seed-data cycle entry added.
+
+**Decided:**
+- **Caller-side fix, engine unchanged.** The engine's cycle contract was correct (and is now formalised by PL-12 test). The bug was in how tasks-grid interpreted the engine's "I can't cascade" signal — it conflated "can't cascade" with "can't save."
+- **Save originator on cycle, but skip propagation.** Two responsibilities; only one needs the engine. The PM's explicit edit is theirs to save; the engine is only consulted for downstream propagation. Untangling the two unblocks every legitimate edit.
+- **Show cycle members on the timeline.** Even when the engine can't cascade, the drawer should still convey the scope of the problem visually. Cycle rows render with `daysShifted: 0` and `ancestry: "in dependency cycle"` — same visual language as a normal row, but honest about what's happening.
+- **Audit log records cycle skips explicitly.** Future "why didn't t8 shift when I edited t1?" questions have an answer in the audit log: `note: originator saved; cascade skipped due to cycle in data`.
+
+**Build + tests:**
+- 122 pass / 4 skipped (+1 from new PL-12 test). `/tasks` 7.31 → 7.58 kB (cycle-state rendering, ~0.27 kB).
+
+**Followup observations:**
+- This is the kind of bug the formal spec (M20.4) was supposed to catch but didn't — because PL-9 ("user-introduced cycle should be distinguished from pre-existing") focused on messaging, not behaviour. Adjacent gaps are easy to miss when each PL item is narrowly scoped. Lesson for future spec exercises: ask "what behavior does the user expect when X happens?" before fixing the messaging.
+- The cascade arc is now at M20.7 — nine sub-modules deep on one feature. Vineet asked in this session: *"so many patches we have done, is design is right"*. Honest answer: the design IS right; cascade is genuinely the hardest feature in any PM tool (PMBOK has chapters; MS Project / Primavera have decades of iteration on it). Each sub-module addressed a real category — basic UX, cycle detection, architecture, bidirectional, formal spec, engine fixes, polish, cycle resilience. The frequency of fixes correlates with usage depth, not design failure. After M20.7, the cascade is genuinely stable.
+
+**Pending:**
+- Commit + push M20.7. Dogfood the cycle-state drawer + the new Apply behaviour.
+- Per §9.9, we're due an architectural checkpoint (M20.2 was the last). Suggested next module after M20.7 dogfood is a §9.9 checkpoint that includes: full cascade arc retrospective + test coverage scan + tech-debt review + LEARNINGS.md commit + seed-data cycle cleanup. Holds the discipline; gives Vineet a clear "we paused and audited" moment before M21.
 
 ### Session — 2026-05-17 (M20.6 — cascade impact drawer UX polish)
 

@@ -451,6 +451,27 @@ describe("M20.4 §5 Hygiene — engine reports, never silently fixes", () => {
     expect(r.affected.find((a) => a.id === "t2")).toBeDefined();
   });
 
+  it("PL-12 ✅ M20.7: cycle in data must not lose the user's originator edit (caller-side semantic)", () => {
+    // Engine returns error + original tasks unmodified. Caller is expected to
+    // still apply the originator (the user's explicit change) and skip cascade.
+    // This test asserts the engine contract that the caller can rely on:
+    //   - r.error is non-null
+    //   - r.tasks is a SLICE of input (no edit applied at engine level)
+    //   - r.affected is []
+    // Caller is then responsible for splicing in the user's editedTask manually,
+    // which tasks-grid.onApply now does (see M20.7 commit).
+    const cyclic = [
+      task("t1", "2026-05-04", ["t3"]),
+      task("t2", "2026-05-05", ["t1"]),
+      task("t3", "2026-05-06", ["t2"]),
+    ];
+    const r = previewTaskCascade(cyclic, { id: "t1", newDueDate: "2026-05-20" }, WD, NO_HOLS);
+    expect(r.error).toMatch(/cycle/i);
+    expect(r.affected).toEqual([]);
+    // Engine returned a slice — input dates preserved (caller will overlay edit)
+    expect(r.tasks.find((x) => x.id === "t1")?.dueDate).toBe("2026-05-04");
+  });
+
   it("PL-11: respectPreExisting=false bypasses the phantom-save guard (caller opt-out)", () => {
     const tasks = [task("t1", "2026-05-10"), task("t2", "2026-05-05", ["t1"])];
     const r = previewTaskCascade(

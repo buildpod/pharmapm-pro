@@ -24,7 +24,7 @@ import { workingDaysBetween } from "@/lib/domain/dates";
 // to "m6" resolves to the milestone whose id is 6 in the engine.
 function msStrToNum(id: string): number { return parseInt(id.replace("m", "")); }
 function msNumToStr(id: number): string { return `m${id}`; }
-import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
+import { ImpactDrawer, type ImpactSummary, type ImpactSection, type ImpactRow } from "@/components/ui/impact-drawer";
 import { cn } from "@/lib/utils";
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -673,14 +673,45 @@ export function TasksGrid() {
             recompute={(excludeIds, overrides) => {
               const r = runCascade(excludeIds, overrides);
 
-              // Engine error (cycle, missing task) → single warnings row
+              // M20.7 — Engine error (cycle, missing task) — surface as a warning
+              // AND keep the drawer informative. We can't compute downstream impact
+              // through a cycle, but we CAN show the cycle members on the timeline
+              // (with their current unchanged dates) so the PM sees the scope of
+              // the problem visually, not just as a text list.
               if (r.error) {
+                const cycleMatch = r.error.match(/Tasks involved:\s*(.+)/i);
+                const cycleIds = cycleMatch
+                  ? cycleMatch[1].split(/[→,\s]+/).map((s) => s.trim().toLowerCase()).filter(Boolean)
+                  : [];
+                const cycleTaskById = new Map(entries.map((t) => [t.id, t]));
+                const cycleRows: ImpactRow[] = cycleIds
+                  .map((id) => cycleTaskById.get(id))
+                  .filter((t): t is TaskScheduleEntry => !!t)
+                  .map((t) => ({
+                    id: t.id, name: t.name,
+                    oldDate: t.dueDate, newDate: t.dueDate, // unchanged — engine couldn't cascade
+                    daysShifted: 0,
+                    group: projTasks.find((x) => x.id === t.id)?.workstream,
+                    ancestry: "in dependency cycle",
+                  }));
+
                 return {
-                  sections: [{
-                    kind: "warnings",
-                    title: "Cascade engine error",
-                    rows: [{ id: "engine-error", name: undefined, message: r.error }],
-                  }],
+                  sections: [
+                    {
+                      kind: "warnings",
+                      title: "Cascade engine error — cycle in dependency data",
+                      rows: [{
+                        id: "engine-error",
+                        name: undefined,
+                        message: `${r.error}\n\nYour edit will still save; cascade propagation is skipped until the cycle is fixed.`,
+                      }],
+                    },
+                    ...(cycleRows.length > 0 ? [{
+                      kind: "tasks" as const,
+                      title: "Tasks in the cycle (dates unchanged)",
+                      rows: cycleRows,
+                    }] : []),
+                  ],
                 };
               }
 
@@ -765,8 +796,21 @@ export function TasksGrid() {
             }}
             onApply={(excludeIds, overrides) => {
               const r = runCascade(excludeIds, overrides);
+              // M20.7 — pre-existing cycle in data must not block the user's edit.
+              // Save the originator; skip cascade propagation; surface the cycle as
+              // a non-blocking warning. PL-12 in CASCADE_ALGORITHM.md.
               if (r.error) {
-                toast.error("Cannot apply cascade", { description: r.error });
+                const pendingTasks = tasks.map((x) =>
+                  x.id === cascadePreview!.editedTask.id ? cascadePreview!.editedTask : x
+                );
+                replaceAllTasks(pendingTasks, {
+                  source: "cascade",
+                  note: "originator saved; cascade skipped due to cycle in data",
+                });
+                toast.warning("Cascade skipped — cycle in dependency data", {
+                  description: `Your edit to ${cascadePreview!.editedTask.name} saved. Fix the cycle to enable downstream cascade.`,
+                });
+                setCascadePreview(null);
                 return;
               }
               const shiftedById: Record<string, string> = {};

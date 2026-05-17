@@ -219,6 +219,12 @@ export function ImpactDrawer({
     .flatMap((s) => s.rows)
     .length;
 
+  // M20.7 — detect engine error (cycle) so the Apply button can label itself
+  // honestly: "Apply edit (cascade skipped)" instead of pretending nothing's wrong.
+  const hasEngineError = sections.some(
+    (s) => s.kind === "warnings" && s.rows.some((r) => r.id === "engine-error")
+  );
+
   function toggleExclude(id: string) {
     setExcludeIds((prev) => {
       const next = new Set(prev);
@@ -383,12 +389,15 @@ export function ImpactDrawer({
             >
               {/* M20.6 — clean count semantics. Originator is the user's edit
                   (always applied); shifts are the engine's downstream proposals
-                  (selectively included). Separate them for readability. */}
-              {totalShifts === 0
-                ? "Apply edit"
-                : includedShifts === 0
-                  ? "Apply edit only"
-                  : `Apply edit · ${includedShifts} of ${totalShifts} shift${totalShifts === 1 ? "" : "s"}`}
+                  (selectively included). Separate them for readability.
+                  M20.7 — engine error (cycle) state: label is honest about the skip. */}
+              {hasEngineError
+                ? "Apply edit (cascade skipped)"
+                : totalShifts === 0
+                  ? "Apply edit"
+                  : includedShifts === 0
+                    ? "Apply edit only"
+                    : `Apply edit · ${includedShifts} of ${totalShifts} shift${totalShifts === 1 ? "" : "s"}`}
             </button>
           </div>
         </footer>

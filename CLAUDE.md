@@ -15,6 +15,8 @@ Claude Code reads this at the start of every session in this repo. Keep it short
 2. Identify the Current Module from section 4
 3. Confirm the goal with Vineet before writing any code
 
+**Methodology reference:** `LEARNINGS.md` at repo root captures the operating model, session discipline, and technical patterns this project uses. Read it when starting a session that touches cross-cutting concerns (operating doc structure, ADRs, punch lists, checkpoint cadence).
+
 ---
 
 ## What this codebase is

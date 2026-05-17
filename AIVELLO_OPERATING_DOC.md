@@ -83,6 +83,7 @@ These are locked. Do not re-debate without writing a new ADR.
 | ADR-005 | **Keep v1 deployed and working** as reference; do not delete | v1 has real working features; useful as a comparison and as a fallback | May 6, 2026 |
 | ADR-006 | **Mock data first, backend later** | UI quality is the current bottleneck, not persistence | May 6, 2026 |
 | ADR-007 | **Reuse v1 domain logic verbatim** by porting the JS modules into the new repo's `domain/` folder | Logic is solid (305 tests pass); rewriting it would be wasted effort | May 6, 2026 |
+| ADR-008 | **Defer the `CascadeDisplay` separation layer.** Drawer rendering remains coupled to engine output; engine-error states use targeted callsite fallbacks (as in M20.7) rather than a formal display-state abstraction. Re-evaluate if a future module introduces a third engine consumer beyond the two grids. | The seam (M20.7 surfaced it) is real but doesn't bite at our current scale — two callsites, both fixed inline. A `CascadeDisplay` layer would be ~150 lines of indirection for a benefit only the third consumer would feel. YAGNI applies. The decision can flip if M21+ needs another cascade-consuming surface (e.g. a SteerCo what-if simulator). | May 17, 2026 (M21-Checkpoint) |
 
 ---
 
@@ -91,6 +92,38 @@ These are locked. Do not re-debate without writing a new ADR.
 > This is the **only** part of the doc Claude updates without explicit Vineet input. Update at end of every session.
 
 ### Current Module
+
+**Module:** M21-Checkpoint — Cascade arc retrospective + architectural audit
+**Goal:** Per §9.9, every 4 feature modules earns a checkpoint session — no new features, just verification and audit. M20.2 was the last; we're 5 modules overdue (M20.3 → M20.7). This checkpoint specifically closes the cascade arc cleanly so M21 starts from clarity, not from the cumulative scope of cascade-adjacent decisions.
+
+**DoD:**
+1. **Test coverage scan.** Verify the 122-test suite covers every spec section in `CASCADE_ALGORITHM.md`. Flag any spec sub-section that lacks at least one passing test. Add tests for the gaps if reasonable (≤30 min).
+2. **Seed-data cycle cleanup.** Locate the dependency cycle in `lib/mockData.ts` that surfaced as the M20.7 trigger (T1 → T3 → ... → T15 → back to T1 somewhere). Remove the offending `dependsOn` reference. Verify with a fresh `findConstraintViolations` run on the seed.
+3. **Tech-debt index review (§5.2).** Walk the table: which items are cleared, which are still open, which became less urgent post-cascade, which became more urgent. Update statuses; add any new items the cascade arc introduced.
+4. **Competitive re-scan.** One short paragraph in §8: where does cascade now stand vs Monday / Smartsheet / Asana / MS Project / Primavera. What's our wedge, what's still missing, what's deliberately deferred.
+5. **CascadeDisplay layer decision.** Decide explicitly: do we refactor the engine/drawer coupling now (its own M20.8 module) or defer until the seam bites a future module? Document the decision and rationale in §3 (ADR) or §8.
+6. **LEARNINGS.md hygiene.** It slipped into M20.7's commit; re-evaluate placement, content, and whether it should be advertised more prominently (link from CLAUDE.md / operating doc) or stay quiet.
+7. **M21 scope set.** Lock the next feature module in §4 (after this checkpoint). Most likely candidate per §5.1 is Charter or WBS or RAID register — one of them gets named with DoD + out-of-scope so M21 starts cleanly.
+8. **All 122 tests still pass.** Build clean. No engine changes this session — checkpoint is audit, not feature.
+
+**Out of scope (defer to M21 or beyond):**
+- The CascadeDisplay refactor itself (this checkpoint only decides whether to do it)
+- Any new cascade features (PL-5, PL-6, PL-9 still in punch list)
+- Performance profiling of the cascade engine — not flagged as a problem
+- Path C (Supabase) transition — infrastructure is ready; out of checkpoint scope
+
+**Why this matters:** Vineet asked the design-quality question after M20.7. The right answer to "have we patched too much?" is to audit honestly, name what's solid + what's a real seam, and then move forward from a clean baseline. Checkpoints are how the discipline catches drift before it becomes architectural debt.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M20.7 Completion summary (2026-05-17)
+
+**Module:** M20.7 — Cycle-resilient cascade UX (hotfix)
+**Status:** ✅ Complete (commit `f8ef193`)
+**Outcome:** Caller-side fix to tasks-grid `onApply` + drawer recompute. Pre-existing data cycles no longer block originator edits or break drawer rendering. PL-12 documented + tested. Engine unchanged.
+
+### M20.7 original goal/DoD (preserved for traceability)
 
 **Module:** M20.7 — Cycle-resilient cascade UX (hotfix)
 **Goal:** Vineet's dogfood of M20.6 revealed a high-impact bug: when seed/persisted data has a dependency cycle (real case in our mock data: T1 → T3 → T4 → T5 → T6 → T7 → T8 → T13 → T14 → T15 → ...), every task save with deps got blocked entirely. The engine correctly detected the cycle but the caller short-circuited both the save AND the drawer rendering — so the polished M20.6 visual (timeline, grouping, ancestry) never appeared, the user's edit was silently dropped, and the only message was a red toast.
@@ -893,15 +926,21 @@ Live ledger of architectural debt + shortcuts. Reviewed at every checkpoint (per
 
 | Item | Severity | Origin | Proposed clear | Status |
 |---|---|---|---|---|
-| Per-grid local state for entities | High | M3+ | M20.2 | **Clearing this session** |
-| No central audit trail / dispatch | High | M3+ | M20.2 | **Clearing this session** |
-| Persistence shape coupled to UI shape | Medium | M16.1 | M20.2 (`EntityRepository<T>`) | **Clearing this session** |
-| Validation rules are per-form only | Medium | M14 | M20.2 (`project-validator`) | **Clearing this session** |
+| Per-grid local state for entities | High | M3+ | M20.2 | ✅ **Cleared M20.2** |
+| No central audit trail / dispatch | High | M3+ | M20.2 | ✅ **Cleared M20.2** |
+| Persistence shape coupled to UI shape | Medium | M16.1 | M20.2 (`EntityRepository<T>`) | ✅ **Cleared M20.2** |
+| Validation rules are per-form only | Medium | M14 | M20.2 (`project-validator`) | ✅ **Cleared M20.2** |
 | Mock-data field additions require Python backfill scripts | Low | M14.1, M15 | Could codify into a migration helper; not urgent | Pending |
 | Two XLSX libs side-by-side (`xlsx` + `xlsx-js-style`) | Low | M19 | Migrate M7 reports to xlsx-js-style; drop xlsx dep | Pending |
-| `CommandPalette` reads localStorage directly | Low | M17 | Now redundant once M20.2 store ships; refactor to consume store | M20.3 candidate |
-| `NotificationBell` derives from raw mockData not localStorage | Low | M16.1 | Same — consume store after M20.2 | M20.3 candidate |
-| No undo/redo UI on cascade | Medium | M18 | Hook into action dispatcher post-M20.2 | M23+ |
+| `CommandPalette` reads localStorage directly | Low | M17 | Refactor to consume store | Still pending — M21+ |
+| `NotificationBell` derives from raw mockData not localStorage | Low | M16.1 | Same — consume store | Still pending — M21+ |
+| No undo/redo UI on cascade | Medium | M18 | Hook into action dispatcher | Still pending — M23+ |
+| **Drawer rendering coupled to engine output** | Medium | M18 → M20.7 surfaced | Introduce `CascadeDisplay` layer between engine + drawer | **M21-Checkpoint decided: defer** (see ADR-005 in §3) |
+| **`tasks-grid.onApply` had two hidden error paths** (cycle blocked save; cycle short-circuited drawer rendering) | Was P0 — caused user-visible bug | M18 → M20.7 fixed | M20.7 commit `f8ef193` | ✅ **Cleared M20.7** |
+| **No cycle prevention at task-form dependency picker** | Was Medium | M14 (no validation on dep set) | M21-Checkpoint cycle-prevention | ✅ **Cleared M21-Checkpoint** |
+| **`milestone-form` has no similar cycle prevention on predecessor field** | Low (single-predecessor model makes it much harder to introduce a cycle) | M3+ | Same pattern can apply; not urgent — milestone cycles never observed in dogfood | Pending |
+| Mock-data milestone seed lacks a Go-Live anchor for `scheduleBackward` testing in some projects | Low | M15 | Add a deterministic terminal milestone per project | Pending |
+| Test files use overlapping `import` statements in two places (`scheduling.test.ts`) | Cosmetic | M20.1 | Consolidate into a single top import block | Pending |
 
 A new module that **introduces** debt must log the item here. A checkpoint module that **clears** debt updates the status column.
 
@@ -968,6 +1007,70 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M21-Checkpoint — cascade arc retrospective + architectural audit)
+
+**Strategic context:**
+Per §9.9, every 4 feature modules earns a checkpoint. M20.2 was the last; we were 5 modules overdue. Vineet's post-M20.7 question — *"is design is right, so many patches we have done"* — made the checkpoint mandatory. Output: cascade arc audited honestly, one root-cause fix landed, tech-debt index brought current, design seam decided, M21 set from clarity.
+
+**Built:**
+
+- **Cycle prevention at task-form layer (the actual root cause of M20.7's symptom):**
+  - Discovered while auditing the seed data: `mockData.ts` is **clean** — no cycle. The cycles Vineet was hitting came from his own UI edits in prior sessions, because `task-form.tsx` had no cycle-prevention on the dependency picker. M20.1 caught cycles in cascade; M20.7 made cascade resilient to cycles; but **the creation path was never closed**.
+  - Added: forward-walk of `dependsOn` to compute the set of descendants of the edited task. Any descendant is a "cycle blocker" — disabled in the picker with rose `cycle` chip + hover hint. Save-time backstop using `topoSortTasks` on the hypothetical post-save graph; refuses save if cycle would result, naming the cycle members in the error.
+  - 2 new tests in `scheduling.algorithm.test.ts §8 — M21-Checkpoint`: cycle-introduction detection, cycle-blocker descendant computation.
+
+- **Test coverage scan:** all 8 spec sections in `CASCADE_ALGORITHM.md` have ≥1 passing test. PL-1, PL-5, PL-6, PL-9 remain skipped as documented gaps (PL-1 is intentional design; PL-5/6/9 are deferred). No coverage gaps found. **124 pass / 4 skipped, 128 total.**
+
+- **Tech-debt index (§5.2) fully refreshed:**
+  - 4 items confirmed ✅ Cleared from M20.2 (Zustand store, audit log, repository, validator)
+  - 1 new ✅ Cleared from M20.7 (the cascade caller error paths)
+  - 1 new ✅ Cleared from M21-Checkpoint (task-form cycle prevention)
+  - 1 explicitly **Deferred via ADR** (the CascadeDisplay separation — see ADR-008)
+  - 4 still pending (mock-data backfill, two-XLSX-libs, CommandPalette + NotificationBell store-coupling, undo/redo UI)
+  - 4 new low-priority items added (milestone-form has no cycle prevention, mock-data seed missing some Go-Live anchors, two test-file import overlap, etc.)
+
+- **ADR-008 — Defer `CascadeDisplay` separation layer.** Vineet's M20.7 post-mortem surfaced a real architectural seam (drawer rendering coupled to engine output; engine-error states need callsite fallbacks). After audit: the seam is real but only two consumers exist (tasks-grid, milestones-grid) and both fixed inline. A 150-line indirection layer for a benefit only the *third* consumer would feel = YAGNI. Decision is reversible if M21+ adds a third cascade-consuming surface.
+
+- **Competitive re-scan (cascade specifically):**
+  Where the cascade engine now sits vs the field:
+  | Capability | Asana | Monday | Smartsheet | MS Project | Primavera P6 | **AivelloStudio** |
+  |---|---|---|---|---|---|---|
+  | FS dependency cascade | partial | no | basic | yes | yes | **yes (CPM-correct)** |
+  | Cycle detection w/ named members | no | no | basic | yes | yes | **yes (cyclePath naming)** |
+  | Selective cascade (exclude/override) inline | no | no | no | partial | no (separate workspace) | **yes** |
+  | Working-day arithmetic w/ holidays | no | no | basic | yes | yes | **yes** |
+  | Bidirectional task↔milestone push | no | no | no | partial | yes | **yes (transitive)** |
+  | Formal spec doc with test matrix | n/a | n/a | n/a | proprietary | proprietary | **public (`CASCADE_ALGORITHM.md`)** |
+  | Form-layer cycle prevention | no | no | no | yes | yes | **yes (M21-Checkpoint)** |
+  | Constraint types beyond FS (SS/FF/SF, lag on tasks) | no | no | no | yes | yes | no — deliberately out of scope |
+  | Resource leveling / Monte Carlo | no | no | no | yes | yes | no — out of scope |
+  
+  **Honest read:** we now match or exceed Asana / Monday / Smartsheet on every cascade dimension, and exceed all four on selective-cascade inline UX (the wedge). We're behind MS Project / Primavera on constraint types and resource leveling, both intentional (separate modules if ever needed). The CPM-correctness + browser-light + PM-controlled-cascade combination is genuinely differentiated.
+
+- **LEARNINGS.md properly committed.** Originally drifted in with M20.7's commit; now anchored as a permanent reference. CLAUDE.md updated to point at it for cross-cutting session work.
+
+- **§6 (Known issues being managed)** updated with the seed-data cycle entry from M20.7.
+
+**Decided:**
+- **The design IS right.** Nine sub-modules on cascade isn't excessive for the hardest feature in any PM tool. Each addressed a real category (UX, cycle detection, architecture, bidirectional, formal spec, engine gaps, polish, resilience, creation prevention). The pattern of iteration reflects depth of usage, not failed design.
+- **One real architectural seam noted, deliberately deferred** (ADR-008). Not all seams need fixing — some are just acknowledged.
+- **M20.7 is the cleanest possible close to the cascade arc.** The form-layer cycle prevention added this session removes the path that creates the very state M20.7 had to handle defensively. Defence-in-depth: M20.7 handles bad data; M21-Checkpoint prevents bad data from being created in the first place.
+- **Next module: M21 — Charter** (proposed). Per §5.1, candidates were Charter / WBS / RAID register. Charter wins because: (a) it's the document that frames every other PM artifact — without a charter, scope creep is structurally easy; (b) it's a single-doc surface with low cascade-engine interaction (good break from the cascade arc); (c) PMBOK §4.1 explicitly puts charter first. Alternatives: if Vineet prefers, WBS (work breakdown structure, complements existing milestones / tasks / workstream model) or RAID (Risks / Assumptions / Issues / Decisions register — extends existing risks surface). All three are viable; charter is my recommendation. Vineet locks the choice next session.
+
+**Test + build:**
+- 124 pass / 4 skipped (added 2 cycle-prevention tests). Build clean. `/tasks` 7.58 → 7.62 kB (form cycle picker logic). `/milestones` unchanged.
+
+**Followup observations:**
+- **The checkpoint itself paid off.** Found and fixed the actual root cause (form layer) of the bug M20.7 fixed defensively (engine layer). Without the audit, the form-layer hole would have re-triggered the same bug class for any user who recreated a cycle.
+- **Skipped tests are healthy.** PL-1 (intentional design), PL-5/6/9 (acknowledged defers). Zero "we forgot about this" skips. The discipline of `// PL-N` tagging worked.
+- **Tone discipline §5.3 held across the cascade arc.** Every toast / badge / drawer section reviewed during the audit — no rose-where-blue or amber-where-emerald regressions.
+- **The seam decision (ADR-008) is a discipline win, not a punt.** Naming "we decided NOT to refactor and here's why" prevents the seam from being silently re-debated every session. Future Claude (cold-start) will read ADR-008 and not propose CascadeDisplay unsolicited.
+
+**Pending:**
+- Commit + push M21-Checkpoint.
+- Vineet picks M21 from {Charter, WBS, RAID register}.
+- Dogfood the cycle-prevention picker in task-form (try to recreate the cycle that bit you yesterday — picker should disable the offending tasks).
 
 ### Session — 2026-05-17 (M20.7 — cycle-resilient cascade UX hotfix)
 

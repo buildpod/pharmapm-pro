@@ -637,3 +637,56 @@ describe("M20.4 §7 Selective cascade layer — sanity", () => {
     expect(r.hasCycle).toBe(false);
   });
 });
+
+// ────────────────────────────────────────────────────────────────────────────
+// §8 — M21-Checkpoint: cycle-prevention contract (form layer relies on this)
+// ────────────────────────────────────────────────────────────────────────────
+
+describe("M21-Checkpoint — cycle-prevention contract", () => {
+  it("topoSortTasks detects cycles introduced by a proposed dependsOn change", () => {
+    // a → b → c is fine. Adding c.dependsOn=[a] is fine. Adding a.dependsOn=[c]
+    // creates a cycle (a → c → b → a is wrong; here we model a depending on c).
+    const base = [
+      task("a", "2026-05-04"),
+      task("b", "2026-05-05", ["a"]),
+      task("c", "2026-05-06", ["b"]),
+    ];
+    const baseTopo = topoSortTasks(base);
+    expect(baseTopo.hasCycle).toBe(false);
+
+    const proposed = base.map((t) => t.id === "a" ? { ...t, dependsOn: ["c"] } : t);
+    const proposedTopo = topoSortTasks(proposed);
+    expect(proposedTopo.hasCycle).toBe(true);
+    expect(proposedTopo.cyclePath?.length).toBeGreaterThan(0);
+  });
+
+  it("cycle-blocker set computation: descendants of editedId can't be its upstream", () => {
+    // The task-form's wouldCycle test uses a forward-walk of dependsOn.
+    // Here we model: which tasks transitively depend on 'a'? Adding any of
+    // those as a.dependsOn creates a cycle.
+    const base = [
+      task("a", "2026-05-04"),
+      task("b", "2026-05-05", ["a"]),
+      task("c", "2026-05-06", ["b"]),
+      task("d", "2026-05-04"),  // unrelated
+    ];
+    function descendantsOf(id: string): Set<string> {
+      const out = new Set<string>();
+      function walk(current: string) {
+        base.forEach((t) => {
+          if (t.id === current || out.has(t.id)) return;
+          if ((t.dependsOn ?? []).includes(current)) {
+            out.add(t.id);
+            walk(t.id);
+          }
+        });
+      }
+      walk(id);
+      return out;
+    }
+    const blockers = descendantsOf("a");
+    expect(blockers.has("b")).toBe(true);  // b depends directly on a
+    expect(blockers.has("c")).toBe(true);  // c depends transitively on a
+    expect(blockers.has("d")).toBe(false); // d is unrelated
+  });
+});

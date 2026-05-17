@@ -7,6 +7,8 @@ import type { Task, TaskStatus, TaskPriority, Milestone } from "@/lib/mockData";
 import { EntityDrawer, ConfirmDelete, Field, inputCls } from "@/components/ui/entity-drawer";
 import { SelectWithCustom } from "@/components/ui/select-with-custom";
 import { isIsoDate, inProjectRange, PROJECT_DATE_MIN, PROJECT_DATE_MAX } from "@/lib/validation";
+import { topoSortTasks } from "@/lib/domain/scheduling";
+import { cn } from "@/lib/utils";
 
 const PRIORITIES: TaskPriority[] = ["Critical", "High", "Medium", "Low"];
 const STATUSES:   TaskStatus[]   = ["Not Started", "In Progress", "Complete", "Blocked", "On Hold"];
@@ -77,6 +79,24 @@ export function TaskFormDrawer({
     }
     setError(null);
 
+    // M21-Checkpoint — hard block: if the proposed dependsOn would introduce
+    // a cycle, refuse the save with a precise error naming the offending
+    // candidates. The picker UI prevents this in the happy path; this is the
+    // belt-and-braces backstop.
+    if (dependsOn.length > 0 && editedId) {
+      const proposedId = editedId;
+      const hypothetical = allTasks.map((t) =>
+        t.id === proposedId ? { ...t, dependsOn } : t
+      );
+      const topo = topoSortTasks(hypothetical);
+      if (topo.hasCycle) {
+        setError(
+          `Cannot save: this dependency set would create a cycle. Tasks involved: ${(topo.cyclePath ?? []).map((id) => id.toUpperCase()).join(" → ")}`
+        );
+        return;
+      }
+    }
+
     // Duplicate-name detection (same workstream, case-insensitive, excluding self)
     const dup = allTasks.find(
       (t) =>
@@ -141,6 +161,30 @@ export function TaskFormDrawer({
   const subtitle = isNew
     ? "Tasks are grouped by workstream. Link to a milestone to roll-up progress."
     : `${initial?.id?.toUpperCase()} · ${initial?.workstream}`;
+
+  // M21-Checkpoint — cycle prevention at the form layer.
+  // A candidate task creates a cycle if THIS task is in its (transitive)
+  // upstream set. Compute that set once via forward-walk on dependsOn.
+  // Disabled candidates render greyed out with a hover hint.
+  const editedId = initial?.id;
+  const cycleBlockers: Set<string> = (() => {
+    if (!editedId) return new Set();
+    // Build reverse map: which tasks does each task transitively reach upstream?
+    // We need: "set of ids that depend (transitively) on editedId" — those can't
+    // be added as upstream of editedId without creating a cycle.
+    const dependents = new Set<string>();
+    function walk(id: string) {
+      allTasks.forEach((t) => {
+        if (t.id === id || dependents.has(t.id)) return;
+        if ((t.dependsOn ?? []).includes(id)) {
+          dependents.add(t.id);
+          walk(t.id);
+        }
+      });
+    }
+    walk(editedId);
+    return dependents;
+  })();
 
   // Dependency picker — exclude self
   const depCandidates = allTasks.filter((t) => t.id !== initial?.id);
@@ -289,15 +333,23 @@ export function TaskFormDrawer({
               ) : (
                 depCandidates.map((t) => {
                   const checked = dependsOn.includes(t.id);
+                  const wouldCycle = cycleBlockers.has(t.id);
                   return (
                     <label
                       key={t.id}
-                      className="flex cursor-pointer items-start gap-2 rounded px-1.5 py-1 text-xs hover:bg-muted/40"
+                      className={cn(
+                        "flex items-start gap-2 rounded px-1.5 py-1 text-xs",
+                        wouldCycle
+                          ? "cursor-not-allowed opacity-40"
+                          : "cursor-pointer hover:bg-muted/40"
+                      )}
+                      title={wouldCycle ? `Would create a dependency cycle — ${t.id.toUpperCase()} already depends (transitively) on this task` : undefined}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
-                        onChange={() => toggleDep(t.id)}
+                        disabled={wouldCycle}
+                        onChange={() => !wouldCycle && toggleDep(t.id)}
                         className="mt-0.5 h-3.5 w-3.5 rounded border-border accent-primary"
                       />
                       <span className="min-w-0 flex-1">
@@ -306,6 +358,11 @@ export function TaskFormDrawer({
                         </span>
                         <span className="ml-1.5 text-foreground">{t.name}</span>
                         <span className="ml-1.5 text-[10px] text-muted-foreground">({t.workstream})</span>
+                        {wouldCycle && (
+                          <span className="ml-1.5 rounded-full border border-rose-200 bg-rose-50 px-1.5 text-[9px] font-bold text-rose-700">
+                            cycle
+                          </span>
+                        )}
                       </span>
                     </label>
                   );

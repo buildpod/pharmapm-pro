@@ -45,6 +45,123 @@ export const projects: Project[] = [
   },
 ];
 
+// ─── Charter (M22) ────────────────────────────────────────────────────────────
+//
+// Project Charter per PMBOK §4.1 — the formal document authorising the project.
+// 1:1 with Project. Lifecycle: draft → submitted → approved. Once approved,
+// changes flow through Change Request (future M23 module) rather than direct edit.
+
+export type CharterStatus = "draft" | "submitted" | "approved";
+
+export type Charter = {
+  id: string;                  // matches projectId for 1:1
+  projectId: string;
+  purpose: string;             // 1-3 paragraph rationale
+  objectives: string[];        // measurable outcomes
+  inScope: string[];           // what the project will deliver
+  outOfScope: string[];        // explicit non-deliverables
+  successCriteria: string[];   // how we'll know it worked
+  assumptions: string[];       // what we're betting on
+  constraints: string[];       // what we can't move
+  sponsor: string;             // executive accountability
+  projectManager: string;      // delivery accountability
+  budgetSummary: string;       // one-line budget framing
+  status: CharterStatus;
+  approvedBy?: string;         // sponsor signoff name
+  approvedDate?: string;       // ISO yyyy-mm-dd
+  lastUpdated: string;         // ISO yyyy-mm-dd
+};
+
+export const charters: Charter[] = [
+  {
+    id: "charter-proj-veeva-rim",
+    projectId: "proj-veeva-rim",
+    purpose: "Implement Veeva RIM to consolidate regulatory information management across all global submission workflows. The current legacy system (Documentum 7.3) cannot meet incoming EMA xEVMPD and FDA eCTD v4.0 requirements and lacks the audit-trail depth required for GxP compliance under the 2026 inspection schedule.",
+    objectives: [
+      "Migrate 14,200 active dossiers + 3,100 regulatory correspondence records from legacy Documentum to Veeva RIM by 2026-08-15",
+      "Reduce submission preparation cycle time from 18 to 9 working days for standard CMC variations",
+      "Achieve 100% audit-trail coverage on all GxP-regulated records, validated per GAMP 5 Category 4",
+      "Onboard 60 regulatory affairs users across EU + US + APAC regions with role-based access by Go-Live",
+    ],
+    inScope: [
+      "Document management workflows (submission, correspondence, labelling)",
+      "Vault Configuration: document templates, lifecycle states, sharing rules, picklists",
+      "Migration of 14,200 dossiers from Documentum 7.3 with metadata mapping",
+      "Integration with corporate identity provider (Okta SSO)",
+      "User training: 60 RA users, role-based curriculum, recorded materials",
+      "Validation per GAMP 5 Category 4: IQ, OQ, UAT, PQ",
+    ],
+    outOfScope: [
+      "PromoMats and MedComms vault implementation (separate project)",
+      "Quality Management System (QMS) integration — future Phase 3",
+      "Custom report development beyond out-of-the-box Veeva reporting",
+      "Historical correspondence older than 7 years (regulatory retention period)",
+    ],
+    successCriteria: [
+      "Migration completeness ≥ 99.5% verified against source-of-truth report",
+      "UAT pass rate ≥ 95% across all 12 critical user journeys",
+      "Validation summary report approved by QA and Sponsor before Go-Live",
+      "Zero P1 defects open at Go-Live; P2 backlog ≤ 5",
+      "User satisfaction ≥ 4.0 / 5.0 in 30-day post-Go-Live survey",
+    ],
+    assumptions: [
+      "Vendor (Veeva Professional Services) provides 2 dedicated consultants from 2026-02-01 through Go-Live",
+      "Source data quality from Documentum 7.3 is ≥ 95% — cleansing effort scoped accordingly",
+      "No mid-project scope change to the Veeva RIM product roadmap that affects our configuration",
+      "Regulatory authorities (EMA, FDA) accept Veeva RIM as a validated submission source",
+    ],
+    constraints: [
+      "Go-Live date 2026-09-02 is locked by 2026-Q4 submission deadlines — cannot slip",
+      "Total budget locked at $1.85M including vendor + internal + contingency",
+      "Validation must complete before Production cutover — no soft-launch option",
+      "GAMP 5 Category 4 documentation requirements are non-negotiable per Quality SOPs",
+    ],
+    sponsor: "Dr Margaret Chen, VP Regulatory Affairs",
+    projectManager: "Vineet Pathak",
+    budgetSummary: "$1.85M total · $1.20M vendor · $0.45M internal · $0.20M contingency",
+    status: "approved",
+    approvedBy: "Dr Margaret Chen",
+    approvedDate: "2026-01-28",
+    lastUpdated: "2026-01-28",
+  },
+  {
+    id: "charter-proj-promomats",
+    projectId: "proj-promomats",
+    purpose: "Migrate promotional materials management from on-premise Veeva Vault to the next-generation Veeva PromoMats cloud platform to enable cross-region content reuse and reduce MLR review cycle times.",
+    objectives: [
+      "Migrate 8,500 promotional pieces from legacy on-premise vault by 2027-01-15",
+      "Reduce MLR (Medical, Legal, Regulatory) review cycle from 12 to 6 working days",
+      "Enable cross-region content reuse (EU pieces consumable by US team with regional metadata)",
+    ],
+    inScope: [
+      "Promotional piece library migration",
+      "MLR workflow configuration",
+      "Cross-region metadata mapping",
+      "User training: 25 marketing + 12 MLR reviewers",
+    ],
+    outOfScope: [
+      "MedComms vault (separate Phase 4 project)",
+      "Affiliate-specific customisation beyond top 5 markets",
+    ],
+    successCriteria: [
+      "Migration completeness ≥ 99% verified",
+      "MLR cycle time reduction target met in 90-day post-Go-Live measurement window",
+    ],
+    assumptions: [
+      "Veeva PromoMats cloud SLA meets 99.5% availability requirement",
+      "Existing MLR governance model transfers without policy redesign",
+    ],
+    constraints: [
+      "Go-Live 2027-02-15 locked to Q2 2027 campaign launch calendar",
+      "Budget cap $0.95M",
+    ],
+    sponsor: "James O'Connor, VP Marketing Operations",
+    projectManager: "Vineet Pathak",
+    budgetSummary: "$0.95M total · $0.60M vendor · $0.25M internal · $0.10M contingency",
+    status: "draft",
+    lastUpdated: "2026-05-10",
+  },
+];
 
 // ─── Phases ───────────────────────────────────────────────────────────────────
 

@@ -14,6 +14,7 @@ import {
   Settings,
   Users,
   Inbox,
+  Scroll,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -32,6 +33,7 @@ const navGroups = [
   {
     label: "PLANNING",
     items: [
+      { label: "Charter", href: "/charter", icon: Scroll },
       { label: "Milestones", href: "/milestones", icon: Milestone },
       { label: "Tasks", href: "/tasks", icon: CheckSquare },
     ],

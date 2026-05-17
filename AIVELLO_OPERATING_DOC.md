@@ -93,6 +93,42 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M22 — Project Charter
+**Goal:** Per PMBOK §4.1, every project starts with a Charter — the formal document authorising scope, objectives, sponsor, and approval. We've shipped 21 modules of execution surfaces (milestones, tasks, risks, docs, costs, etc.) without a Charter; that's backwards from how PM practice works. M22 lands the Charter as a first-class entity, with a dedicated page, a dashboard surface for status, and store + audit-log integration. Closes the "no charter, no anchor" gap before further feature work piles on.
+
+**DoD:**
+- New `Charter` entity type in `lib/mockData.ts`, 1:1 with `Project`. Fields: `purpose` · `objectives[]` · `inScope[]` · `outOfScope[]` · `successCriteria[]` · `assumptions[]` · `constraints[]` · `sponsor` · `projectManager` · `budgetSummary` · `status` (`draft` | `submitted` | `approved`) · `approvedDate` · `approvedBy` · `lastUpdated`.
+- Seed Charter for `proj-veeva-rim` with realistic pharma RIM-implementation content.
+- New entity store slice + `LocalStorageRepository<Charter>` per the M20.2 pattern. `addCharter` / `updateCharter` / `replaceAllCharters` actions. Audit log entries on every save.
+- New `/charter` route at `app/(app)/charter/page.tsx`, project-scoped via the existing `useProject` context. If no charter exists for the active project, show an empty state with "Create charter" action.
+- Read view + edit drawer pattern (same as `MilestoneFormDrawer` / `TaskFormDrawer`). Read view shows structured sections; edit drawer collects field updates.
+- Dashboard card showing Charter status pill (Draft / Submitted / Approved), sponsor, target go-live (from project), last-updated date. Click → /charter.
+- Sidebar nav: new entry under OVERVIEW (above Dashboard would be inverted; under PLANNING above Milestones makes sense — Charter is the planning anchor).
+- All quality skills active. No "cascade" / "engine" / "entity" jargon in user strings. Tone discipline applied.
+- Build clean, 124+ tests still pass. Bundle delta within budget. New tests for the validator + entity slice if time permits.
+
+**Out of scope (defer to M22.1 or M23+):**
+- Charter PDF export (Excel sheet in M19 exporter — defer to M22.1)
+- Multi-version Charter history / change log
+- Approval workflow with multi-signoff matrix
+- Charter templates / preset content
+- Sponsor signature collection UI
+- Linking Charter changes to a Change Request (M23 territory)
+- Milestone-form parallel cycle prevention (M21-Checkpoint deferred)
+
+**Why this matters:** Per PMBOK §4.1, the Charter is the legal authorisation. SteerCo decisions reference it. Audit / regulatory reviews start with it. Shipping execution surfaces without a charter is shipping the body of a car without the chassis. M22 lands the chassis.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M21-DrawerRewrite Completion summary (2026-05-17)
+
+**Module:** M21-DrawerRewrite — Cascade impact drawer information design pass
+**Status:** ✅ Complete (commit `319b3c5`)
+**Outcome:** New `callout` section kind + `Callout` sub-component. Cycle-error path rewritten as single amber callout (replaces dual-rendering). Toast strings, header copy, save-button label all per quality-skill conventions. First module landing with project skills active — skills caught jargon at write-time.
+
+### M21-DrawerRewrite original goal/DoD (preserved for traceability)
+
 **Module:** M21-DrawerRewrite — Cascade impact drawer information design pass
 **Goal:** Vineet's M20.7 dogfood made the verdict clear: the cycle-state drawer is the worst surface in the product. Information density, developer jargon, tone-mismatch (all-rose for partial success), broken template literals, no clear next-step. M21-DrawerRewrite rewrites the drawer's information design end-to-end so PMs see a clean, enterprise-grade preview surface. This is also the first module landing with project skills active (ui-string-audit + tone-discipline + error-message-pattern) — every string and color gets audited at write-time.
 
@@ -1041,6 +1077,37 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M22 — Project Charter)
+
+**Strategic context:**
+21 modules of execution surfaces shipped, no Charter. PMBOK §4.1 puts charter first — it authorises everything else. Vineet greenlit moving past cascade-arc and starting feature work; recommended Charter as the clean break.
+
+**Built:**
+- `Charter` entity type in `lib/mockData.ts` (15 fields, 1:1 with Project). Seeded for both projects: full pharma RIM content for the active project, lean draft for PromoMats.
+- `CharterStatus` lifecycle: `draft` → `submitted` → `approved`. Tone-pill colors per §5.3: slate / amber / emerald.
+- Entity store slice (`addCharter`, `updateCharter`, `deleteCharter`, `replaceAllCharters`) + `LocalStorageRepository<Charter>` + `charter` added to `EntityKind` union. Hydration extended.
+- `/charter` route at `app/(app)/charter/page.tsx` with project-scoped CharterView. Empty state when no charter exists, with "Create charter" CTA.
+- `CharterView` component — header card (status pill, sponsor, PM, go-live, budget) + sections for purpose, objectives, scope (in/out), success criteria, assumptions, constraints. Approved state shows signoff bar.
+- `CharterFormDrawer` — required-field validation, list-of-strings fields with add/remove, conditional approval-fields when status=approved.
+- `CharterCard` on Dashboard — compact status surface with sponsor + go-live + last-updated. Click-through to /charter.
+- Sidebar nav: new "Charter" entry under PLANNING above Milestones (Scroll icon).
+
+**Decided:**
+- **Charter is its own entity, not fields on Project** — enables future multi-version history (M23+) without schema migration, follows M20.2 pattern, gives audit log specific Charter actions.
+- **1:1 with Project, id = `charter-{projectId}`** — deterministic id makes lookup trivial, avoids the orphan-charter case.
+- **Status lifecycle with conditional approval-fields** — approval requires both `approvedBy` + `approvedDate`; form enforces this at save-time per error-message-pattern skill.
+- **Tone discipline applied throughout** — slate for draft (neutral), amber for submitted (consider), emerald for approved (resolved). No rose anywhere (charter is never an error state).
+- **Sidebar position: under PLANNING, above Milestones** — charter is the planning anchor; everything downstream references it.
+
+**Pending:**
+- Commit + push. Dogfood — view existing charter (Veeva RIM, approved); switch to PromoMats project (draft); edit purpose / add an objective; toggle status to approved + provide approver name + date.
+- M22.1 candidate: Charter sheet in M19 exporter, multi-version history, approval workflow with signoffs.
+
+**Followup observations:**
+- Build: 15 → 16 static pages, `/charter` 7.94 kB, dashboard `/` 101 → 103 kB (CharterCard).
+- Quality skills active throughout — purpose paragraph + objectives use plain language; no "entity" / "dispatch" jargon leaked. The "preview unavailable" pattern from M21-DrawerRewrite was reused for the empty state framing.
+- Seeded the Veeva RIM charter with realistic GAMP 5 / EMA xEVMPD / FDA eCTD content — feels like real PM content, not lorem ipsum.
 
 ### Session — 2026-05-17 (M21-DrawerRewrite — cascade impact drawer information design pass)
 

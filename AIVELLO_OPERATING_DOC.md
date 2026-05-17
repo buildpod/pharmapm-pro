@@ -93,6 +93,40 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M21-DrawerRewrite — Cascade impact drawer information design pass
+**Goal:** Vineet's M20.7 dogfood made the verdict clear: the cycle-state drawer is the worst surface in the product. Information density, developer jargon, tone-mismatch (all-rose for partial success), broken template literals, no clear next-step. M21-DrawerRewrite rewrites the drawer's information design end-to-end so PMs see a clean, enterprise-grade preview surface. This is also the first module landing with project skills active (ui-string-audit + tone-discipline + error-message-pattern) — every string and color gets audited at write-time.
+
+**DoD:**
+- New `callout` section kind in `ImpactDrawer` — single info card with title + body + collapsible item list + optional action button. Replaces the dual-rendering (warnings row + duplicate task rows) on cycle-error state.
+- Cycle-error state uses callout with: amber tone, plain-language body, collapsed cycle-task list, "Open Tasks" action button. No timeline bars, no editable dates, no "← driven by" captions on cycle rows.
+- Toast string rewrites per `error-message-pattern` skill: every cascade-adjacent toast follows what / why / next-step. `toast.warning` not `toast.error` on partial-success. No "cascade" / "engine" / "propagation" jargon in user strings.
+- Drawer header copy cleanup. Apply button label: "Save" / "Save · N changes" / "Save (preview unavailable)" — drops "Apply edit" jargon, drops "shifts" in favor of "changes".
+- Zero-row sections never render. Originator chip: slate by default, rose only when delta crosses critical-path or go-live.
+- Both `tasks-grid` and `milestones-grid` get the cycle-error callout path (milestone cycles are rarer in practice but the surface is symmetric).
+- All 124 tests still pass. Build clean. Bundle delta within budget.
+- §8 entry uses audit-log-compression skill format (5 sections, capped).
+
+**Out of scope (defer to M21.1 or M22):**
+- "Show N more ▾" for sections >5 rows — useful but moderate effort
+- Mini-Gantt or richer timeline visualisation — current bar is enough
+- Animated transitions on recompute
+- Mobile / narrow-viewport responsive
+- Charter / WBS / RAID register — those are M22+ feature modules
+- Milestone-form cycle prevention (parallel to task-form; defer until reported)
+
+**Why this matters:** the cascade drawer is the single most-visible surface in the product. PMs see it every time they change a date. If it reads cheap, the whole product reads cheap. M21-DrawerRewrite is the closing UX pass on the cascade arc — after this, the drawer matches enterprise-grade information design standards.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M21-Checkpoint Completion summary (2026-05-17)
+
+**Module:** M21-Checkpoint — Cascade arc retrospective + architectural audit
+**Status:** ✅ Complete (commit `edcb72b`)
+**Outcome:** Test coverage scan (124/4), tech-debt index refreshed (5 cleared, 4 pending, 4 new low-pri), task-form cycle prevention added (closes the creation path for the cycle that bit M20.7), ADR-008 added (defer CascadeDisplay separation), LEARNINGS.md anchored, competitive re-scan, M21 unlocked from clarity.
+
+### M21-Checkpoint original goal/DoD (preserved for traceability)
+
 **Module:** M21-Checkpoint — Cascade arc retrospective + architectural audit
 **Goal:** Per §9.9, every 4 feature modules earns a checkpoint session — no new features, just verification and audit. M20.2 was the last; we're 5 modules overdue (M20.3 → M20.7). This checkpoint specifically closes the cascade arc cleanly so M21 starts from clarity, not from the cumulative scope of cascade-adjacent decisions.
 
@@ -1007,6 +1041,35 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M21-DrawerRewrite — cascade impact drawer information design pass)
+
+**Strategic context:**
+Vineet's M20.7 dogfood (screenshots): cycle-state drawer is the worst surface in the product — all-rose for partial success, dev jargon, broken template grammar, no next-step. First module landing with project skills active (`ui-string-audit` + `tone-discipline` + `error-message-pattern`).
+
+**Built:**
+- New `callout` section kind in `ImpactDrawer` (`CalloutSection` type + `Callout` sub-component, ~80 lines). Tone-matched (amber / blue / slate), title + body + collapsible items + optional action button.
+- Tasks-grid cycle-error path rewritten — single amber callout replaces the prior warnings-row + duplicate-task-rows pair. Plain-language body, cycle members in a collapsed disclosure, "Open Tasks page" action.
+- Drawer header copy: "Schedule change preview" / "Review what will change. Uncheck a row to keep its date, or pick a different date inline." (Drops "cascade impact" jargon.)
+- Totals strip cleanup: "Nothing else changes" (slate) / "N of M included" (amber) / "preview unavailable" (amber on callout) / "K to review" / "P edited" / "S gained slack" — all per skill conventions.
+- Save button label: "Save" / "Save · N changes" / "Save change" (callout). Drops "Apply edit" jargon, drops "shifts" in favor of "changes".
+- Empty-state copy: "Nothing else will change · Save to apply this change."
+- Toast rewrite: cycle-saved toast now "Saved · downstream preview unavailable" + description with what/why/next.
+
+**Decided:**
+- **Callout is a separate section kind, not a flag on existing kinds** — cleaner type contract; lets callouts render without a `.rows` array.
+- **Amber tone for cycle-blocked state** — partial-success per §5.3 tone discipline. Rose was wrong (it's not a blocking failure; the edit saved).
+- **Action button on callout** — every error must have a next-step per `error-message-pattern` skill. "Open Tasks page" is the resolution path.
+- **Cycle members in collapsed disclosure** — they're identification, not action; collapsing hides them by default and gives them a quiet read-only render on expand.
+
+**Pending:**
+- Commit + push. Dogfood — try the same cycle scenario from yesterday; the drawer should now read cleanly.
+- M22 candidate: Charter / WBS / RAID register (per §5.1). Charter is recommended.
+
+**Followup observations:**
+- Skills fired correctly during the rewrite — caught two jargon strings ("cascade impact" header, "Apply edit · shifts" button) at write-time rather than dogfood-time. Validates the M21-Checkpoint skill investment.
+- Milestone-grid cycle-error path wasn't touched (milestone cycles are rare via single-predecessor model). If a real case surfaces, same callout pattern applies symmetrically.
+- Bundle delta: `/tasks` 7.62 → 7.91 kB (+0.29 kB for `Callout` component). Within budget.
 
 ### Session — 2026-05-17 (M21-Checkpoint — cascade arc retrospective + architectural audit)
 

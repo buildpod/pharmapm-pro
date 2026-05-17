@@ -49,11 +49,28 @@ export interface InfoRow {
   slackDays: number;     // working-day slack gained
 }
 
+// M21-DrawerRewrite — single info card with title + body + optional
+// collapsible item list + optional action button. Used for partial-success
+// states (e.g. cycle-blocked preview where the user's edit still saved).
+// Always tone-matched to outcome (amber for partial-success, blue for info,
+// slate for neutral) — never rose.
+export interface CalloutSection {
+  kind: "callout";
+  tone: "amber" | "blue" | "slate";
+  title: string;
+  body: string;
+  collapsibleLabel?: string;          // e.g. "Show 10 tasks in the loop"
+  collapsibleItems?: { id: string; name?: string; group?: string }[];
+  actionLabel?: string;                // e.g. "Open Tasks page"
+  onAction?: () => void;
+}
+
 export type ImpactSection =
   | { kind: "milestones"; title: string; rows: ImpactRow[] }
   | { kind: "tasks";      title: string; rows: ImpactRow[] }
   | { kind: "warnings";   title: string; rows: ViolationRow[] }
-  | { kind: "info";       title: string; rows: InfoRow[] };
+  | { kind: "info";       title: string; rows: InfoRow[] }
+  | CalloutSection;
 
 export interface ImpactSummary {
   originatorKind: "milestone" | "task";
@@ -219,11 +236,10 @@ export function ImpactDrawer({
     .flatMap((s) => s.rows)
     .length;
 
-  // M20.7 — detect engine error (cycle) so the Apply button can label itself
-  // honestly: "Apply edit (cascade skipped)" instead of pretending nothing's wrong.
-  const hasEngineError = sections.some(
-    (s) => s.kind === "warnings" && s.rows.some((r) => r.id === "engine-error")
-  );
+  // M21-DrawerRewrite — detect a callout section. Used to know we're in a
+  // partial-success state (e.g. cycle blocked preview) so the Save button can
+  // label itself honestly. Replaces the prior engine-error detection.
+  const hasCallout = sections.some((s) => s.kind === "callout");
 
   function toggleExclude(id: string) {
     setExcludeIds((prev) => {
@@ -271,9 +287,9 @@ export function ImpactDrawer({
         <header className="border-b border-border bg-muted/30 px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="text-base font-semibold text-foreground">Cascade impact</h2>
+              <h2 className="text-base font-semibold text-foreground">Schedule change preview</h2>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Preview the downstream effects. Uncheck rows to absorb in buffer, or override a new date to override the engine.
+                Review what will change. Uncheck a row to keep its date, or pick a different date inline.
               </p>
             </div>
             <button
@@ -314,31 +330,39 @@ export function ImpactDrawer({
             </div>
           </div>
 
-          {/* Totals strip */}
+          {/* Totals strip — M21-DrawerRewrite cleanup. When callout state
+              (partial success / preview unavailable), don't pretend totalShifts
+              means anything; show a single quiet "preview unavailable" chip. */}
           <div className="mt-3 flex items-center gap-2 text-[11px]">
-            <span className={cn(
-              "rounded-full border px-2 py-0.5 font-semibold",
-              includedShifts === 0 && totalShifts === 0
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
-            )}>
-              {totalShifts === 0
-                ? "No downstream shifts"
-                : `${includedShifts} of ${totalShifts} shift${totalShifts === 1 ? "" : "s"} included`}
-            </span>
+            {hasCallout ? (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">
+                preview unavailable
+              </span>
+            ) : (
+              <span className={cn(
+                "rounded-full border px-2 py-0.5 font-semibold",
+                totalShifts === 0
+                  ? "border-slate-200 bg-slate-50 text-slate-600"
+                  : "border-amber-200 bg-amber-50 text-amber-700"
+              )}>
+                {totalShifts === 0
+                  ? "Nothing else changes"
+                  : `${includedShifts} of ${totalShifts} included`}
+              </span>
+            )}
             {totalWarnings > 0 && (
               <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-700">
-                {totalWarnings} violation{totalWarnings === 1 ? "" : "s"}
+                {totalWarnings} to review
               </span>
             )}
             {Object.keys(overrides).length > 0 && (
               <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
-                {Object.keys(overrides).length} override{Object.keys(overrides).length === 1 ? "" : "s"}
+                {Object.keys(overrides).length} edited
               </span>
             )}
             {totalInfo > 0 && (
               <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 font-semibold text-blue-700">
-                {totalInfo} slack gain{totalInfo === 1 ? "" : "s"}
+                {totalInfo} gained slack
               </span>
             )}
           </div>
@@ -346,17 +370,18 @@ export function ImpactDrawer({
 
         {/* Body */}
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-          {totalShifts === 0 && totalWarnings === 0 && totalInfo === 0 ? (
+          {totalShifts === 0 && totalWarnings === 0 && totalInfo === 0 && !hasCallout ? (
             <div className="rounded-lg border border-dashed border-border bg-muted/20 py-8 text-center">
               <Info className="mx-auto mb-2 h-5 w-5 text-muted-foreground/50" />
-              <p className="text-sm font-medium text-foreground">No cascading impact</p>
+              <p className="text-sm font-medium text-foreground">Nothing else will change</p>
               <p className="mt-1 text-xs text-muted-foreground">
-                This change can be applied without affecting any other entity.
+                Save to apply this change. No other tasks or milestones are affected.
               </p>
             </div>
           ) : (
             sections.map((section, sIdx) => {
-              if (section.rows.length === 0) return null;
+              // Callouts render even with no items; other kinds skip when empty
+              if (section.kind !== "callout" && section.rows.length === 0) return null;
               return (
                 <Section
                   key={sIdx}
@@ -387,17 +412,17 @@ export function ImpactDrawer({
               onClick={() => onApply(excludeIds, overrides)}
               className="rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
             >
-              {/* M20.6 — clean count semantics. Originator is the user's edit
-                  (always applied); shifts are the engine's downstream proposals
-                  (selectively included). Separate them for readability.
-                  M20.7 — engine error (cycle) state: label is honest about the skip. */}
-              {hasEngineError
-                ? "Apply edit (cascade skipped)"
+              {/* M21-DrawerRewrite — Save semantics. Drops "Apply edit"
+                  jargon (per ui-string-audit skill). Drops "shifts" in favor
+                  of "changes". Callout state (preview unavailable) reads as
+                  partial success — Save with quiet status indicator. */}
+              {hasCallout
+                ? "Save change"
                 : totalShifts === 0
-                  ? "Apply edit"
+                  ? "Save"
                   : includedShifts === 0
-                    ? "Apply edit only"
-                    : `Apply edit · ${includedShifts} of ${totalShifts} shift${totalShifts === 1 ? "" : "s"}`}
+                    ? "Save · this change only"
+                    : `Save · ${includedShifts + 1} change${(includedShifts + 1) === 1 ? "" : "s"}`}
             </button>
           </div>
         </footer>
@@ -427,6 +452,11 @@ function Section({
   tMin: string;
   tMax: string;
 }) {
+  // M21-DrawerRewrite — callouts get their own rendering path (no row list).
+  if (section.kind === "callout") {
+    return <Callout section={section} />;
+  }
+
   const sectionStyle =
     section.kind === "warnings"
       ? "border-rose-200 bg-rose-50/40"
@@ -647,5 +677,91 @@ function renderShiftRow(row: ImpactRow, kind: "milestones" | "tasks", deps: Shif
         )}
       </div>
     </li>
+  );
+}
+
+// ─── Callout sub-component (M21-DrawerRewrite) ──────────────────────────────
+//
+// One info card with title + body + optional collapsible item list + optional
+// action button. Used for partial-success states like cycle-blocked preview.
+// Tone-matched via section.tone (amber / blue / slate) — never rose.
+
+function Callout({ section }: { section: CalloutSection }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const toneStyle =
+    section.tone === "amber"
+      ? "border-amber-200 bg-amber-50/60"
+      : section.tone === "blue"
+        ? "border-blue-200 bg-blue-50/60"
+        : "border-slate-200 bg-slate-50/60";
+  const iconBg =
+    section.tone === "amber"
+      ? "bg-amber-100 text-amber-700"
+      : section.tone === "blue"
+        ? "bg-blue-100 text-blue-700"
+        : "bg-slate-100 text-slate-600";
+  const titleColor =
+    section.tone === "amber"
+      ? "text-amber-900"
+      : section.tone === "blue"
+        ? "text-blue-900"
+        : "text-foreground";
+
+  const hasItems = !!section.collapsibleItems && section.collapsibleItems.length > 0;
+  const hasAction = !!section.actionLabel && !!section.onAction;
+
+  return (
+    <section className={cn("rounded-lg border", toneStyle)}>
+      <div className="flex items-start gap-3 px-4 py-3">
+        <span className={cn("flex h-7 w-7 shrink-0 items-center justify-center rounded-full", iconBg)}>
+          <Info className="h-3.5 w-3.5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className={cn("text-sm font-semibold", titleColor)}>
+            {section.title}
+          </p>
+          <p className="mt-1 whitespace-pre-line text-xs text-foreground/80">
+            {section.body}
+          </p>
+          {(hasItems || hasAction) && (
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+              {hasItems && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded((v) => !v)}
+                  className="text-[11px] font-medium text-foreground/80 hover:text-foreground hover:underline"
+                  aria-expanded={expanded}
+                >
+                  {expanded ? "Hide" : section.collapsibleLabel ?? `Show ${section.collapsibleItems!.length} items`}
+                </button>
+              )}
+              {hasAction && (
+                <button
+                  type="button"
+                  onClick={section.onAction}
+                  className="rounded-md border border-border bg-card px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-muted"
+                >
+                  {section.actionLabel} →
+                </button>
+              )}
+            </div>
+          )}
+          {hasItems && expanded && (
+            <ul className="mt-2.5 space-y-1 rounded-md border border-border bg-card px-3 py-2">
+              {section.collapsibleItems!.map((it) => (
+                <li key={it.id} className="flex items-baseline gap-2 text-[11px]">
+                  <span className="font-mono text-[10px] font-bold text-muted-foreground">
+                    {it.id.toUpperCase()}
+                  </span>
+                  {it.name && <span className="truncate text-foreground">{it.name}</span>}
+                  {it.group && <span className="ml-auto text-[10px] text-muted-foreground">{it.group}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }

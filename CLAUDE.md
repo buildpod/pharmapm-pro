@@ -17,6 +17,8 @@ Claude Code reads this at the start of every session in this repo. Keep it short
 
 **Methodology reference:** `LEARNINGS.md` at repo root captures the operating model, session discipline, and technical patterns this project uses. Read it when starting a session that touches cross-cutting concerns (operating doc structure, ADRs, punch lists, checkpoint cadence).
 
+**Project skills:** `.claude/skills/` contains 8 skills (quality + token-efficiency) — read `.claude/skills/README.md` at session start. Invoke applicable skills proactively as you work: `ui-string-audit` + `tone-discipline` + `error-message-pattern` for every UI string / color / error; `session-bootstrap` + `focused-read` + `lean-test-output` + `parallel-tool-calls` + `audit-log-compression` for token efficiency.
+
 ---
 
 ## What this codebase is

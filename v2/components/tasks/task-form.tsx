@@ -80,18 +80,21 @@ export function TaskFormDrawer({
     setError(null);
 
     // M21-Checkpoint — hard block: if the proposed dependsOn would introduce
-    // a cycle, refuse the save with a precise error naming the offending
-    // candidates. The picker UI prevents this in the happy path; this is the
-    // belt-and-braces backstop.
+    // a NEW cycle, refuse the save.
+    // M22.1 — fix the pre-existing-state distinction (parallel to PL-11).
+    // If the baseline graph already has a cycle, the user is dealing with
+    // stale data they didn't cause — don't block their edit. Only block when
+    // THIS edit introduces a cycle that wasn't there before.
     if (dependsOn.length > 0 && editedId) {
       const proposedId = editedId;
+      const baselineTopo = topoSortTasks(allTasks);
       const hypothetical = allTasks.map((t) =>
         t.id === proposedId ? { ...t, dependsOn } : t
       );
-      const topo = topoSortTasks(hypothetical);
-      if (topo.hasCycle) {
+      const hypotheticalTopo = topoSortTasks(hypothetical);
+      if (hypotheticalTopo.hasCycle && !baselineTopo.hasCycle) {
         setError(
-          `Cannot save: this dependency set would create a cycle. Tasks involved: ${(topo.cyclePath ?? []).map((id) => id.toUpperCase()).join(" → ")}`
+          `This dependency would create a loop. Pick a different upstream task — ${(hypotheticalTopo.cyclePath ?? []).map((id) => id.toUpperCase()).join(" → ")} would point back at itself.`
         );
         return;
       }

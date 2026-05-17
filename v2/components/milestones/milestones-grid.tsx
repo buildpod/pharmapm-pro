@@ -329,10 +329,20 @@ export function MilestonesGrid() {
     });
   }
 
-  // Apply a forecast-date change directly (no cascade — forecast is a projection)
+  // Apply a forecast-date change directly (no cascade — forecast is a projection).
+  // M22.1 — when the forecast slips meaningfully past planned, surface a
+  // working-day variance nudge so silent saves don't hide schedule drift.
   function handleForecastDateChange(id: string, newDate: string) {
     const target = milestones.find((m) => m.id === id);
-    if (target) updateMilestone({ ...target, forecastDate: newDate }, { source: "user-inline", note: "forecast edit" });
+    if (!target) return;
+    updateMilestone({ ...target, forecastDate: newDate }, { source: "user-inline", note: "forecast edit" });
+    const variance = workingDaysBetween(target.plannedDate, newDate, workingDays, holidays);
+    if (Math.abs(variance) >= 14) {
+      toast.info(
+        `Forecast variance ${variance > 0 ? "+" : ""}${variance} working days`,
+        { description: `${target.name} now forecasts ${variance > 0 ? "later" : "earlier"} than planned. Review or promote forecast to planned.` }
+      );
+    }
   }
 
   function handleLockToggle(id: string) {
@@ -363,13 +373,51 @@ export function MilestonesGrid() {
 
   function handleDrawerSave(m: Milestone) {
     const withProj: Milestone = { ...m, projectId: m.projectId || activeProjectId };
-    const exists = milestones.some((x) => x.id === withProj.id);
-    if (exists) {
-      updateMilestone(withProj);
-      toast.success("Milestone updated", { description: withProj.name });
-    } else {
+    const existing = milestones.find((x) => x.id === withProj.id);
+    const isNew = !existing;
+
+    // M22.1 — new milestones save straight; nothing to cascade from yet
+    if (isNew) {
       addMilestone(withProj);
       toast.success("Milestone added", { description: withProj.name });
+      setDrawer({ mode: "closed" });
+      return;
+    }
+
+    // M22.1 — planned-date change from the form drawer must route through the
+    // cascade preview just like an inline date edit would. Save non-cascade
+    // field changes (name, owner, phase, forecast, etc.) immediately; if the
+    // planned date moved, hand off to the cascade preview flow.
+    const plannedChanged = existing!.plannedDate !== withProj.plannedDate;
+    const forecastChanged = existing!.forecastDate !== withProj.forecastDate;
+
+    if (plannedChanged) {
+      // Persist the non-planned-date field updates first so the cascade
+      // preview operates on the up-to-date milestone metadata.
+      const intermediate: Milestone = { ...withProj, plannedDate: existing!.plannedDate };
+      updateMilestone(intermediate, { source: "user-edit", note: "form save (pre-cascade fields)" });
+      setDrawer({ mode: "closed" });
+      // Trigger the same preview path the inline date edit uses.
+      handlePlannedDateChange(withProj.id, withProj.plannedDate);
+      return;
+    }
+
+    // M22.1 — forecast variance nudge when the slip is large
+    updateMilestone(withProj);
+    if (forecastChanged) {
+      const variance = workingDaysBetween(
+        withProj.plannedDate, withProj.forecastDate, workingDays, holidays
+      );
+      if (Math.abs(variance) >= 14) {
+        toast.info(
+          `Forecast variance ${variance > 0 ? "+" : ""}${variance} working days`,
+          { description: `${withProj.name} now forecasts ${variance > 0 ? "later" : "earlier"} than planned. Review or promote forecast to planned.` }
+        );
+      } else {
+        toast.success("Milestone updated", { description: withProj.name });
+      }
+    } else {
+      toast.success("Milestone updated", { description: withProj.name });
     }
     setDrawer({ mode: "closed" });
   }

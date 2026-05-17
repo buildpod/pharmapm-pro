@@ -93,6 +93,33 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M22.1 — Architectural-consistency hotfix (form save + cycle guard + forecast variance)
+**Goal:** Vineet's M22 dogfood surfaced three architectural-consistency bugs the current quality skills couldn't catch: form-drawer saves bypass cascade preview (inconsistent with inline edits); task form cycle guard blocks legitimate saves when the cycle pre-exists in data (parallel to PL-11); forecast variance has no UX feedback. All three are tightly scoped follow-ups on existing patterns.
+
+**DoD:**
+- `milestones-grid.handleDrawerSave` routes planned-date changes through the cascade preview (same flow as inline `handlePlannedDateChange`). Non-cascade fields save immediately; planned-date change triggers the preview drawer.
+- `task-form.tsx` cycle guard compares baseline vs hypothetical topo sort — only blocks if THIS edit introduces a cycle that wasn't there before. Pre-existing cycles in stale data no longer block legitimate edits (mirrors PL-11 semantics at the form layer).
+- Forecast-date changes (inline AND form) emit `toast.info` with working-day variance when |variance| ≥ 14 working days. Plain-language: "Forecast variance +N working days · {name} now forecasts later than planned. Review or promote forecast to planned."
+- 124 tests still pass. Build clean.
+- §5.2 tech-debt: log the gap that current quality skills don't catch architectural-parity issues; flag M22.2 to add `save-flow-parity`, `pre-existing-state-distinction`, `cross-entity-parity` skills + start using the built-in `simplify` / `review` skills before commit on architectural modules.
+
+**Out of scope:**
+- Promote-forecast-to-planned action (own module — M23 cascade-from-forecast)
+- Variance threshold settings UI (default 14 WD is fine)
+- Milestone-form cycle prevention parity (single-predecessor model; cycles are rare via this path)
+- The new architectural skills themselves — M22.2
+
+**Started:** (this session)
+**Status:** in progress
+
+### M22 Completion summary (2026-05-17)
+
+**Module:** M22 — Project Charter
+**Status:** ✅ Complete (commit `2f2b570`)
+**Outcome:** Charter entity type, 1:1 with Project; entity store slice + repository + audit log integration; /charter route with read view + edit drawer; CharterCard on Dashboard; sidebar nav entry under PLANNING. Quality skills applied throughout — slate/amber/emerald tones, no jargon, validated field errors with what/why/next.
+
+### M22 original goal/DoD (preserved for traceability)
+
 **Module:** M22 — Project Charter
 **Goal:** Per PMBOK §4.1, every project starts with a Charter — the formal document authorising scope, objectives, sponsor, and approval. We've shipped 21 modules of execution surfaces (milestones, tasks, risks, docs, costs, etc.) without a Charter; that's backwards from how PM practice works. M22 lands the Charter as a first-class entity, with a dedicated page, a dashboard surface for status, and store + audit-log integration. Closes the "no charter, no anchor" gap before further feature work piles on.
 
@@ -1077,6 +1104,31 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M22.1 — architectural-consistency hotfix)
+
+**Strategic context:**
+M22 deployed; Vineet dogfooded and surfaced three bugs the M21 quality skills couldn't catch — they're scope-limited to strings / colors / error structure, not behavioural-parity / pre-existing-state / cross-entity consistency. Honest assessment of the gap + targeted fixes.
+
+**Built:**
+- `milestones-grid.handleDrawerSave` now detects planned-date change; saves non-cascade fields immediately and routes the planned-date shift through `handlePlannedDateChange` (same flow as inline date click). Form-drawer save behaviour now matches inline-edit behaviour for cascade.
+- `task-form.tsx` cycle guard rewritten: compare `topoSortTasks(baseline)` vs `topoSortTasks(hypothetical)`. Only block save when hypothetical has a cycle that baseline did not. Pre-existing cycles in stale data no longer block legitimate edits (parallel to PL-11 engine semantics).
+- Forecast-date changes (both inline `handleForecastDateChange` and form `handleDrawerSave`) emit `toast.info` with working-day variance when |variance| ≥ 14 WD. Replaces silent saves on big slips.
+
+**Decided:**
+- **All three fixes follow patterns already in the codebase** — no new types, no new skills, no engine changes. Cascade preview route, baseline-vs-hypothetical comparison, working-day variance — each used elsewhere already. This was a parity-and-distinction gap, not a missing primitive.
+- **Honest skill assessment** — current quality skills (string / tone / error-pattern) are surface-layer. They wouldn't have caught any of these three. Need architectural skills next: `save-flow-parity` (compares parallel code paths across grid/form pairs), `pre-existing-state-distinction` (forces baseline-vs-edit thinking on every guard), `cross-entity-parity` (when changing tasks-grid, check milestones-grid for symmetric behaviour). Plus start using the built-in `simplify` and `review` skills before architectural commits.
+- **M22.2 = new skills + start using existing built-in skills.** Scoped after M22.1 dogfood.
+
+**Pending:**
+- Commit + push M22.1.
+- Dogfood — try the three scenarios from Vineet's screenshots: form-drawer planned-date edit (should now open cascade preview); task save with no cycle introduction (should now succeed even when stale graph has cycle); forecast change to far-future date (should show variance toast).
+- M22.2 candidate: architectural-skill expansion + commit-time built-in skill invocation.
+
+**Followup observations:**
+- All three bugs were the same class: "code makes an assumption about the data/state that doesn't hold." Form-save assumed users only change non-cascading fields; cycle guard assumed any cycle is user-caused; forecast change assumed silent save is enough. Each assumption was wrong against real PM usage.
+- `/milestones` 11.6 → 11.8 kB, `/tasks` unchanged. Within budget.
+- The `topoSortTasks` engine helper is now consumed by both cascade preview (M20.1) and form-cycle guard (M21-Checkpoint, M22.1). Reuse pattern working.
 
 ### Session — 2026-05-17 (M22 — Project Charter)
 

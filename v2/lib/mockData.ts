@@ -244,6 +244,97 @@ export const risks: Risk[] = [
   { id: "r6", title: "Key SME availability during UAT",              category: "Resource",      probability: 3, impact: 3, score: 9,  status: "open",      owner: "VP", mitigation: "Reserve SME calendars 8 weeks ahead", projectId: "proj-veeva-rim" },
 ];
 
+// ─── Issues register (M24) ───────────────────────────────────────────────────
+//
+// Issues track CURRENT problems affecting the project (vs Risks which are
+// potential FUTURE events). Every regulated-industry project requires an
+// issues log for audit / inspection trails. Lifecycle: Open → In Progress →
+// Resolved (or Won't Fix). Severity drives prioritisation, not probability×impact
+// (the Risk model — Issues are certain, not probabilistic).
+
+export type IssueSeverity = "Critical" | "High" | "Medium" | "Low";
+export type IssueStatus   = "Open" | "In Progress" | "Resolved" | "Won't Fix";
+
+export type Issue = {
+  id: string;
+  title: string;
+  description: string;
+  raisedDate: string;                  // ISO yyyy-mm-dd
+  severity: IssueSeverity;
+  status: IssueStatus;
+  owner: string;                       // initials
+  resolutionPlan?: string;             // free-text
+  resolvedDate?: string;               // ISO; required when status = Resolved or Won't Fix
+  milestoneId?: string;                // optional link to a milestone
+  taskId?: string;                     // optional link to a task
+  projectId: string;
+};
+
+export const issues: Issue[] = [
+  {
+    id: "i1",
+    title: "Vendor delivered source-data extract with 12% missing metadata",
+    description: "Documentum 7.3 extract for the first 3,200 dossiers shows 12% of records missing dossier-status metadata required for Veeva RIM ingestion. Vendor (Iron Mountain) was scoped to deliver ≥99% complete extracts.",
+    raisedDate: "2026-05-04",
+    severity: "Critical",
+    status: "In Progress",
+    owner: "AR",
+    resolutionPlan: "Escalated to Iron Mountain account team. Mitigation: parallel internal re-extract from source DB via read-only replica; expected by 2026-05-14.",
+    milestoneId: "m8",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "i2",
+    title: "UAT environment provisioning delayed by 9 days",
+    description: "Veeva Professional Services confirmed UAT sandbox provisioning slipped from 2026-05-15 to 2026-05-24 due to capacity constraints on the EU cluster. Impacts UAT kickoff date.",
+    raisedDate: "2026-05-10",
+    severity: "High",
+    status: "Open",
+    owner: "KM",
+    resolutionPlan: "Awaiting Veeva confirmation of 2026-05-24 commitment in writing. Backup: parallel use of dev sandbox for non-validation UAT scenarios.",
+    taskId: "t9",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "i3",
+    title: "Training deck pending legal review (GDPR screenshots)",
+    description: "End-user training deck has 8 screenshots showing test-data with placeholder names that fail Legal's GDPR-compliance review. Need redactions before training kickoff.",
+    raisedDate: "2026-05-08",
+    severity: "Medium",
+    status: "In Progress",
+    owner: "HR",
+    resolutionPlan: "Redactions in progress; expected back from design team 2026-05-19. Legal re-review scheduled 2026-05-22.",
+    milestoneId: "m11",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "i4",
+    title: "IQ protocol section 4.3 references retired SOP",
+    description: "Draft IQ protocol section 4.3 references SOP-QA-014 which was superseded by SOP-QA-014-Rev3 in 2026-Q1. QA flagged in pre-review.",
+    raisedDate: "2026-05-12",
+    severity: "Medium",
+    status: "Resolved",
+    owner: "QA",
+    resolutionPlan: "Updated all references to SOP-QA-014-Rev3 throughout the document. Re-circulated for QA approval.",
+    resolvedDate: "2026-05-15",
+    taskId: "t5",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "i5",
+    title: "Submission workspace template missing approver field",
+    description: "Per Veeva config, submission workspaces require an explicit Approver field separate from Reviewer. Current template only has Reviewer.",
+    raisedDate: "2026-04-22",
+    severity: "Low",
+    status: "Resolved",
+    owner: "KM",
+    resolutionPlan: "Added Approver picklist + workflow rule; tested in dev; UAT validation pending.",
+    resolvedDate: "2026-05-02",
+    taskId: "t2",
+    projectId: "proj-veeva-rim",
+  },
+];
+
 // ─── Documents ────────────────────────────────────────────────────────────────
 
 export type DecisionStatus = "approved" | "rejected" | "pending";

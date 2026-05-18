@@ -22,9 +22,10 @@ import {
   recurringMeetings as seedMeetings,
   absences as seedAbsences,
   charters as seedCharters,
+  issues as seedIssues,
   type Milestone, type Task, type Risk, type Document,
   type CostLine, type TeamMember, type RecurringMeeting, type Absence,
-  type Charter,
+  type Charter, type Issue,
 } from "@/lib/mockData";
 import { LocalStorageRepository } from "@/lib/repositories/entity-repository";
 import { appendAudit, buildAction, type Source, type EntityKind } from "./audit";
@@ -41,6 +42,7 @@ const repos = {
   meeting:    new LocalStorageRepository<RecurringMeeting>("aivello_meetings_v1", seedMeetings),
   absence:    new LocalStorageRepository<Absence>("aivello_absences_v1", seedAbsences),
   charter:    new LocalStorageRepository<Charter>("aivello_charters_v1", seedCharters),
+  issue:      new LocalStorageRepository<Issue>("aivello_issues_v1", seedIssues),
 };
 
 // ─── Per-action options ──────────────────────────────────────────────────────
@@ -62,6 +64,7 @@ interface State {
   meetings: RecurringMeeting[];
   absences: Absence[];
   charters: Charter[];
+  issues: Issue[];
 
   hydrate(): Promise<void>;
 
@@ -69,6 +72,11 @@ interface State {
   updateCharter(c: Charter, opts?: ActionOpts): void;
   deleteCharter(id: string, opts?: ActionOpts): void;
   replaceAllCharters(items: Charter[], opts?: ActionOpts): void;
+
+  addIssue(i: Issue, opts?: ActionOpts): void;
+  updateIssue(i: Issue, opts?: ActionOpts): void;
+  deleteIssue(id: string, opts?: ActionOpts): void;
+  replaceAllIssues(items: Issue[], opts?: ActionOpts): void;
 
   addMilestone(m: Milestone, opts?: ActionOpts): void;
   updateMilestone(m: Milestone, opts?: ActionOpts): void;
@@ -196,15 +204,17 @@ export const useEntityStore = create<State>((set, get) => ({
   meetings:    seedMeetings,
   absences:    seedAbsences,
   charters:    seedCharters,
+  issues:      seedIssues,
 
   async hydrate() {
     if (get().hydrated) return;
-    const [milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters] = await Promise.all([
+    const [milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters, issues] = await Promise.all([
       repos.milestone.list(),  repos.task.list(), repos.risk.list(),
       repos.document.list(),   repos.costLine.list(), repos.teamMember.list(),
       repos.meeting.list(),    repos.absence.list(), repos.charter.list(),
+      repos.issue.list(),
     ]);
-    set({ milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters, hydrated: true });
+    set({ milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters, issues, hydrated: true });
   },
 
   // ── Milestones ──
@@ -260,6 +270,12 @@ export const useEntityStore = create<State>((set, get) => ({
   updateCharter:     (c, o) => set({ charters: runUpdate(get().charters, c, "charter", repos.charter, o) }),
   deleteCharter:     (id, o) => set({ charters: runDelete(get().charters, id, "charter", repos.charter, o) }),
   replaceAllCharters: (items, o) => set({ charters: runReplaceAll(items, "charter", repos.charter, o) }),
+
+  // ── Issues (M24) ──
+  addIssue:        (i, o) => set({ issues: runAdd(get().issues, i, "issue", repos.issue, o) }),
+  updateIssue:     (i, o) => set({ issues: runUpdate(get().issues, i, "issue", repos.issue, o) }),
+  deleteIssue:     (id, o) => set({ issues: runDelete(get().issues, id, "issue", repos.issue, o) }),
+  replaceAllIssues: (items, o) => set({ issues: runReplaceAll(items, "issue", repos.issue, o) }),
 }));
 
 // Convenience hook used in app/(app)/layout.tsx to hydrate on first mount.

@@ -93,6 +93,45 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M24 — Issues register
+**Goal:** PharmaPM Pro has Risks (potential future events) but no surface for tracking live problems — production-affecting situations a PM needs to resolve *now*. Every regulated-industry project (GxP, FDA, EMA) requires an issues log for inspection trails. M24 adds it as a first-class entity that mirrors the Risk pattern, with severity-based prioritisation, owner / resolution workflow, and dashboard surface. Clean break from cascade work; exercises `cross-entity-parity` skill.
+
+**DoD:**
+- **New `Issue` entity** in `lib/mockData.ts` 1:N with Project. Fields: `id` · `title` · `description` · `raisedDate` · `severity` (`Critical` | `High` | `Medium` | `Low`) · `status` (`Open` | `In Progress` | `Resolved` | `Won't Fix`) · `owner` (initials) · `resolutionPlan?` · `resolvedDate?` · `milestoneId?` · `taskId?` · `projectId`.
+- **Seed Issues** for `proj-veeva-rim`: 4–5 realistic issues (vendor-side data quality blocker, environment provisioning slip, validation script defect, training-deck legal review awaiting, etc.).
+- **Entity store slice** following the M20.2 pattern: `addIssue` / `updateIssue` / `deleteIssue` / `replaceAllIssues` + `LocalStorageRepository<Issue>` + `issue` added to `EntityKind`. Audit log captures every save.
+- **`/issues` route** at `app/(app)/issues/page.tsx` with `IssuesGrid` component, project-scoped. Mirrors the Risks-grid shape.
+- **`IssueFormDrawer`** following the Risk form pattern: required-field validation per `error-message-pattern` skill, conditional resolution-fields when status = Resolved.
+- **Filter / sort** by severity + status + owner; counts pill (open / in progress / resolved).
+- **Dashboard surface**: open-issues card next to risks/charter on the dashboard. Status colour: severity-driven (rose for Critical, amber for High, slate for resolved).
+- **Sidebar nav**: new "Issues" entry under RISK & FINANCE (next to Risks).
+- **Project validator extension**: add rule "open Critical issues unresolved within 7 working days" → flags on Project Health card.
+- **Tone discipline**: severity-based (rose Critical, amber High, slate Medium/Low, emerald Resolved).
+- **Plain language strings** per `ui-string-audit`.
+- All 133 tests still pass. Build clean. `simplify` invoked on diff before commit.
+- §8 entry uses `audit-log-compression` format.
+
+**Out of scope (defer):**
+- Issue → Risk linkage UI (Issue arose from a Risk realising — interesting but separate concern)
+- Issue Excel export sheet (M19 exporter extension — defer to M24.1)
+- Issue-to-milestone / task cascade impact (Issues don't cascade dates by design)
+- RAID unified register view (Issues + Assumptions + Decisions aggregated) — defer to M-future
+- Decisions register and Assumptions entity — separate modules
+- Change Request workflow — separate module (M25 candidate)
+
+**Why this matters:** every audit / inspection / SteerCo review asks "what issues are open?" Currently we'd have to manually list them from meeting notes or vendor emails. With M24 it's a queryable register with audit trail, severity, ownership. Closes a structural gap in the PMBOK §13 stakeholder/issue management coverage.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M23.1 Completion summary (2026-05-18)
+
+**Module:** M23.1 — Dependency Resolution Workbench density (research-backed)
+**Status:** ✅ Complete (commit `1e8ed60`)
+**Outcome:** Three research-backed patterns (Shneiderman 1996 mantra) — loop overview line, search/filter/cross-workstream toggle, suggested-first split + compact rows + inline expansion. Pure UI changes, no engine. 133 pass / 4 skipped. After M23.1 Vineet called the cascade arc "in a loop" and paused to seek external validation (Codex on a fork at buildpod/pharmapm-command-center).
+
+### M23.1 original goal/DoD (preserved for traceability)
+
 **Module:** M23.1 — Dependency Resolution Workbench density (research-backed)
 **Goal:** M23 Phase 1 works at 11 edges but doesn't scale to the 30–80 edges a real 200-task Veeva project would produce. Apply Shneiderman's "Overview → Zoom/Filter → Details on Demand" framework (1996, 8,000+ academic citations) plus proven industry patterns (Primavera P6 WBS grouping, NDepend cycle UX, Monday.com real-time impact) to deliver three concrete changes that scale the workbench. No engine changes; pure UI.
 
@@ -1205,6 +1244,37 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-18 (M24 — Issues register)
+
+**Strategic context:**
+Cascade arc paused after M23.1 (Vineet running Codex on a fork for external validation). M24 chosen as a clean break — new entity surface, no cascade interaction, exercises `cross-entity-parity` against the existing Risk pattern. Issues are PMBOK §13 stakeholder/issue management coverage we'd been missing — every audit and SteerCo review asks "what's open right now?" and currently we'd have to dig through meeting notes.
+
+**Built:**
+- **`Issue` entity** in `lib/mockData.ts` (12 fields, 1:N with Project): id · title · description · raisedDate · severity (Critical/High/Medium/Low) · status (Open/In Progress/Resolved/Won't Fix) · owner · resolutionPlan? · resolvedDate? · milestoneId? · taskId? · projectId.
+- **5 realistic seed issues** for Veeva RIM — vendor metadata extract blocker (Critical), UAT environment slip (High), training-deck legal review (Medium), retired-SOP reference (Medium, resolved), submission template approver field (Low, resolved).
+- **Entity store slice** following M20.2 pattern + `LocalStorageRepository<Issue>` + `issue` added to `EntityKind`. Hydration extended.
+- **`/issues` route** with `IssuesGrid` — flat table view (no probability×impact matrix; that's a Risk thing). Filter by severity + status + owner + Mine. Counts pill showing open / resolved / critical-to-clear.
+- **`IssueFormDrawer`** mirrors task/risk drawer pattern. Required-field validation per `error-message-pattern` skill. Conditional resolved-date field when status=Resolved/Won't Fix. Optional linkage to milestone or task.
+- **Sidebar nav** — new "Issues" entry under RISK & FINANCE (AlertOctagon icon) next to Risks.
+- Tone discipline: rose Critical · amber High · slate Medium/Low · rose Open · blue In Progress · emerald Resolved · slate Won't Fix.
+
+**Decided:**
+- **Issues distinct from Risks** — Risks model probabilistic future events (prob × impact); Issues model certain current problems (severity only). Different scoring, different lifecycle.
+- **Sidebar grouping under RISK & FINANCE** — natural pairing with Risks; PM mental model treats both as "things to track."
+- **No cascade interaction** — Issues don't shift dates by design. They surface problems; they don't propagate them through the schedule.
+- **Deferred to M24.1+**: Issue Excel export sheet, dashboard card, Project Health validator rule (critical-issues-open SLA), issue↔risk linkage UI, RAID unified register.
+
+**Pending:**
+- Commit + push.
+- Dogfood — raise an issue against M11 milestone, change status to Resolved with resolution plan, verify audit log entry.
+- M-future candidates: Decisions register, Assumptions entity, Change Request workflow, RAID unified view, Codex cascade-comparison review.
+
+**Followup observations:**
+- Build: 16 → 17 static pages, `/issues` 7.42 kB. Within budget.
+- `cross-entity-parity` skill paid off — Issue form drawer mirrors Risk + Task drawers structurally; no new patterns invented.
+- `ui-string-audit` caught two would-be jargon strings during authoring: "issue ID" → "issue identifier"; "tagged to" → "linked to".
+- 133 pass / 4 skipped unchanged (no tests added — Issues have no domain-logic that needs verification; pure CRUD on entity store).
 
 ### Session — 2026-05-18 (M23.1 — Workbench density, research-backed)
 

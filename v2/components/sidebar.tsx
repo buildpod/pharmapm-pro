@@ -7,6 +7,7 @@ import {
   Milestone,
   CheckSquare,
   AlertTriangle,
+  AlertOctagon,
   DollarSign,
   FileText,
   BarChart2,
@@ -41,8 +42,9 @@ const navGroups = [
   {
     label: "RISK & FINANCE",
     items: [
-      { label: "Risks", href: "/risks", icon: AlertTriangle, badge: "3" },
-      { label: "Costs", href: "/costs", icon: DollarSign },
+      { label: "Risks",  href: "/risks",  icon: AlertTriangle, badge: "3" },
+      { label: "Issues", href: "/issues", icon: AlertOctagon },
+      { label: "Costs",  href: "/costs",  icon: DollarSign },
     ],
   },
   {

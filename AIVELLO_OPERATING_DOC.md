@@ -93,6 +93,37 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M23.1 — Dependency Resolution Workbench density (research-backed)
+**Goal:** M23 Phase 1 works at 11 edges but doesn't scale to the 30–80 edges a real 200-task Veeva project would produce. Apply Shneiderman's "Overview → Zoom/Filter → Details on Demand" framework (1996, 8,000+ academic citations) plus proven industry patterns (Primavera P6 WBS grouping, NDepend cycle UX, Monday.com real-time impact) to deliver three concrete changes that scale the workbench. No engine changes; pure UI.
+
+**DoD:**
+- **Loop overview panel** (Shneiderman "Overview first") at the top — single horizontal text line showing the loop's shape (`T1 → T3 → T4 → … → T15 ⇢ T1`) with the closing back-edge visually distinct. Horizontally scrollable for very long chains.
+- **Search + workstream filter + cross-workstream toggle** (Shneiderman "Zoom and Filter") — fuzzy match on task name / ID / workstream; dropdown to filter to one workstream; "Show only cross-workstream links" toggle that surfaces accidental boundary-crossings.
+- **Suggested-first split + compact rows + inline expansion** (Shneiderman "Details on Demand") — back-edge stays as full card at top; other edges become single-line compact rows; click a row to expand inline with the three actions + note field.
+- Empty-state when filters return zero rows: "No links match · clear filter to see all".
+- All strings pass `ui-string-audit` (no jargon).
+- Tone discipline: amber suggested-fix; neutral slate compact rows; no rose.
+- 133+ tests still pass (UI-only changes). Build clean. `simplify` invoked on diff per CLAUDE.md.
+- §8 entry cites the research backing (Shneiderman, Primavera, NDepend, Monday research) so future Claude understands the *why* of the design.
+
+**Out of scope (per research-backed deferral):**
+- Full node-link force-directed graph rendering — research shows clutter collapses user perception above ~50 nodes (Weber's law studies); heavy library; not scale-appropriate
+- Adjacency matrix view (NDepend-style) — excellent at 1000+ edges but our scale doesn't warrant the learning curve. M24+ candidate.
+- Edge bundling visual treatment — academic technique for >100 edges; premature
+- Animated transitions between resolution steps — not in the top-cited research as essential
+- Task dependency picker upgrade — separate surface (task edit form), separate module (M23.2)
+
+**Started:** (this session)
+**Status:** in progress
+
+### M23 Completion summary (2026-05-17)
+
+**Module:** M23 — Dependency Resolution Workbench (Phase 1)
+**Status:** ✅ Complete (commit `467672e`)
+**Outcome:** New `findCycleEdges` DFS-based algorithm + 7 unit tests. Data model sidecar fields `Task.parallelDeps` + `Task.depNotes`. Workbench UI with per-edge actions (parallel, remove, note). Drawer useMemo staleness fix. Plain-language strings throughout.
+
+### M23 original goal/DoD (preserved for traceability)
+
 **Module:** M23 — Dependency Resolution Workbench (Phase 1)
 **Goal:** Replace the "Show 11 tasks in the loop" flat list with a real workbench surface. PMs facing dependency loops should see the full chain, understand each link in plain language, and resolve the loop with one click — without needing to know graph-theory terms like "cycle" or "back-edge." Introduces a new dependency type ("parallel") so PMs can reclassify links that don't truly need sequential blocking. Honors Vineet's "digital adoption ready" framing — every string is layman-readable.
 
@@ -1174,6 +1205,39 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-18 (M23.1 — Workbench density, research-backed)
+
+**Strategic context:**
+Vineet's M23 dogfood at scale: workbench works at 11 edges but won't scale to 30–80 edges typical for a real Veeva project. He explicitly asked for *research, not opinion* — referenced UI books, papers, comparable products. Spent the search budget on 5 high-yield queries covering Shneiderman's foundational mantra, edge-density research, Primavera/MS Project/NDepend industry patterns, and Monday/Miro/ClickUp 2026 best practices.
+
+**Built (three changes, all backed by cited research):**
+
+- **Pattern 1 — Loop overview line at top** (Shneiderman 1996 *"Overview first"*).
+  Single horizontal scrollable text line showing the loop's shape: `T1 → T3 → T4 → … → T15 ⇢ T1`. Closing back-edge styled distinctly (amber, "closes here" label). PM sees the whole problem in one glance before reading detail. New `LoopOverview` sub-component, ~40 lines.
+
+- **Pattern 2 — Search + workstream filter + cross-workstream toggle** (Shneiderman *"Zoom and Filter"*, Primavera P6 WBS-grouping convention).
+  Search input with fuzzy match on task name / ID / workstream. Dropdown to filter to one workstream. Toggle to surface only cross-workstream edges (research insight: cross-boundary edges are usually the accidental ones; internal workstream edges usually intentional). "Clear filter" link when active. Empty state: "No links match · clear filter to see all".
+
+- **Pattern 3 — Suggested-first split + compact rows + inline expansion** (Shneiderman *"Details on Demand"*, NDepend cycle UX, Linear/Notion disclosure patterns).
+  Suggested back-edge stays as full card at top under "⭐ Suggested fix · most likely to resolve cleanly". Other edges become single-line compact rows showing ID pair + truncated names + workstream chip (slate for same-workstream, blue for cross). Click row → expands inline to full card with three actions + note. Second click or "Collapse" → collapses.
+
+**Decided:**
+- **Shneiderman's mantra is the explicit design framework** — 8,000+ academic citations; applies to ALL info-viz problems including ours. Future modules that touch dense data should default to this framework.
+- **Workstream grouping is industry convention, not opinion** — Primavera P6 groups by WBS; we group by workstream. Researched + confirmed.
+- **No node-link / force-directed graph rendering** — explicit research-backed deferral. Edge crossings + clutter scale poorly above ~50 nodes per Weber's law studies. Adjacency matrix (NDepend pattern) noted as M24+ candidate if 1000+ edge cases ever surface.
+- **Cross-workstream toggle is the key density-management lever** — accidental cross-boundary edges are the high-yield filter for resolution; surfacing them by default would be too opinionated, but as a one-click toggle it adds real value.
+
+**Pending:**
+- Commit + push.
+- Dogfood — the 11-edge loop from Vineet's data should now render with: loop overview line at top, suggested-fix card, 10 compact rows. Search-filter for "configuration" should narrow it. Click a row → inline expansion with same actions as before.
+- M23.2 candidate: task dependency picker upgrade (separate surface from workbench).
+
+**Followup observations:**
+- `/tasks` 8.34 kB — bundle size flat post-density-rewrite (gzip dedupes string boilerplate across components).
+- Pure UI module. No engine touched. 133 pass / 4 skipped unchanged.
+- Skills active: `ui-string-audit` (every new string passed without rework), `tone-discipline` (amber suggested, slate compact rows, blue cross-workstream chip — no rose), `focused-read` (used `grep` then targeted `Read` slices instead of reading the 800-line drawer file whole).
+- Research-backed deferrals captured in DoD Out of scope — future Claude will know these were rejected with citations, not oversight.
 
 ### Session — 2026-05-17 (M23 — Dependency Resolution Workbench Phase 1)
 

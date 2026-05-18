@@ -816,23 +816,230 @@ function DependencyWorkbench({
   onRemoveLink:   (fromId: string, toId: string) => void;
   onSaveNote:     (fromId: string, toId: string, note: string) => void;
 }) {
+  // M23.1 — research-backed density redesign:
+  // Pattern 1 (Shneiderman "Overview first"): a horizontal loop line at top.
+  // Pattern 2 (Shneiderman "Zoom and Filter"): search + workstream + cross-WS toggle.
+  // Pattern 3 (Shneiderman "Details on Demand"): suggested-first full card +
+  //   compact rows for others with click-to-expand inline detail.
+
+  const [search, setSearch] = useState("");
+  const [workstreamFilter, setWorkstreamFilter] = useState<string>("__all__");
+  const [crossOnly, setCrossOnly] = useState(false);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
+  // Workstreams that appear in the loop — used for filter dropdown
+  const workstreams = useMemo(() => {
+    const set = new Set<string>();
+    edges.forEach((e) => {
+      if (e.fromGroup) set.add(e.fromGroup);
+      if (e.toGroup)   set.add(e.toGroup);
+    });
+    return Array.from(set).sort();
+  }, [edges]);
+
+  // Filtered set per current search + filters
+  const filteredEdges = useMemo(() => edges.filter((e) => {
+    if (crossOnly && e.fromGroup && e.toGroup && e.fromGroup === e.toGroup) return false;
+    if (workstreamFilter !== "__all__" && e.fromGroup !== workstreamFilter && e.toGroup !== workstreamFilter) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const blob = [e.fromId, e.fromName, e.fromGroup, e.toId, e.toName, e.toGroup]
+        .filter(Boolean).join(" ").toLowerCase();
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  }), [edges, search, workstreamFilter, crossOnly]);
+
+  const suggestedEdge = filteredEdges.find((e) => e.isSuggested) ?? null;
+  const otherEdges    = filteredEdges.filter((e) => !e.isSuggested);
+  const totalFiltered = filteredEdges.length;
+
   return (
-    <div className="mt-3 space-y-2">
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        The links between them
-      </p>
-      <ul className="space-y-2">
-        {edges.map((edge) => (
-          <WorkbenchEdgeCard
-            key={`${edge.fromId}->${edge.toId}`}
-            edge={edge}
-            onMarkParallel={onMarkParallel}
-            onRemoveLink={onRemoveLink}
-            onSaveNote={onSaveNote}
-          />
-        ))}
-      </ul>
+    <div className="mt-3 space-y-3">
+      {/* ─── Pattern 1: Loop overview (Shneiderman "Overview first") ─── */}
+      <LoopOverview edges={edges} />
+
+      {/* ─── Pattern 2: Search + filter + cross-workstream toggle ─── */}
+      <div className="space-y-1.5">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={`Filter ${edges.length} link${edges.length === 1 ? "" : "s"} by task name, ID, or workstream…`}
+          className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        />
+        {workstreams.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+            <select
+              value={workstreamFilter}
+              onChange={(e) => setWorkstreamFilter(e.target.value)}
+              className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="__all__">All workstreams</option>
+              {workstreams.map((w) => <option key={w} value={w}>{w}</option>)}
+            </select>
+            <label className="flex items-center gap-1 cursor-pointer text-muted-foreground hover:text-foreground">
+              <input
+                type="checkbox"
+                checked={crossOnly}
+                onChange={(e) => setCrossOnly(e.target.checked)}
+                className="h-3 w-3 rounded border-border accent-primary"
+              />
+              <span>Only cross-workstream</span>
+            </label>
+            {(search || workstreamFilter !== "__all__" || crossOnly) && (
+              <button
+                type="button"
+                onClick={() => { setSearch(""); setWorkstreamFilter("__all__"); setCrossOnly(false); }}
+                className="ml-auto text-[10px] font-medium text-blue-700 hover:underline"
+              >
+                Clear filter
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ─── Pattern 3: Suggested fix (full card) + compact rows + inline expand ─── */}
+      {totalFiltered === 0 ? (
+        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-4 text-center">
+          <p className="text-[11px] font-medium text-foreground">No links match</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">Clear the filter to see all {edges.length} links.</p>
+        </div>
+      ) : (
+        <>
+          {suggestedEdge && (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-800">
+                ⭐ Suggested fix · most likely to resolve cleanly
+              </p>
+              <WorkbenchEdgeCard
+                edge={suggestedEdge}
+                onMarkParallel={onMarkParallel}
+                onRemoveLink={onRemoveLink}
+                onSaveNote={onSaveNote}
+              />
+            </div>
+          )}
+
+          {otherEdges.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {suggestedEdge ? "Other links in the loop" : "Links in the loop"}
+                {" "}
+                <span className="text-muted-foreground/70">({otherEdges.length})</span>
+              </p>
+              <ul className="space-y-1.5">
+                {otherEdges.map((edge) => {
+                  const key = `${edge.fromId}->${edge.toId}`;
+                  const isOpen = expandedKey === key;
+                  return (
+                    <li key={key}>
+                      {isOpen ? (
+                        <div className="space-y-1">
+                          <WorkbenchEdgeCard
+                            edge={edge}
+                            onMarkParallel={onMarkParallel}
+                            onRemoveLink={onRemoveLink}
+                            onSaveNote={onSaveNote}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setExpandedKey(null)}
+                            className="text-[10px] font-medium text-muted-foreground hover:text-foreground hover:underline"
+                          >
+                            Collapse
+                          </button>
+                        </div>
+                      ) : (
+                        <CompactEdgeRow edge={edge} onExpand={() => setExpandedKey(key)} />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </>
+      )}
     </div>
+  );
+}
+
+// ─── Pattern 1 — Loop overview line (Shneiderman "Overview first") ─────────
+// Single horizontal text line showing the loop shape. Closing back-edge
+// rendered distinctly so the PM sees where the loop closes at a glance.
+function LoopOverview({ edges }: { edges: WorkbenchEdge[] }) {
+  if (edges.length === 0) return null;
+  // Reconstruct node sequence from edges (consecutive fromId → toId pairs).
+  const nodes: string[] = [edges[0].fromId];
+  for (const e of edges) {
+    if (e.isSuggested) break;          // back-edge closes the loop; don't double-add
+    nodes.push(e.toId);
+  }
+  return (
+    <div className="rounded-md border border-border bg-muted/20 px-2.5 py-1.5">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        Loop overview · {edges.length} link{edges.length === 1 ? "" : "s"}
+      </p>
+      <div className="overflow-x-auto">
+        <div className="flex items-center gap-1 whitespace-nowrap font-mono text-[10px]">
+          {nodes.map((n, i) => (
+            <span key={i} className="flex items-center gap-1">
+              {i > 0 && <span className="text-muted-foreground">→</span>}
+              <span className="rounded bg-card px-1 py-0.5 font-semibold text-foreground">
+                {n.toUpperCase()}
+              </span>
+            </span>
+          ))}
+          <span className="ml-1 flex items-center gap-1">
+            <span className="text-amber-700">⇢</span>
+            <span className="rounded border border-amber-200 bg-amber-50 px-1 py-0.5 font-semibold text-amber-800">
+              {nodes[0].toUpperCase()}
+            </span>
+            <span className="ml-1 text-[9px] uppercase tracking-wider text-amber-700">closes here</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Pattern 3 — Compact row (Shneiderman "Details on Demand") ─────────────
+// Single-line summary; click to expand inline into a full WorkbenchEdgeCard.
+function CompactEdgeRow({ edge, onExpand }: { edge: WorkbenchEdge; onExpand: () => void }) {
+  const sameWorkstream = edge.fromGroup && edge.toGroup && edge.fromGroup === edge.toGroup;
+  return (
+    <button
+      type="button"
+      onClick={onExpand}
+      className="flex w-full items-center gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-left transition-colors hover:bg-muted/40 focus:outline-none focus:ring-1 focus:ring-ring"
+    >
+      <span className="font-mono text-[10px] font-bold text-muted-foreground">{edge.fromId.toUpperCase()}</span>
+      <span className="text-[10px] text-muted-foreground">→</span>
+      <span className="font-mono text-[10px] font-bold text-muted-foreground">{edge.toId.toUpperCase()}</span>
+      <span className="min-w-0 flex-1 truncate text-[11px] text-foreground/85">
+        {edge.fromName && <span>{edge.fromName}</span>}
+        {edge.fromName && edge.toName && <span className="mx-1 text-muted-foreground">→</span>}
+        {edge.toName && <span>{edge.toName}</span>}
+      </span>
+      {edge.fromGroup && edge.toGroup && (
+        <span className={cn(
+          "shrink-0 rounded-full border px-1.5 text-[9px] font-medium",
+          sameWorkstream
+            ? "border-slate-200 bg-slate-50 text-slate-600"
+            : "border-blue-200 bg-blue-50 text-blue-700"
+        )}>
+          {sameWorkstream ? edge.fromGroup : `${edge.fromGroup} ⇄ ${edge.toGroup}`}
+        </span>
+      )}
+      {edge.note && (
+        <span className="shrink-0 text-[9px] font-medium text-muted-foreground" title={edge.note}>
+          · note
+        </span>
+      )}
+      <span className="shrink-0 text-[10px] text-muted-foreground">⌄</span>
+    </button>
   );
 }
 

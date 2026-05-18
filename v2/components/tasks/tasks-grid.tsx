@@ -15,7 +15,7 @@ import { useEntityStore } from "@/lib/stores/entity-store";
 import { useSettings } from "@/lib/settingsStore";
 import {
   previewTaskCascade, findConstraintViolations, groupViolationsByTask, diffViolations,
-  previewTaskToMilestonePush,
+  previewTaskToMilestonePush, findCycleEdges,
   type TaskScheduleEntry, type ScheduleMilestone,
 } from "@/lib/domain/scheduling";
 import { workingDaysBetween } from "@/lib/domain/dates";
@@ -673,42 +673,84 @@ export function TasksGrid() {
             recompute={(excludeIds, overrides) => {
               const r = runCascade(excludeIds, overrides);
 
-              // M21-DrawerRewrite — engine returns an error (only realistic
-              // case today: pre-existing cycle in dependency data). Render
-              // ONE callout, amber tone, with the cycle-task list collapsed by
-              // default + an action button that takes the PM to the Tasks page
-              // to resolve. Plain language, no jargon, what/why/next structure.
+              // M23 — Dependency Resolution Workbench
+              //
+              // When the engine errors (today: pre-existing dependency loop),
+              // we surface a workbench callout instead of just listing tasks.
+              // PM sees the full chain in plain language and can resolve
+              // per-edge: mark a link as parallel, remove a link, or attach a
+              // note. After any action, the drawer re-runs the cascade — if
+              // the loop is resolved, normal preview appears.
               if (r.error) {
-                const cycleMatch = r.error.match(/Tasks involved:\s*(.+)/i);
-                const cycleIds = cycleMatch
-                  ? cycleMatch[1].split(/[→,\s]+/).map((s) => s.trim().toLowerCase()).filter(Boolean)
-                  : [];
-                const cycleTaskById = new Map(entries.map((t) => [t.id, t]));
+                const cycleInfo = findCycleEdges(entries);
                 const projTaskById = new Map(projTasks.map((t) => [t.id, t]));
-                const cycleItems = cycleIds
-                  .map((id) => cycleTaskById.get(id))
-                  .filter((t): t is TaskScheduleEntry => !!t)
-                  .map((t) => ({
-                    id: t.id,
-                    name: t.name,
-                    group: projTaskById.get(t.id)?.workstream,
-                  }));
+
+                // Build workbench edges, enriched with workstream + existing note.
+                const workbenchEdges = (cycleInfo?.edges ?? []).map((e) => ({
+                  fromId: e.fromId,
+                  fromName: e.fromName,
+                  fromGroup: projTaskById.get(e.fromId)?.workstream,
+                  toId: e.toId,
+                  toName: e.toName,
+                  toGroup: projTaskById.get(e.toId)?.workstream,
+                  isSuggested: e.isBackEdge,
+                  note: projTaskById.get(e.fromId)?.depNotes?.[e.toId],
+                }));
+
+                const handleMarkParallel = (fromId: string, toId: string) => {
+                  const from = projTaskById.get(fromId);
+                  if (!from) return;
+                  const nextDependsOn = (from.dependsOn ?? []).filter((id) => id !== toId);
+                  const nextParallel = Array.from(new Set([...(from.parallelDeps ?? []), toId]));
+                  updateTask(
+                    { ...from, dependsOn: nextDependsOn, parallelDeps: nextParallel },
+                    { source: "user-edit", note: `loop resolution: marked ${fromId}->${toId} as parallel` }
+                  );
+                  toast.success(`Link changed to parallel`, {
+                    description: `${from.name} no longer waits on ${projTaskById.get(toId)?.name ?? toId.toUpperCase()}.`,
+                  });
+                };
+
+                const handleRemoveLink = (fromId: string, toId: string) => {
+                  const from = projTaskById.get(fromId);
+                  if (!from) return;
+                  const nextDependsOn = (from.dependsOn ?? []).filter((id) => id !== toId);
+                  const nextNotes = { ...(from.depNotes ?? {}) };
+                  delete nextNotes[toId];
+                  updateTask(
+                    { ...from, dependsOn: nextDependsOn, depNotes: nextNotes },
+                    { source: "user-edit", note: `loop resolution: removed ${fromId}->${toId} link` }
+                  );
+                  toast.success(`Link removed`, {
+                    description: `${from.name} no longer references ${projTaskById.get(toId)?.name ?? toId.toUpperCase()}.`,
+                  });
+                };
+
+                const handleSaveNote = (fromId: string, toId: string, note: string) => {
+                  const from = projTaskById.get(fromId);
+                  if (!from) return;
+                  const nextNotes = { ...(from.depNotes ?? {}) };
+                  if (note.trim()) nextNotes[toId] = note.trim();
+                  else delete nextNotes[toId];
+                  updateTask(
+                    { ...from, depNotes: nextNotes },
+                    { source: "user-edit", note: `loop resolution: note on ${fromId}->${toId}` }
+                  );
+                  toast.success("Note saved");
+                };
 
                 return {
                   sections: [{
                     kind: "callout",
                     tone: "amber",
-                    title: "Downstream preview unavailable",
-                    body: `Some tasks reference each other in a loop, so we can't compute what would shift.\n\nYour change to ${cascadePreview!.editedTask.name} will still save.`,
-                    collapsibleLabel: `Show ${cycleItems.length} task${cycleItems.length === 1 ? "" : "s"} in the loop`,
-                    collapsibleItems: cycleItems,
-                    actionLabel: "Open Tasks page",
-                    onAction: () => {
-                      // Soft navigate; tasks-grid is the current page so this just
-                      // closes the drawer. A future enhancement could deep-link to
-                      // a filtered tasks view of just the cycle members.
-                      setCascadePreview(null);
-                    },
+                    title: "We couldn't preview the schedule impact",
+                    body: `These tasks depend on each other in a way that loops back, so we can't compute what would shift.\n\nYour change to ${cascadePreview!.editedTask.name} will still save. Resolve a link below to unlock the full preview.`,
+                    dependencyLoop: workbenchEdges.length > 0 ? {
+                      edges: workbenchEdges,
+                      onMarkParallel: handleMarkParallel,
+                      onRemoveLink:   handleRemoveLink,
+                      onSaveNote:     handleSaveNote,
+                    } : undefined,
                   }],
                 };
               }

@@ -93,6 +93,49 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M23 — Dependency Resolution Workbench (Phase 1)
+**Goal:** Replace the "Show 11 tasks in the loop" flat list with a real workbench surface. PMs facing dependency loops should see the full chain, understand each link in plain language, and resolve the loop with one click — without needing to know graph-theory terms like "cycle" or "back-edge." Introduces a new dependency type ("parallel") so PMs can reclassify links that don't truly need sequential blocking. Honors Vineet's "digital adoption ready" framing — every string is layman-readable.
+
+**DoD:**
+- **Algorithm** — `findCycleEdges(tasks)` in `lib/domain/scheduling.ts`. DFS with three-color marking returns `CycleInfo { edges: CycleEdge[]; taskIds: string[] }` or null. Edges in traversal order; last edge has `isBackEdge: true`. 6 new unit tests covering self-loop, 2-node, 11-node (real shape from screenshots), multiple cycles, cycle with tail, no cycle.
+- **Data model (Option A — sidecar fields):**
+  - `Task.parallelDeps?: string[]` — soft links, no FS enforcement, not part of cycle detection
+  - `Task.depNotes?: Record<string, string>` — free-text PM notes per upstream link, keyed by upstream task id
+- **Engine extension:**
+  - `topoSortTasks` and `previewTaskCascade` and `findConstraintViolations` ignore `parallelDeps`
+  - One new test verifies parallel deps don't cause cascade shifts or count toward cycle detection
+- **Workbench UI** — extends `CalloutSection` with `cycleEdges` + per-edge action handlers:
+  - Plain-language lead-in ("These tasks depend on each other in a way that loops back…")
+  - Full chain visible by default — no disclosure hiding
+  - Per-edge card: from-task name, "depends on", to-task name, workstreams; suggested-fix edge gets amber accent + "Suggested" pill
+  - Three per-edge actions: **Change to parallel** (toggle), **Remove this link**, **Add note**
+  - Notes inline (collapsed by default, expand to edit)
+  - After any action: drawer recomputes via store update; if cycle resolved, normal cascade preview returns; toast confirms
+- **Plain-language strings throughout** per `ui-string-audit` skill — no "cycle", "back-edge", "FS-rule", "edge", "graph" in any user-visible text
+- **Tone** — amber workbench (partial-success), slate chips on parallel deps when shown elsewhere
+- All skills applied at write-time. `simplify` invoked on diff before commit per CLAUDE.md discipline.
+- 124+ tests still pass. Build clean. Bundle delta within budget.
+
+**Out of scope (defer to M23.1 or later):**
+- Per-edge inline cascade-impact preview ("changing this date shifts N tasks")
+- Per-edge date override IN the workbench (relies on cascade preview that's blocked by the cycle)
+- Full Veeva-style cross-entity document-association view per dependency (M24+ — per-task DAG)
+- Migration to typed dependency array (Option B) — defer unless parallel deps become heavily used
+- Multi-cycle proactive listing — algorithm finds one cycle at a time; recompute surfaces next without surprise
+
+**Why this matters:** the cycle drawer is the worst-case path of the cascade engine, the one a PM encounters when data quality breaks down. Solving it well — with plain language and one-click resolution — is a competitive wedge. None of Asana / Monday / Smartsheet / MS Project / Primavera have inline cycle-resolution at this level of UX polish. This is the kind of detail that defines "digital adoption ready."
+
+**Started:** (this session)
+**Status:** in progress
+
+### M22.2 Completion summary (2026-05-17)
+
+**Module:** M22.2 — Architectural skill expansion
+**Status:** ✅ Complete (commit `8125ba6`)
+**Outcome:** Three new architectural skills (`save-flow-parity`, `pre-existing-state-distinction`, `cross-entity-parity`) added under `.claude/skills/`. README + CLAUDE.md updated with built-in skill discipline (`simplify` before architectural commits). 11 skills total across quality / efficiency / architectural categories.
+
+### M22.2 original goal/DoD (preserved for traceability)
+
 **Module:** M22.2 — Architectural skill expansion
 **Goal:** M22.1's three bugs (form-save parity, pre-existing-state distinction, forecast variance) all evaded the current quality skills because those skills are surface-layer (strings / colors / errors). Add three architectural-layer skills that catch parity / state-distinction / cross-entity-consistency issues at write-time. Plus formalise use of the built-in `review` / `simplify` skills on architectural-module commits.
 
@@ -1131,6 +1174,37 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-17 (M23 — Dependency Resolution Workbench Phase 1)
+
+**Strategic context:**
+M21-DrawerRewrite's amber callout was honest about the cycle but offered only a flat task list. Vineet's framing: enterprise app, digital adoption ready, layman language, "we must think and understand how a algorithm is created" — M20.4-pattern: spec the algorithm first.
+
+**Built:**
+- **Algorithm** — `findCycleEdges(tasks)` in `lib/domain/scheduling.ts`. DFS with three-color marking; returns `CycleInfo { edges, taskIds }` or null. Last edge always `isBackEdge=true`. 7 unit tests cover self-loop, 2-node, 11-node real shape, multiple cycles, cycle-with-tail, no-cycle, name population. 1 engine test asserting `parallelDeps` doesn't trip cycle detection or FS enforcement.
+- **Data model** — `Task.parallelDeps?: string[]` and `Task.depNotes?: Record<string, string>` sidecar fields. Non-breaking. Engine ignores both (only `dependsOn` participates).
+- **`CalloutSection.dependencyLoop`** — new optional field carrying `WorkbenchEdge[]` + three handlers (`onMarkParallel`, `onRemoveLink`, `onSaveNote`).
+- **`DependencyWorkbench` + `WorkbenchEdgeCard` sub-components** in `impact-drawer.tsx`. Plain-language framing ("waits on", "Change to parallel", "Remove this link", "Add note"). Suggested-fix edge gets amber ring + "Suggested" badge. Per-edge note textarea collapsed by default.
+- **`tasks-grid` workbench wiring** — three handlers update the originating task via `updateTask` with audit-log notes. Toasts confirm each action with plain-language description.
+- **Drawer `useMemo` fix** — added `recompute` to dep array so workbench actions trigger drawer re-render with fresh edges.
+
+**Decided:**
+- **Option A (sidecar fields) for data model** — non-breaking; if `parallelDeps` becomes heavily used, refactor to typed array in future checkpoint.
+- **"Suggested" badge kept on DFS back-edge** — soft signal, not forced. PM can resolve any edge.
+- **Workbench shows full chain, no disclosure** — PM sees everything at once per Vineet's "first details out" framing.
+- **Marking parallel == one resolution path** — moves edge from `dependsOn` → `parallelDeps`, breaks the loop, drawer recomputes.
+- **No multi-cycle proactive listing** — drawer naturally surfaces next loop (if any) after a resolution; no surprise.
+
+**Pending:**
+- Commit + push. Dogfood the workbench against the 11-task loop from the screenshot.
+- M23.1 candidate: per-edge inline cascade-impact preview ("changing this would shift N tasks").
+- M24 candidate: per-task DAG visualisation (Veeva-style cross-entity dep view).
+
+**Followup observations:**
+- Algorithm-first pattern (M20.4) again caught a real issue at the design layer — the engine's existing `topoSortTasks` returned only the unresolved node set, not traversal order. New DFS function fills that gap cleanly.
+- The `recompute` useMemo gating was a latent staleness bug since M20 — fixing it as part of M23 also fixes any future "drawer-stays-open-while-store-changes" scenario.
+- `/tasks` 7.96 → 8.34 kB (+0.38 kB) for workbench rendering. Within budget.
+- 124 → 133 tests passing. 4 skipped unchanged.
 
 ### Session — 2026-05-17 (M22.2 — architectural skill expansion)
 

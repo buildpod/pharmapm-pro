@@ -54,6 +54,23 @@ export interface InfoRow {
 // states (e.g. cycle-blocked preview where the user's edit still saved).
 // Always tone-matched to outcome (amber for partial-success, blue for info,
 // slate for neutral) — never rose.
+//
+// M23 extension — when `dependencyLoop` is set, the callout renders the
+// Dependency Resolution Workbench: full chain visible by default, per-edge
+// actions (Change to parallel / Remove / Add note) for resolving the loop
+// without the user needing to know graph-theory terms.
+
+export interface WorkbenchEdge {
+  fromId: string;
+  fromName?: string;
+  fromGroup?: string;     // workstream / phase for display context
+  toId: string;
+  toName?: string;
+  toGroup?: string;
+  isSuggested: boolean;   // the engine's suggested-remove pick
+  note?: string;          // existing PM note on this link, if any
+}
+
 export interface CalloutSection {
   kind: "callout";
   tone: "amber" | "blue" | "slate";
@@ -63,6 +80,13 @@ export interface CalloutSection {
   collapsibleItems?: { id: string; name?: string; group?: string }[];
   actionLabel?: string;                // e.g. "Open Tasks page"
   onAction?: () => void;
+  // M23 — Dependency Resolution Workbench
+  dependencyLoop?: {
+    edges: WorkbenchEdge[];
+    onMarkParallel: (fromId: string, toId: string) => void;
+    onRemoveLink:   (fromId: string, toId: string) => void;
+    onSaveNote:     (fromId: string, toId: string, note: string) => void;
+  };
 }
 
 export type ImpactSection =
@@ -192,12 +216,13 @@ export function ImpactDrawer({
     }
   }, [open]);
 
-  // Recompute on every state change. Memoised on (excludeIds, overrides).
+  // Recompute on every state change. Include `recompute` in deps so the
+  // drawer also re-runs when the parent rebuilds the closure after underlying
+  // store updates (e.g. M23 workbench actions: parallel / remove / note save).
+  // Without this, the drawer would show stale edges after a workbench action.
   const { sections } = useMemo(
     () => recompute(excludeIds, overrides),
-    // reason: recompute is captured from props; we intentionally re-run only on state
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [excludeIds, overrides]
+    [excludeIds, overrides, recompute]
   );
 
   if (!open) return null;
@@ -760,8 +785,155 @@ function Callout({ section }: { section: CalloutSection }) {
               ))}
             </ul>
           )}
+
+          {/* M23 — Dependency Resolution Workbench */}
+          {section.dependencyLoop && (
+            <DependencyWorkbench
+              edges={section.dependencyLoop.edges}
+              onMarkParallel={section.dependencyLoop.onMarkParallel}
+              onRemoveLink={section.dependencyLoop.onRemoveLink}
+              onSaveNote={section.dependencyLoop.onSaveNote}
+            />
+          )}
         </div>
       </div>
     </section>
+  );
+}
+
+// ─── Dependency Resolution Workbench (M23) ──────────────────────────────────
+//
+// Renders the full chain of links involved in a loop with per-edge actions.
+// Every string is plain-language: no "cycle", "back-edge", "FS-rule".
+// One edge is flagged "Suggested" — the engine's pick for breaking the loop
+// most simply. PM can act on any edge, not just the suggested one.
+
+function DependencyWorkbench({
+  edges, onMarkParallel, onRemoveLink, onSaveNote,
+}: {
+  edges: WorkbenchEdge[];
+  onMarkParallel: (fromId: string, toId: string) => void;
+  onRemoveLink:   (fromId: string, toId: string) => void;
+  onSaveNote:     (fromId: string, toId: string, note: string) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-2">
+      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        The links between them
+      </p>
+      <ul className="space-y-2">
+        {edges.map((edge) => (
+          <WorkbenchEdgeCard
+            key={`${edge.fromId}->${edge.toId}`}
+            edge={edge}
+            onMarkParallel={onMarkParallel}
+            onRemoveLink={onRemoveLink}
+            onSaveNote={onSaveNote}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function WorkbenchEdgeCard({
+  edge, onMarkParallel, onRemoveLink, onSaveNote,
+}: {
+  edge: WorkbenchEdge;
+  onMarkParallel: (fromId: string, toId: string) => void;
+  onRemoveLink:   (fromId: string, toId: string) => void;
+  onSaveNote:     (fromId: string, toId: string, note: string) => void;
+}) {
+  const [showNote, setShowNote] = useState(!!edge.note);
+  const [noteDraft, setNoteDraft] = useState(edge.note ?? "");
+  const [savedNote, setSavedNote] = useState(edge.note ?? "");
+  const noteDirty = noteDraft !== savedNote;
+
+  function handleSaveNote() {
+    onSaveNote(edge.fromId, edge.toId, noteDraft);
+    setSavedNote(noteDraft);
+  }
+
+  return (
+    <li
+      className={cn(
+        "rounded-md border bg-card px-3 py-2.5",
+        edge.isSuggested ? "border-amber-300 ring-1 ring-amber-200" : "border-border"
+      )}
+    >
+      {/* Relationship line — plain English */}
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-foreground">
+            <span className="font-mono text-[10px] font-bold text-muted-foreground">{edge.fromId.toUpperCase()}</span>
+            {edge.fromName && <span className="ml-1 font-medium">{edge.fromName}</span>}
+            <span className="mx-1.5 text-muted-foreground">waits on</span>
+            <span className="font-mono text-[10px] font-bold text-muted-foreground">{edge.toId.toUpperCase()}</span>
+            {edge.toName && <span className="ml-1 font-medium">{edge.toName}</span>}
+          </p>
+          {(edge.fromGroup || edge.toGroup) && (
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              {edge.fromGroup && <span>{edge.fromGroup}</span>}
+              {edge.fromGroup && edge.toGroup && <span className="mx-1">·</span>}
+              {edge.toGroup && <span>{edge.toGroup}</span>}
+            </p>
+          )}
+        </div>
+        {edge.isSuggested && (
+          <span className="rounded-full border border-amber-300 bg-amber-100 px-1.5 py-0 text-[9px] font-bold uppercase tracking-wider text-amber-800">
+            Suggested
+          </span>
+        )}
+      </div>
+
+      {/* Actions row */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onMarkParallel(edge.fromId, edge.toId)}
+          className="rounded-md border border-border bg-card px-2 py-0.5 text-[10px] font-medium text-foreground hover:bg-muted"
+          title="Keep the link but mark it as parallel — work can run alongside, no strict waiting"
+        >
+          Change to parallel
+        </button>
+        <button
+          type="button"
+          onClick={() => onRemoveLink(edge.fromId, edge.toId)}
+          className="rounded-md border border-border bg-card px-2 py-0.5 text-[10px] font-medium text-foreground hover:bg-muted"
+          title="Remove the dependency entirely"
+        >
+          Remove this link
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowNote((v) => !v)}
+          className="rounded-md border border-dashed border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+        >
+          {showNote ? "Hide note" : edge.note ? "Edit note" : "Add note"}
+        </button>
+      </div>
+
+      {/* Note textarea (collapsed by default unless a note already exists) */}
+      {showNote && (
+        <div className="mt-2 space-y-1.5">
+          <textarea
+            value={noteDraft}
+            onChange={(e) => setNoteDraft(e.target.value)}
+            placeholder="Optional — e.g. progressed better than expected; can run alongside"
+            rows={2}
+            className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-[11px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          {noteDirty && (
+            <button
+              type="button"
+              onClick={handleSaveNote}
+              className="rounded-md bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground shadow-sm hover:bg-primary/90"
+            >
+              Save note
+            </button>
+          )}
+        </div>
+      )}
+    </li>
   );
 }

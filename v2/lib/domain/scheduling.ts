@@ -485,6 +485,94 @@ export function topoSortTasks(
   return { sorted: null, hasCycle: true, cyclePath };
 }
 
+// ─── Cycle edge detection (M23) ─────────────────────────────────────────────
+//
+// `topoSortTasks` tells us a cycle exists but only returns the residual node
+// set, not the cycle's traversal order. `findCycleEdges` walks the dependency
+// graph via DFS with three-color marking, finds one cycle, and returns its
+// edges in traversal order with the suggested-remove ("back") edge flagged.
+//
+// Semantics: each edge { fromId, toId } means `fromId.dependsOn` contains
+// `toId`. Removing the back-edge means removing the back-edge's `toId` from
+// the back-edge's `fromId.dependsOn` array.
+//
+// Only `dependsOn` is traversed. M23 introduces `parallelDeps` as a soft-link
+// type that does NOT participate in cycle detection or cascade enforcement.
+// This is deliberate — marking a link as parallel is one of the resolution
+// options for breaking a cycle.
+
+export interface CycleEdge {
+  fromId: string;
+  fromName?: string;
+  toId: string;
+  toName?: string;
+  isBackEdge: boolean;
+}
+
+export interface CycleInfo {
+  edges: CycleEdge[];
+  taskIds: string[];
+}
+
+export function findCycleEdges(tasks: TaskScheduleEntry[]): CycleInfo | null {
+  const byId: Record<string, TaskScheduleEntry> = {};
+  tasks.forEach((t) => { byId[t.id] = t; });
+
+  type Color = "white" | "gray" | "black";
+  const color: Record<string, Color> = {};
+  tasks.forEach((t) => { color[t.id] = "white"; });
+
+  const pathStack: string[] = [];
+
+  function dfs(id: string): CycleInfo | null {
+    color[id] = "gray";
+    pathStack.push(id);
+
+    const deps = byId[id]?.dependsOn ?? [];
+    for (const depId of deps) {
+      // Defensively skip references to tasks not in the input set.
+      if (color[depId] === undefined) continue;
+
+      if (color[depId] === "gray") {
+        // Found a back-edge — `depId` is on our current path.
+        const startIdx = pathStack.indexOf(depId);
+        const nodes = pathStack.slice(startIdx);
+        const edges: CycleEdge[] = [];
+        for (let i = 0; i < nodes.length; i++) {
+          const isLast = i === nodes.length - 1;
+          const fromId = nodes[i];
+          const toId   = isLast ? nodes[0] : nodes[i + 1];
+          edges.push({
+            fromId,
+            fromName: byId[fromId]?.name,
+            toId,
+            toName: byId[toId]?.name,
+            isBackEdge: isLast,
+          });
+        }
+        return { edges, taskIds: nodes.slice() };
+      }
+
+      if (color[depId] === "white") {
+        const result = dfs(depId);
+        if (result) return result;
+      }
+    }
+
+    color[id] = "black";
+    pathStack.pop();
+    return null;
+  }
+
+  for (const t of tasks) {
+    if (color[t.id] === "white") {
+      const result = dfs(t.id);
+      if (result) return result;
+    }
+  }
+  return null;
+}
+
 export function previewTaskCascade(
   tasks: TaskScheduleEntry[],
   edit: TaskCascadeEdit,

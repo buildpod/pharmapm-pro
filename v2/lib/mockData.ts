@@ -519,7 +519,16 @@ export type Task = {
   milestoneId?: string;  // links to a milestone id
   owner: string;
   dueDate: string;
-  dependsOn?: string[];  // task ids this task is blocked by
+  dependsOn?: string[];  // task ids this task is blocked by (hard FS — engine enforces)
+  // M23 — sidecar fields for the Dependency Resolution Workbench.
+  // parallelDeps: soft links the engine does NOT enforce (advisory only).
+  //   Used when work can run alongside an upstream task rather than waiting.
+  //   Moving a dependency from dependsOn → parallelDeps is one of the
+  //   resolution actions in the workbench when a hard-link loop is detected.
+  parallelDeps?: string[];
+  // depNotes: free-text PM notes attached to a specific upstream link,
+  //   keyed by upstream task id. Visible in the workbench; not engine-relevant.
+  depNotes?: Record<string, string>;
   projectId: string;     // FK → Project.id
 };
 

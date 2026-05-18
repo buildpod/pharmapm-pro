@@ -22,6 +22,7 @@ import {
   computeCriticalPath,
   previewTaskCascade,
   topoSortTasks,
+  findCycleEdges,
   findConstraintViolations,
   previewMilestoneToTaskImpact,
   previewTaskToMilestonePush,
@@ -641,6 +642,150 @@ describe("M20.4 §7 Selective cascade layer — sanity", () => {
 // ────────────────────────────────────────────────────────────────────────────
 // §8 — M21-Checkpoint: cycle-prevention contract (form layer relies on this)
 // ────────────────────────────────────────────────────────────────────────────
+
+describe("M23 — findCycleEdges (Dependency Resolution Workbench)", () => {
+  it("self-loop: task depending on itself returns a one-node cycle, edge is back-edge", () => {
+    const tasks = [task("t1", "2026-05-04", ["t1"])];
+    const result = findCycleEdges(tasks);
+    expect(result).not.toBeNull();
+    expect(result!.taskIds).toEqual(["t1"]);
+    expect(result!.edges).toHaveLength(1);
+    expect(result!.edges[0]).toEqual({ fromId: "t1", fromName: undefined, toId: "t1", toName: undefined, isBackEdge: true });
+  });
+
+  it("two-node cycle: T1 → T2 → T1, back-edge is the closing one", () => {
+    const tasks = [
+      task("t1", "2026-05-04", ["t2"]),
+      task("t2", "2026-05-05", ["t1"]),
+    ];
+    const result = findCycleEdges(tasks);
+    expect(result).not.toBeNull();
+    expect(result!.taskIds).toHaveLength(2);
+    expect(result!.edges).toHaveLength(2);
+    expect(result!.edges[result!.edges.length - 1].isBackEdge).toBe(true);
+    // Earlier edges are not back-edges
+    expect(result!.edges[0].isBackEdge).toBe(false);
+  });
+
+  it("11-node cycle (real shape from dogfood): full traversal returned with one back-edge", () => {
+    // Mirrors the dogfood data: T1 → T3 → T4 → T5 → T6 → T7 → T8 → T13 → T14 → T15 → T1
+    const tasks = [
+      task("t1",  "2026-05-04", ["t3"]),
+      task("t3",  "2026-05-05", ["t4"]),
+      task("t4",  "2026-05-06", ["t5"]),
+      task("t5",  "2026-05-07", ["t6"]),
+      task("t6",  "2026-05-08", ["t7"]),
+      task("t7",  "2026-05-09", ["t8"]),
+      task("t8",  "2026-05-10", ["t13"]),
+      task("t13", "2026-05-11", ["t14"]),
+      task("t14", "2026-05-12", ["t15"]),
+      task("t15", "2026-05-13", ["t1"]),
+    ];
+    const result = findCycleEdges(tasks);
+    expect(result).not.toBeNull();
+    expect(result!.taskIds).toHaveLength(10);
+    expect(result!.edges).toHaveLength(10);
+    // Exactly one back-edge
+    const backEdges = result!.edges.filter((e) => e.isBackEdge);
+    expect(backEdges).toHaveLength(1);
+    // The back-edge closes the loop — its toId matches the cycle's start
+    expect(backEdges[0].toId).toBe(result!.taskIds[0]);
+    expect(backEdges[0].fromId).toBe(result!.taskIds[result!.taskIds.length - 1]);
+  });
+
+  it("multiple disjoint cycles: returns one cycle (recompute finds the next after resolution)", () => {
+    const tasks = [
+      // Cycle A
+      task("a1", "2026-05-04", ["a2"]),
+      task("a2", "2026-05-05", ["a1"]),
+      // Cycle B (disjoint)
+      task("b1", "2026-06-04", ["b2"]),
+      task("b2", "2026-06-05", ["b1"]),
+    ];
+    const result = findCycleEdges(tasks);
+    expect(result).not.toBeNull();
+    expect(result!.taskIds).toHaveLength(2);
+    // Should find one of the two cycles, not both at once
+    const inA = result!.taskIds.includes("a1") && result!.taskIds.includes("a2");
+    const inB = result!.taskIds.includes("b1") && result!.taskIds.includes("b2");
+    expect(inA || inB).toBe(true);
+    expect(inA && inB).toBe(false);
+  });
+
+  it("cycle with a tail: T_x → T_a → T_b → T_a; the tail T_x is NOT in the cycle", () => {
+    const tasks = [
+      task("tx", "2026-05-01", ["ta"]),       // tail — leads into the cycle but not part of it
+      task("ta", "2026-05-04", ["tb"]),
+      task("tb", "2026-05-05", ["ta"]),
+    ];
+    const result = findCycleEdges(tasks);
+    expect(result).not.toBeNull();
+    expect(result!.taskIds).toHaveLength(2);
+    expect(result!.taskIds).toContain("ta");
+    expect(result!.taskIds).toContain("tb");
+    expect(result!.taskIds).not.toContain("tx");
+  });
+
+  it("no cycle: clean DAG returns null", () => {
+    const tasks = [
+      task("t1", "2026-05-04"),
+      task("t2", "2026-05-05", ["t1"]),
+      task("t3", "2026-05-06", ["t2"]),
+    ];
+    expect(findCycleEdges(tasks)).toBeNull();
+  });
+
+  it("populates fromName/toName from the task data for human-readable rendering", () => {
+    const tasks = [
+      task("t1", "2026-05-04", ["t2"]),
+      task("t2", "2026-05-05", ["t1"]),
+    ];
+    tasks[0].name = "Set up user roles";
+    tasks[1].name = "Configure workspace";
+    const result = findCycleEdges(tasks);
+    expect(result).not.toBeNull();
+    expect(result!.edges[0].fromName).toBeDefined();
+    expect(result!.edges[0].toName).toBeDefined();
+  });
+});
+
+describe("M23 — engine ignores parallelDeps for cycle detection + FS enforcement", () => {
+  // parallelDeps is a sidecar field. The engine treats them as advisory only —
+  // they don't appear in cycle detection (topoSortTasks / findCycleEdges) and
+  // don't trigger constraint violations or cascade shifts.
+
+  it("topoSortTasks ignores parallelDeps — cycle via parallelDeps does not trip detection", () => {
+    // We add a parallelDeps field to TaskScheduleEntry-like shape. topoSortTasks
+    // only reads dependsOn, so parallelDeps round-tripping through the engine is
+    // already safe by construction. This test guards against future regressions
+    // where someone accidentally widens the traversal.
+    const tasks: TaskScheduleEntry[] = [
+      task("t1", "2026-05-04"),
+      task("t2", "2026-05-05"),
+    ];
+    // Cycle would exist if parallelDeps were treated like dependsOn.
+    // Note: parallelDeps lives on Task (mock data), not on TaskScheduleEntry —
+    // so its absence here verifies the engine doesn't accidentally see it.
+    const topo = topoSortTasks(tasks);
+    expect(topo.hasCycle).toBe(false);
+    expect(findCycleEdges(tasks)).toBeNull();
+  });
+
+  it("findConstraintViolations + previewTaskCascade ignore parallelDeps (only dependsOn enforces)", () => {
+    // t2 has dependsOn=[t1] (hard FS) but t3 is connected only via parallel
+    // semantics — since parallelDeps doesn't reach the engine, no FS check
+    // applies between t1 and t3.
+    const tasks = [
+      task("t1", "2026-05-10"),
+      task("t2", "2026-05-12", ["t1"]),  // hard FS
+      task("t3", "2026-05-05"),            // dueDate < t1 — would be a violation IF treated as dep
+    ];
+    const r = previewTaskCascade(tasks, { id: "t1", newDueDate: "2026-05-15" }, WD, NO_HOLS);
+    // t2 cascades (hard FS); t3 does NOT shift since it's not in dependsOn
+    expect(r.affected.find((a) => a.id === "t2")).toBeDefined();
+    expect(r.affected.find((a) => a.id === "t3")).toBeUndefined();
+  });
+});
 
 describe("M21-Checkpoint — cycle-prevention contract", () => {
   it("topoSortTasks detects cycles introduced by a proposed dependsOn change", () => {

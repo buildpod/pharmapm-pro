@@ -6,30 +6,36 @@ import { ProjectProvider } from "@/components/projects/project-provider";
 import { EntityStoreHydrator } from "@/components/stores/entity-store-hydrator";
 import { Toaster } from "sonner";
 
+// Refactored to the design-tokens.css app-shell structure:
+//   .app-shell > .app-nav + .app-main > .app-topbar + .app-content
+//
+// The Topbar component is rendered inside .app-topbar to inherit the
+// design system's typography and color tokens while keeping its existing
+// command-palette / notification / export wiring.
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-    <ProjectProvider>
-      <EntityStoreHydrator />
-      <div className="flex h-screen overflow-hidden bg-background">
-        {/* Desktop sidebar — hidden on mobile, hidden when printing */}
-        <aside data-sidebar className="hidden md:flex md:w-56 md:shrink-0 md:flex-col border-r border-border print:hidden">
-          <SidebarContent />
-        </aside>
+      <ProjectProvider>
+        <EntityStoreHydrator />
 
-        {/* Main area */}
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <div data-topbar className="print:hidden">
-            <Topbar />
-          </div>
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 print:p-6">{children}</main>
+        <div className="app-shell">
+          <aside className="app-nav" data-sidebar>
+            <SidebarContent />
+          </aside>
+
+          <main className="app-main">
+            <header className="app-topbar" data-topbar>
+              <Topbar />
+            </header>
+            <div className="app-content">{children}</div>
+          </main>
         </div>
-      </div>
 
-      {/* Global overlays */}
-      <CommandPalette />
-      <Toaster position="bottom-right" richColors closeButton />
-    </ProjectProvider>
+        {/* Global overlays */}
+        <CommandPalette />
+        <Toaster position="bottom-right" richColors closeButton />
+      </ProjectProvider>
     </ThemeProvider>
   );
 }

@@ -1,0 +1,237 @@
+{
+  "project": {
+    "name": "Veeva RIM Implementation",
+    "phase": "Phase 2 — Configuration & Testing",
+    "goLiveDate": "2026-09-02"
+  },
+  "workstreams": [
+    {
+      "name": "Configuration",
+      "criticalOpen": true,
+      "tasks": [
+        {
+          "id": "t1",
+          "name": "Set up user roles & permission profiles",
+          "milestoneId": "M3 · Vault Configuration",
+          "priority": "Critical",
+          "status": "In Progress",
+          "progress": 75,
+          "owner": "VP",
+          "dueDate": "2026-08-30",
+          "dependsOn": ["T4", "T7", "T8", "T5"]
+        },
+        {
+          "id": "t2",
+          "name": "Configure submission workspace settings",
+          "milestoneId": "M3 · Vault Configuration",
+          "priority": "High",
+          "status": "In Progress",
+          "progress": 60,
+          "owner": "KM",
+          "dueDate": "2026-09-04",
+          "dependsOn": ["T1"]
+        },
+        {
+          "id": "t3",
+          "name": "Set up workflow lifecycle rules",
+          "milestoneId": "M3 · Vault Configuration",
+          "priority": "High",
+          "status": "In Progress",
+          "progress": 40,
+          "owner": "KM",
+          "dueDate": "2026-11-19",
+          "dependsOn": ["T1", "T7"]
+        },
+        {
+          "id": "t4",
+          "name": "Configure document templates & renditions",
+          "milestoneId": "M3 · Vault Configuration",
+          "priority": "Medium",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "KM",
+          "dueDate": "2026-11-20",
+          "dependsOn": ["T2", "T3"]
+        }
+      ]
+    },
+    {
+      "name": "Validation",
+      "criticalOpen": true,
+      "tasks": [
+        {
+          "id": "t5",
+          "name": "Draft IQ protocol document",
+          "milestoneId": "M9 · IQ Protocol Approved",
+          "priority": "Critical",
+          "status": "In Progress",
+          "progress": 30,
+          "owner": "QA",
+          "dueDate": "2026-08-31",
+          "dependsOn": ["T1"]
+        },
+        {
+          "id": "t6",
+          "name": "Prepare OQ test scripts",
+          "milestoneId": "M9 · IQ Protocol Approved",
+          "priority": "High",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "QA",
+          "dueDate": "2026-09-01",
+          "dependsOn": ["T5"]
+        },
+        {
+          "id": "t7",
+          "name": "UAT test case design & traceability matrix",
+          "milestoneId": "M10 · UAT Start",
+          "priority": "High",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "QA",
+          "dueDate": "2026-09-02",
+          "dependsOn": ["T6"]
+        },
+        {
+          "id": "t8",
+          "name": "Validation summary report template",
+          "milestoneId": "M12 · Configuration Complete",
+          "priority": "Medium",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "QA",
+          "dueDate": "2026-09-03",
+          "dependsOn": ["T7"]
+        }
+      ]
+    },
+    {
+      "name": "Data Migration",
+      "criticalOpen": false,
+      "tasks": [
+        {
+          "id": "t9",
+          "name": "Source-to-target metadata mapping",
+          "milestoneId": "M8 · Migration Dry-Run Complete",
+          "priority": "Critical",
+          "status": "In Progress",
+          "progress": 55,
+          "owner": "AR",
+          "dueDate": "2026-06-01",
+          "dependsOn": []
+        },
+        {
+          "id": "t10",
+          "name": "Data cleansing & transformation rules",
+          "milestoneId": "M8 · Migration Dry-Run Complete",
+          "priority": "High",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "AR",
+          "dueDate": "2026-06-15",
+          "dependsOn": ["T9"]
+        },
+        {
+          "id": "t11",
+          "name": "Migration dry-run execution & reconciliation",
+          "milestoneId": "M8 · Migration Dry-Run Complete",
+          "priority": "High",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "AR",
+          "dueDate": "2026-06-30",
+          "dependsOn": ["T10"]
+        },
+        {
+          "id": "t12",
+          "name": "Data integrity verification scripts",
+          "milestoneId": "M8 · Migration Dry-Run Complete",
+          "priority": "Medium",
+          "status": "Blocked",
+          "progress": 0,
+          "owner": "AR",
+          "dueDate": "2026-06-20",
+          "dependsOn": ["T9"]
+        }
+      ]
+    },
+    {
+      "name": "Training",
+      "criticalOpen": false,
+      "tasks": [
+        {
+          "id": "t13",
+          "name": "Develop end-user training materials",
+          "milestoneId": "M11 · Training Materials Ready",
+          "priority": "High",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "HR",
+          "dueDate": "2026-11-23",
+          "dependsOn": ["T4"]
+        },
+        {
+          "id": "t14",
+          "name": "Record system walkthrough videos",
+          "milestoneId": "M11 · Training Materials Ready",
+          "priority": "Medium",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "HR",
+          "dueDate": "2026-11-24",
+          "dependsOn": ["T13"]
+        },
+        {
+          "id": "t15",
+          "name": "Schedule & confirm training sessions",
+          "milestoneId": "M11 · Training Materials Ready",
+          "priority": "Medium",
+          "status": "Not Started",
+          "progress": 0,
+          "owner": "HR",
+          "dueDate": "2026-08-10",
+          "dependsOn": ["T13", "T14"]
+        }
+      ]
+    },
+    {
+      "name": "Project Mgmt",
+      "criticalOpen": false,
+      "tasks": [
+        {
+          "id": "t16",
+          "name": "Weekly steering committee status reports",
+          "milestoneId": null,
+          "priority": "High",
+          "status": "In Progress",
+          "progress": 65,
+          "owner": "VP",
+          "dueDate": "2026-09-02",
+          "dependsOn": []
+        },
+        {
+          "id": "t17",
+          "name": "Risk register review & maintenance",
+          "milestoneId": null,
+          "priority": "Medium",
+          "status": "In Progress",
+          "progress": 50,
+          "owner": "VP",
+          "dueDate": "2026-09-02",
+          "dependsOn": []
+        },
+        {
+          "id": "t18",
+          "name": "Change control log & CCB minutes",
+          "milestoneId": null,
+          "priority": "Medium",
+          "status": "In Progress",
+          "progress": 40,
+          "owner": "VP",
+          "dueDate": "2026-09-02",
+          "dependsOn": []
+        }
+      ]
+    }
+  ]
+}

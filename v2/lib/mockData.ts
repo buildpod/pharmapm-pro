@@ -335,6 +335,122 @@ export const issues: Issue[] = [
   },
 ];
 
+// ─── Decisions register (M25) ────────────────────────────────────────────────
+//
+// Pharma audits and SteerCo reviews ask "show me the decision log" — every
+// material project decision recorded with what was decided, when, by whom,
+// what alternatives were considered, what the rationale was, and what (if
+// anything) this decision supersedes. Named DecisionRecord to avoid collision
+// with the existing Decision value type on document RACI rows.
+
+export type DecisionRecordStatus = "Pending" | "Approved" | "Rejected" | "Superseded";
+
+export type DecisionRecord = {
+  id: string;
+  title: string;
+  context: string;                  // why the decision was needed
+  decidedDate: string;              // ISO yyyy-mm-dd
+  decidedBy: string;                // initials of the decision-maker
+  alternatives: string[];           // options that were considered
+  chosenOption: string;             // which one won
+  rationale: string;                // why this option, not the others
+  status: DecisionRecordStatus;
+  supersedesId?: string;            // id of a prior DecisionRecord this overrides
+  linkedMilestoneId?: string;
+  linkedRiskId?: string;
+  linkedIssueId?: string;
+  projectId: string;
+};
+
+export const decisionRecords: DecisionRecord[] = [
+  {
+    id: "d1",
+    title: "Selected Iron Mountain as data-extraction vendor",
+    context: "Migration of 14,200 dossiers from Documentum 7.3 requires a vendor with proven GxP-validated extraction. Three vendors quoted: Iron Mountain, Crown Records Management, and an in-house build.",
+    decidedDate: "2026-02-12",
+    decidedBy: "VP",
+    alternatives: [
+      "Iron Mountain — fixed price $0.35M, 6-week delivery, GxP track record",
+      "Crown Records Management — $0.28M, 8 weeks, weaker GxP references",
+      "In-house build via internal data team — $0.22M, 12 weeks, capacity risk",
+    ],
+    chosenOption: "Iron Mountain",
+    rationale: "GxP track record on 4 prior Veeva implementations; 6-week delivery preserves UAT runway; $70k premium over Crown is justified by reduced compliance risk and faster delivery.",
+    status: "Approved",
+    linkedMilestoneId: "m8",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "d2",
+    title: "Validation methodology: GAMP 5 Category 4 (configured product)",
+    context: "Veeva RIM is a configured COTS product. Validation category drives the depth of IQ/OQ/PQ documentation and review effort. Discussed at QA SteerCo 2026-01-20.",
+    decidedDate: "2026-01-22",
+    decidedBy: "QA",
+    alternatives: [
+      "GAMP 5 Category 4 (configured product) — standard for vendor SaaS",
+      "GAMP 5 Category 5 (custom application) — over-engineered for configuration-only work",
+      "Vendor-supplied validation kit only — insufficient for inspection readiness",
+    ],
+    chosenOption: "GAMP 5 Category 4",
+    rationale: "Veeva's own classification + EMA / FDA precedent on similar vendor-hosted GxP systems. Category 5 would add 6 weeks of redundant documentation. Category 4 strikes the right balance.",
+    status: "Approved",
+    linkedMilestoneId: "m9",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "d3",
+    title: "Training delivery: hybrid (recorded modules + 2 live workshops)",
+    context: "60 RA users across EU + US + APAC. Initial plan was live-only training; cost + scheduling concerns raised at PMO review 2026-03-08.",
+    decidedDate: "2026-03-10",
+    decidedBy: "HR",
+    alternatives: [
+      "Hybrid: recorded modules + 2 live workshops per region",
+      "Live-only training — 6 workshops, $80k more, scheduling conflicts with quarter-close",
+      "Recorded-only training — saves $50k, but adoption risk per L&D benchmarks",
+    ],
+    chosenOption: "Hybrid",
+    rationale: "Recorded modules absorb the routine onboarding; live workshops handle edge cases + Q&A. Best adoption-cost trade-off per L&D research from prior Veeva projects.",
+    status: "Approved",
+    linkedMilestoneId: "m11",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "d4",
+    title: "Initial Go-Live target: 2026-07-15 (later superseded)",
+    context: "First Go-Live plan was Q3 2026, before discovery of full data-migration scope. Approved at project kickoff 2026-01-10 by sponsor.",
+    decidedDate: "2026-01-10",
+    decidedBy: "VP",
+    alternatives: [
+      "2026-07-15 (Q3 2026)",
+      "2026-09-15 (Q3-late 2026, more buffer for migration)",
+      "2026-12-01 (Q4 2026, full conservative)",
+    ],
+    chosenOption: "2026-07-15",
+    rationale: "Aligned with Q4 submission deadlines; sponsor wanted minimum business disruption window. Superseded after Data Migration discovery widened scope (see d5).",
+    status: "Superseded",
+    linkedMilestoneId: "m12",
+    projectId: "proj-veeva-rim",
+  },
+  {
+    id: "d5",
+    title: "Revised Go-Live target: 2026-09-02",
+    context: "Data-migration scope finalized at 14,200 dossiers (up from initial 9,500 estimate) + Iron Mountain delivery confirmed at 6 weeks. Re-baselined at SteerCo 2026-03-18.",
+    decidedDate: "2026-03-18",
+    decidedBy: "VP",
+    alternatives: [
+      "2026-09-02 — 7-week shift; preserves Q4 submission window",
+      "2026-08-15 — original-adjacent; high schedule risk per migration vendor",
+      "2026-10-15 — full conservative; misses Q4 window, slips to Q1 2027",
+    ],
+    chosenOption: "2026-09-02",
+    rationale: "Restores realistic validation runway given confirmed scope. Preserves Q4 submission deadlines (critical SteerCo constraint). Supersedes d4.",
+    status: "Approved",
+    supersedesId: "d4",
+    linkedMilestoneId: "m12",
+    projectId: "proj-veeva-rim",
+  },
+];
+
 // ─── Documents ────────────────────────────────────────────────────────────────
 
 export type DecisionStatus = "approved" | "rejected" | "pending";

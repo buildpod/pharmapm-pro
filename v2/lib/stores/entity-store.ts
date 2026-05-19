@@ -23,9 +23,10 @@ import {
   absences as seedAbsences,
   charters as seedCharters,
   issues as seedIssues,
+  decisionRecords as seedDecisions,
   type Milestone, type Task, type Risk, type Document,
   type CostLine, type TeamMember, type RecurringMeeting, type Absence,
-  type Charter, type Issue,
+  type Charter, type Issue, type DecisionRecord,
 } from "@/lib/mockData";
 import { LocalStorageRepository } from "@/lib/repositories/entity-repository";
 import { appendAudit, buildAction, type Source, type EntityKind } from "./audit";
@@ -43,6 +44,7 @@ const repos = {
   absence:    new LocalStorageRepository<Absence>("aivello_absences_v1", seedAbsences),
   charter:    new LocalStorageRepository<Charter>("aivello_charters_v1", seedCharters),
   issue:      new LocalStorageRepository<Issue>("aivello_issues_v1", seedIssues),
+  decision:   new LocalStorageRepository<DecisionRecord>("aivello_decisions_v1", seedDecisions),
 };
 
 // ─── Per-action options ──────────────────────────────────────────────────────
@@ -65,6 +67,7 @@ interface State {
   absences: Absence[];
   charters: Charter[];
   issues: Issue[];
+  decisionRecords: DecisionRecord[];
 
   hydrate(): Promise<void>;
 
@@ -77,6 +80,11 @@ interface State {
   updateIssue(i: Issue, opts?: ActionOpts): void;
   deleteIssue(id: string, opts?: ActionOpts): void;
   replaceAllIssues(items: Issue[], opts?: ActionOpts): void;
+
+  addDecisionRecord(d: DecisionRecord, opts?: ActionOpts): void;
+  updateDecisionRecord(d: DecisionRecord, opts?: ActionOpts): void;
+  deleteDecisionRecord(id: string, opts?: ActionOpts): void;
+  replaceAllDecisionRecords(items: DecisionRecord[], opts?: ActionOpts): void;
 
   addMilestone(m: Milestone, opts?: ActionOpts): void;
   updateMilestone(m: Milestone, opts?: ActionOpts): void;
@@ -205,16 +213,17 @@ export const useEntityStore = create<State>((set, get) => ({
   absences:    seedAbsences,
   charters:    seedCharters,
   issues:      seedIssues,
+  decisionRecords: seedDecisions,
 
   async hydrate() {
     if (get().hydrated) return;
-    const [milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters, issues] = await Promise.all([
+    const [milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters, issues, decisionRecords] = await Promise.all([
       repos.milestone.list(),  repos.task.list(), repos.risk.list(),
       repos.document.list(),   repos.costLine.list(), repos.teamMember.list(),
       repos.meeting.list(),    repos.absence.list(), repos.charter.list(),
-      repos.issue.list(),
+      repos.issue.list(),      repos.decision.list(),
     ]);
-    set({ milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters, issues, hydrated: true });
+    set({ milestones, tasks, risks, documents, costLines, teamMembers, meetings, absences, charters, issues, decisionRecords, hydrated: true });
   },
 
   // ── Milestones ──
@@ -276,6 +285,12 @@ export const useEntityStore = create<State>((set, get) => ({
   updateIssue:     (i, o) => set({ issues: runUpdate(get().issues, i, "issue", repos.issue, o) }),
   deleteIssue:     (id, o) => set({ issues: runDelete(get().issues, id, "issue", repos.issue, o) }),
   replaceAllIssues: (items, o) => set({ issues: runReplaceAll(items, "issue", repos.issue, o) }),
+
+  // ── Decision records (M25) ──
+  addDecisionRecord:        (d, o) => set({ decisionRecords: runAdd(get().decisionRecords, d, "decision", repos.decision, o) }),
+  updateDecisionRecord:     (d, o) => set({ decisionRecords: runUpdate(get().decisionRecords, d, "decision", repos.decision, o) }),
+  deleteDecisionRecord:     (id, o) => set({ decisionRecords: runDelete(get().decisionRecords, id, "decision", repos.decision, o) }),
+  replaceAllDecisionRecords: (items, o) => set({ decisionRecords: runReplaceAll(items, "decision", repos.decision, o) }),
 }));
 
 // Convenience hook used in app/(app)/layout.tsx to hydrate on first mount.

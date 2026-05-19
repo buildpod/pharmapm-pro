@@ -16,6 +16,7 @@ import {
   Users,
   Inbox,
   Scroll,
+  Scale,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -57,7 +58,8 @@ const navGroups = [
     label: "DOCUMENTATION",
     items: [
       { label: "Documents", href: "/documents", icon: FileText, badge: "2" },
-      { label: "Reports", href: "/reports", icon: BarChart2 },
+      { label: "Decisions", href: "/decisions", icon: Scale },
+      { label: "Reports",   href: "/reports", icon: BarChart2 },
     ],
   },
   {

@@ -8,7 +8,7 @@
 //   - Export workbook "Activity Log" sheet (future M19 extension)
 
 export type EntityKind =
-  | "project" | "charter" | "milestone" | "task" | "risk" | "issue" | "document"
+  | "project" | "charter" | "milestone" | "task" | "risk" | "issue" | "decision" | "document"
   | "costLine" | "teamMember" | "meeting" | "absence";
 
 export type ActionType = "add" | "update" | "delete" | "replaceAll" | "import" | "cascade-apply";

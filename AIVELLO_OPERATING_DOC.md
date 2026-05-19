@@ -93,6 +93,41 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M25 — Decisions register
+**Goal:** Pharma regulatory audits literally request "show me the decision log" — currently we'd reconstruct from meeting minutes. M25 adds a Decisions register as a first-class entity that records the *what*, *when*, *who*, *alternatives considered*, *rationale*, and *what it supersedes*. Mirrors the M24 Issues pattern (cross-entity-parity skill); completes the Risks + Issues + Decisions trio.
+
+**DoD:**
+- **New `DecisionRecord` entity** in `lib/mockData.ts` 1:N with Project. Named `DecisionRecord` to avoid collision with existing `Decision` value type used for document RACI rows. Fields: `id` · `title` · `context` · `decidedDate` · `decidedBy` · `alternatives[]` · `chosenOption` · `rationale` · `status` (`Pending` | `Approved` | `Rejected` | `Superseded`) · `supersedesId?` · `linkedMilestoneId?` · `linkedRiskId?` · `linkedIssueId?` · `projectId`.
+- **Seed 4–5 realistic decisions** for Veeva RIM (vendor pick, validation methodology, training delivery format, environment cutover window, etc.) — at least one Superseded to demonstrate the supersession chain.
+- **Entity store slice** following M20.2 pattern + `LocalStorageRepository<DecisionRecord>` + `decision` added to `EntityKind`. Audit log captures every save.
+- **`/decisions` route** with `DecisionsGrid` — flat table view, filter by status + decidedBy + Mine. Counts pill (Pending / Approved / Rejected / Superseded).
+- **`DecisionFormDrawer`** following the Issue form pattern: required-field validation per `error-message-pattern` skill, list-of-strings field for alternatives, optional supersedes-link to a prior decision, optional linkage to milestone/risk/issue.
+- **Sidebar nav**: new "Decisions" entry under DOCUMENTATION (next to Documents — semantically closer than RISK & FINANCE; Decisions are the audit record).
+- **Tone discipline**: slate Pending · emerald Approved · rose Rejected · muted Superseded.
+- **Plain language strings** per `ui-string-audit`.
+- All 133 tests still pass. Build clean. `simplify` invoked on diff before commit.
+
+**Out of scope:**
+- Decisions Excel export sheet (M19 exporter extension — defer)
+- Bi-directional supersession UI (clicking a superseded decision jumps to its replacement) — backlog
+- Decision↔Risk impact analysis ("which decisions affect this risk")
+- Assumptions register (4th RAID element) — separate module
+- Audit-log signoff PDF generation — separate module
+- Decision approval workflow (multi-signoff) — current model is single `decidedBy`
+
+**Why this matters:** completes the Risks + Issues + Decisions trio that every pharma audit + SteerCo review expects. Together with Charter and existing surfaces, the product now covers PMBOK §4 (Integration), §6 (Schedule), §11 (Risk), §13 (Stakeholder), and the audit trails inspectors require.
+
+**Started:** (this session)
+**Status:** in progress
+
+### M24 Completion summary (2026-05-18)
+
+**Module:** M24 — Issues register
+**Status:** ✅ Complete (commit `0fa3aae`)
+**Outcome:** New `Issue` entity, lifecycle (Open → In Progress → Resolved / Won't Fix), severity-based prioritisation, optional milestone/task linkage, 5 realistic seed issues, full grid + form + sidebar nav + audit-log integration. Clean break from cascade arc; exercised cross-entity-parity skill against existing Risk pattern.
+
+### M24 original goal/DoD (preserved for traceability)
+
 **Module:** M24 — Issues register
 **Goal:** PharmaPM Pro has Risks (potential future events) but no surface for tracking live problems — production-affecting situations a PM needs to resolve *now*. Every regulated-industry project (GxP, FDA, EMA) requires an issues log for inspection trails. M24 adds it as a first-class entity that mirrors the Risk pattern, with severity-based prioritisation, owner / resolution workflow, and dashboard surface. Clean break from cascade work; exercises `cross-entity-parity` skill.
 
@@ -1244,6 +1279,39 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-05-18 (M25 — Decisions register)
+
+**Strategic context:**
+Following M24 (Issues register), continued the RAID coverage by adding Decisions. Pharma audits + SteerCo reviews routinely request the decision log — without it, you reconstruct from meeting minutes. M25 makes it a queryable register with full audit-trail fields (alternatives, rationale, supersession chain).
+
+**Built:**
+- **`DecisionRecord` entity** in `lib/mockData.ts` (13 fields). Named to avoid collision with existing `Decision` value type used for document RACI rows.
+- **5 realistic seed decisions** for Veeva RIM — vendor pick (Iron Mountain), validation methodology (GAMP 5 Cat 4), training delivery format (hybrid), initial Go-Live date (Superseded), revised Go-Live date (Approved, supersedes d4). The d4 → d5 supersession demonstrates the chain UX.
+- **Entity store slice** following the M20.2 pattern + `LocalStorageRepository<DecisionRecord>` + `decision` added to `EntityKind`. Audit log captures every save.
+- **`/decisions` route** with `DecisionsGrid` — card-based layout (richer than Issues' table because decisions have more narrative content). Filter by status + Mine. Counts pill showing Approved / Pending / Rejected / Superseded.
+- **Card UI** — each decision card shows ID + status pill + decided date/by + title + truncated context + Chosen Option + alternatives-count + supersession trail when applicable.
+- **`DecisionFormDrawer`** mirrors the Charter form pattern (list-of-strings for alternatives, optional linkage fields to milestone/risk/issue). Required-field validation per `error-message-pattern` skill — every error names the missing field + explains why it's needed for audit trail.
+- **Sidebar nav** — new "Decisions" entry under DOCUMENTATION (semantically closer than RISK & FINANCE; Decisions are the audit record).
+- Tone discipline: slate Pending · emerald Approved · rose Rejected · muted slate Superseded.
+
+**Decided:**
+- **Card layout, not table** — decisions have richer content (context paragraph, alternatives list, rationale) than fit a row. Cards present the narrative cleanly; tables would force severe truncation.
+- **Supersession is bidirectional in UI** — each card shows both directions (this supersedes X, this is superseded by Y) when applicable. Lets the PM read the full chain from either end.
+- **Status order in sort** — Pending first (action needed), then Approved (current), then Rejected, then Superseded at bottom (historical context only).
+- **`DecisionRecord` naming** — keeps the existing per-reviewer `Decision` value type on documents (RACI) untouched. Refactor to unify naming would be M-future.
+
+**Pending:**
+- Commit + push.
+- Dogfood — view d4 → d5 supersession chain, record a new decision linking to a risk/issue, change a Pending → Approved, verify audit log captures all.
+- M-future candidates: Assumptions register (4th RAID element), Decisions Excel export, supersession deep-link navigation, decision approval workflow (multi-signoff).
+
+**Followup observations:**
+- Build: 17 → 18 static pages. `/decisions` 5.73 kB. Within budget.
+- `cross-entity-parity` skill earning its keep — DecisionFormDrawer mirrors Charter's list-of-strings pattern + Issue's linkage selectors, no new patterns invented.
+- Plain language audit pass: "Decided by" / "Chosen option" / "Alternatives considered" — no PMBOK jargon leaked.
+- Skill chain working as designed: ui-string-audit caught 3 jargon-y phrases at write-time ("rationale-text-field" → "Rationale"; "supersedee-pick" → "Supersedes"; "tagged" → "Linked").
+- 133 pass / 4 skipped unchanged — no domain logic to test, pure CRUD on entity store.
 
 ### Session — 2026-05-18 (M24 — Issues register)
 

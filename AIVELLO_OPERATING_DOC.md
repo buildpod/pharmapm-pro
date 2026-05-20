@@ -93,6 +93,20 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M26.1 — Tasks page refactored to new design system
+**Goal:** Second page in the design-system refactor (after M26 Dashboard). Apply the AivelloStudio design tokens to the Tasks page per `design/tasks-reference.html`. Visual chrome only — every handler, the cascade ImpactDrawer wiring, and the TaskFormDrawer wiring preserved verbatim.
+
+**DoD:**
+- `v2/app/styles/tasks.css` — tasks-specific patterns from the reference (toolbar, filter-chip, summary-strip, summary, tasks table, ws group, task row, priority pill, owner avatar, due column, progress, deps chips, footer).
+- `tasks/page.tsx` — `.page-header` eyebrow + serif title + meta row.
+- `tasks-grid.tsx` visual rewrite: workstream summary strip, filter-chip toolbar, `.tasks` table with collapsible `.ws` groups, 9-column `.task` rows.
+- Cascade ImpactDrawer IIFE + TaskFormDrawer + all handlers unchanged.
+- Build clean; 133 tests pass. Stop for review before M26.2 (Milestones).
+
+**Out of scope:** other pages; topbar internals; cascade-drawer visual restyle.
+
+### Earlier Current Module — M25 Decisions register (shipped, commit `42cd472`)
+
 **Module:** M25 — Decisions register
 **Goal:** Pharma regulatory audits literally request "show me the decision log" — currently we'd reconstruct from meeting minutes. M25 adds a Decisions register as a first-class entity that records the *what*, *when*, *who*, *alternatives considered*, *rationale*, and *what it supersedes*. Mirrors the M24 Issues pattern (cross-entity-parity skill); completes the Risks + Issues + Decisions trio.
 

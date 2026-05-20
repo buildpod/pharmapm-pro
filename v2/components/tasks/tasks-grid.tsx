@@ -1,8 +1,15 @@
 "use client";
 
+// Tasks grid — refactored to the AivelloStudio design system per
+// design/tasks-reference.html. Visual chrome only: workstream summary
+// strip, filter-chip toolbar, .tasks table with collapsible .ws groups
+// and 9-column .task rows.
+//
+// All handlers, the cascade ImpactDrawer wiring, and the TaskFormDrawer
+// wiring are preserved verbatim from the pre-refactor implementation.
+
 import { useState } from "react";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Milestone, ArrowRight, Plus } from "lucide-react";
 import {
   milestones,
   type Task,
@@ -19,40 +26,15 @@ import {
   type TaskScheduleEntry, type ScheduleMilestone,
 } from "@/lib/domain/scheduling";
 import { workingDaysBetween } from "@/lib/domain/dates";
+import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
+import "@/app/styles/tasks.css";
 
 // Local helpers — match the conversion used in milestones-grid so a task linked
 // to "m6" resolves to the milestone whose id is 6 in the engine.
 function msStrToNum(id: string): number { return parseInt(id.replace("m", "")); }
 function msNumToStr(id: number): string { return `m${id}`; }
-import { ImpactDrawer, type ImpactSummary, type ImpactSection } from "@/components/ui/impact-drawer";
-import { cn } from "@/lib/utils";
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-
-const priorityStyles: Record<TaskPriority, { pill: string; dot: string; label: string }> = {
-  Critical: { pill: "bg-rose-50 text-rose-700 border-rose-200",       dot: "bg-rose-500",   label: "Critical" },
-  High:     { pill: "bg-amber-50 text-amber-700 border-amber-200",    dot: "bg-amber-500",  label: "High"     },
-  Medium:   { pill: "bg-yellow-50 text-yellow-700 border-yellow-200", dot: "bg-yellow-400", label: "Medium"   },
-  Low:      { pill: "bg-slate-100 text-slate-600 border-slate-200",   dot: "bg-slate-300",  label: "Low"      },
-};
-
-const statusStyles: Record<TaskStatus, string> = {
-  "Complete":    "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "In Progress": "bg-blue-50 text-blue-700 border-blue-200",
-  "Not Started": "bg-slate-100 text-slate-600 border-slate-200",
-  "Blocked":     "bg-rose-50 text-rose-700 border-rose-200",
-  "On Hold":     "bg-violet-50 text-violet-700 border-violet-200",
-};
-
-// Per-person avatar color hash
-const AVATAR_COLORS = [
-  "bg-rose-500", "bg-orange-500", "bg-amber-500", "bg-emerald-500", "bg-teal-500",
-  "bg-cyan-500", "bg-blue-500", "bg-indigo-500", "bg-violet-500", "bg-fuchsia-500", "bg-pink-500",
-];
-function avatarColor(initials: string) {
-  const hash = initials.split("").reduce((s, c) => s + c.charCodeAt(0), 0);
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-}
+// ─── Visual mappings (design-token classes) ───────────────────────────────────
 
 const nextStatus: Record<TaskStatus, TaskStatus> = {
   "Not Started": "In Progress",
@@ -63,94 +45,65 @@ const nextStatus: Record<TaskStatus, TaskStatus> = {
 };
 
 const allPriorities: TaskPriority[] = ["Critical", "High", "Medium", "Low"];
-const allStatuses: TaskStatus[]     = ["Not Started", "In Progress", "Complete", "Blocked", "On Hold"];
 
-// ─── Lookups ──────────────────────────────────────────────────────────────────
+const priorityClass: Record<TaskPriority, string> = {
+  Critical: "priority priority--critical",
+  High:     "priority priority--high",
+  Medium:   "priority priority--medium",
+  Low:      "priority priority--low",
+};
+
+// Status → design-token pill class. Matches design/tasks-reference.html.
+const statusPill: Record<TaskStatus, string> = {
+  "Complete":    "pill pill--ok",
+  "In Progress": "pill pill--warn",
+  "Not Started": "pill pill--neutral",
+  "Blocked":     "pill pill--risk",
+  "On Hold":     "pill pill--info",
+};
 
 const milestoneById = Object.fromEntries(milestones.map((m) => [m.id, m]));
-// taskById fallback removed in M20.2 — tasks now flow from the entity store
-// at the call sites; DependencyTags receives the live list as allTasks.
-const taskById: Record<string, Task> = {};
 
-function MilestoneTag({ milestoneId }: { milestoneId?: string }) {
-  if (!milestoneId) return null;
+// Owner avatar class — the reference keys four owners; others fall back to navy.
+function ownerClass(owner: string): string {
+  const k = owner.trim().toLowerCase();
+  if (k === "qa") return "owner owner--qa";
+  if (k === "hr") return "owner owner--hr";
+  if (k === "ar") return "owner owner--ar";
+  if (k === "km") return "owner owner--km";
+  return "owner";
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Due-date delta vs. today, with tone-matched class.
+function dueDelta(iso: string, status: TaskStatus): { label: string; cls: string } {
+  if (status === "Complete") return { label: "Complete", cls: "due__delta--far" };
+  const days = Math.round((new Date(iso).getTime() - Date.now()) / 86_400_000);
+  if (days < 0)  return { label: `${Math.abs(days)} days overdue`, cls: "due__delta--over" };
+  if (days <= 14) return { label: `in ${days} day${days === 1 ? "" : "s"}`, cls: "due__delta--soon" };
+  return { label: `in ${days} days`, cls: "due__delta--far" };
+}
+
+function progressFillClass(value: number, status: TaskStatus): string {
+  if (status === "Complete") return "progress__fill progress__fill--done";
+  if (status === "Blocked")  return "progress__fill progress__fill--blocked";
+  if (value === 0)           return "progress__fill progress__fill--zero";
+  return "progress__fill";
+}
+
+function milestoneMeta(milestoneId?: string): string {
+  if (!milestoneId) return "No milestone · cross-phase deliverable";
   const m = milestoneById[milestoneId];
-  if (!m) return null;
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground"
-      title={m.name}
-    >
-      <Milestone className="h-2.5 w-2.5 shrink-0" />
-      {m.name.length > 22 ? m.name.slice(0, 22) + "…" : m.name}
-    </span>
-  );
-}
-
-function DependencyTags({ dependsOn, allTasks }: { dependsOn?: string[]; allTasks: Task[] }) {
-  if (!dependsOn?.length) return null;
-  const taskMap = Object.fromEntries(allTasks.map((t) => [t.id, t]));
-  return (
-    <div className="mt-0.5 flex flex-wrap gap-1">
-      {dependsOn.map((depId) => {
-        const dep = taskMap[depId] ?? taskById[depId];
-        if (!dep) return null;
-        const done = dep.status === "Complete";
-        const blocked = dep.status === "Blocked";
-        return (
-          <span
-            key={depId}
-            title={`Depends on: ${dep.name}`}
-            className={cn(
-              "inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium",
-              done    ? "bg-green-50 text-green-600" :
-              blocked ? "bg-red-50 text-red-600" :
-                        "bg-muted text-muted-foreground"
-            )}
-          >
-            <ArrowRight className="h-2 w-2 shrink-0" />
-            {depId.toUpperCase()}
-            {done && " ✓"}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Progress bar ─────────────────────────────────────────────────────────────
-
-function ProgressBar({ value, status }: { value: number; status: TaskStatus }) {
-  const color =
-    status === "Complete"    ? "bg-emerald-500" :
-    status === "Blocked"     ? "bg-rose-500" :
-    status === "In Progress" ? "bg-blue-500" :
-    "bg-slate-300";
-
-  return (
-    <div className="flex min-w-[100px] items-center gap-2">
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-        <div className={cn("h-full rounded-full transition-all", color)} style={{ width: `${value}%` }} />
-      </div>
-      <span className="w-8 shrink-0 text-right text-[11px] font-semibold tabular-nums text-muted-foreground">
-        {value}%
-      </span>
-    </div>
-  );
+  return m ? m.name : "No milestone · cross-phase deliverable";
 }
 
 // ─── Task row ─────────────────────────────────────────────────────────────────
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
-}
-
-function TaskRow({
-  task,
-  allTasks,
-  onStatusToggle,
-  onProgressChange,
-  onEdit,
+function TaskRowView({
+  task, allTasks, onStatusToggle, onProgressChange, onEdit,
 }: {
   task: Task;
   allTasks: Task[];
@@ -159,121 +112,129 @@ function TaskRow({
   onEdit: (task: Task) => void;
 }) {
   const [editingProgress, setEditingProgress] = useState(false);
-  const p = priorityStyles[task.priority];
-  const isOverdue = new Date(task.dueDate) < new Date("2026-05-11") && task.status !== "Complete";
+  const taskMap = Object.fromEntries(allTasks.map((t) => [t.id, t]));
+  const delta = dueDelta(task.dueDate, task.status);
+  const deps = task.dependsOn ?? [];
+  const isComplete = task.status === "Complete";
 
   return (
-    <tr className="hover:bg-muted/20 transition-colors group">
-      {/* Priority dot */}
-      <td className="px-4 py-2.5 w-8">
-        <span
-          className={cn("block h-2 w-2 rounded-full", p.dot)}
-          title={task.priority}
-        />
-      </td>
+    <div className="task">
+      {/* Check */}
+      <button
+        type="button"
+        className={isComplete ? "task__check task__check--done" : "task__check"}
+        onClick={() => onStatusToggle(task.id)}
+        title={`${task.status} — click to mark ${nextStatus[task.status]}`}
+        aria-label="Advance status"
+      />
 
-      {/* Name + milestone tag + dependencies — click name to edit */}
-      <td className="px-2 py-3">
-        <button
-          onClick={() => onEdit(task)}
-          className="block w-full text-left text-sm font-medium leading-tight text-foreground hover:text-primary hover:underline"
-          title="Click to edit"
-        >
+      {/* ID */}
+      <div className="task__id">{task.id.toUpperCase()}</div>
+
+      {/* Name + milestone meta */}
+      <div className="task__name-cell">
+        <button className="task__name" onClick={() => onEdit(task)} title="Click to edit">
           {task.name}
         </button>
-        <div className="mt-1 flex flex-wrap items-center gap-1">
-          <MilestoneTag milestoneId={task.milestoneId} />
+        <div className="task__meta">
+          Milestone <strong>{milestoneMeta(task.milestoneId)}</strong>
         </div>
-        <DependencyTags dependsOn={task.dependsOn} allTasks={allTasks} />
-      </td>
+      </div>
 
-      {/* Priority badge */}
-      <td className="hidden px-2 py-3 lg:table-cell">
-        <span className={cn("rounded-full border px-2 py-0.5 text-[10px] font-semibold", p.pill)}>
-          {task.priority}
-        </span>
-      </td>
+      {/* Priority */}
+      <div>
+        <span className={priorityClass[task.priority]}>{task.priority}</span>
+      </div>
 
-      {/* Owner avatar */}
-      <td className="w-14 px-2 py-3 text-center">
-        <span
-          className={cn(
-            "inline-flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white",
-            avatarColor(task.owner),
-          )}
-          title={task.owner}
-        >
-          {task.owner}
-        </span>
-      </td>
+      {/* Owner */}
+      <div>
+        <div className={ownerClass(task.owner)} title={task.owner}>{task.owner}</div>
+      </div>
 
-      {/* Due date */}
-      <td className={cn(
-        "w-20 px-2 py-3 text-xs tabular-nums",
-        isOverdue ? "font-semibold text-rose-600" : "text-muted-foreground",
-      )}>
-        {formatDate(task.dueDate)}
-      </td>
+      {/* Due */}
+      <div className="due">
+        <div className="due__date">{formatDate(task.dueDate)}</div>
+        <div className={`due__delta ${delta.cls}`}>{delta.label}</div>
+      </div>
 
-      {/* Progress (click to edit inline) */}
-      <td className="px-2 py-2.5 w-36">
+      {/* Progress */}
+      <div className="progress">
         {editingProgress ? (
           <input
             type="range"
-            min={0}
-            max={100}
-            step={5}
+            min={0} max={100} step={5}
             defaultValue={task.progress}
-            className="w-full accent-primary"
-            onBlur={(e) => {
-              setEditingProgress(false);
-              onProgressChange(task.id, Number(e.target.value));
-            }}
+            className="progress__range"
+            autoFocus
+            onBlur={(e) => { setEditingProgress(false); onProgressChange(task.id, Number(e.target.value)); }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === "Escape") {
                 setEditingProgress(false);
                 onProgressChange(task.id, Number((e.target as HTMLInputElement).value));
               }
             }}
-            autoFocus
           />
         ) : (
-          <button
-            onClick={() => setEditingProgress(true)}
-            title="Click to edit progress"
-            className="w-full text-left"
-          >
-            <ProgressBar value={task.progress} status={task.status} />
-          </button>
+          <>
+            <button
+              type="button"
+              className="progress__bar"
+              onClick={() => setEditingProgress(true)}
+              title="Click to edit progress"
+              aria-label="Edit progress"
+            >
+              <div
+                className={progressFillClass(task.progress, task.status)}
+                style={{ width: `${task.progress === 0 ? 2 : task.progress}%` }}
+              />
+            </button>
+            <span className="progress__val">{task.progress}%</span>
+          </>
         )}
-      </td>
+      </div>
 
-      {/* Status (click to cycle) */}
-      <td className="w-28 px-4 py-3">
+      {/* Status */}
+      <div className="task__status">
         <button
+          type="button"
+          className={statusPill[task.status]}
           onClick={() => onStatusToggle(task.id)}
-          title={`${task.status} → click to mark ${nextStatus[task.status]}`}
-          className={cn(
-            "whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-opacity hover:opacity-70",
-            statusStyles[task.status],
-          )}
+          title={`${task.status} — click to mark ${nextStatus[task.status]}`}
         >
           {task.status}
         </button>
-      </td>
-    </tr>
+      </div>
+
+      {/* Dependencies */}
+      <div className="task__deps-cell">
+        {deps.length === 0 ? (
+          <span className="deps--empty">No upstream</span>
+        ) : (
+          <div className="deps">
+            {deps.slice(0, 3).map((depId) => {
+              const dep = taskMap[depId];
+              const cls =
+                dep?.status === "Complete" ? "dep dep--done" :
+                dep?.status === "Blocked"  ? "dep dep--blocked" :
+                "dep";
+              return (
+                <span key={depId} className={cls} title={dep ? `Depends on: ${dep.name}` : depId}>
+                  {depId.toUpperCase()}
+                </span>
+              );
+            })}
+            {deps.length > 3 && <span className="dep dep--more">+{deps.length - 3}</span>}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
-// ─── Workstream group ─────────────────────────────────────────────────────────
+// ─── Workstream group (collapsible) ───────────────────────────────────────────
 
-function WorkstreamGroup({
-  name,
-  tasks,
-  allTasks,
-  onStatusToggle,
-  onProgressChange,
-  onEdit,
+function WorkstreamGroupView({
+  name, tasks, allTasks, onStatusToggle, onProgressChange, onEdit,
 }: {
   name: string;
   tasks: Task[];
@@ -287,76 +248,48 @@ function WorkstreamGroup({
   const total    = tasks.length;
   const done     = tasks.filter((t) => t.status === "Complete").length;
   const blocked  = tasks.filter((t) => t.status === "Blocked").length;
-  const avgPct   = Math.round(tasks.reduce((s, t) => s + t.progress, 0) / total);
   const critical = tasks.some((t) => t.priority === "Critical" && t.status !== "Complete");
 
+  const groupPill =
+    blocked > 0  ? { cls: "pill pill--risk", label: "Blocked downstream" } :
+    critical     ? { cls: "pill pill--warn", label: "In progress" } :
+    done === total ? { cls: "pill pill--ok", label: "Complete" } :
+    tasks.some((t) => t.status === "In Progress")
+      ? { cls: "pill pill--info", label: "Ongoing" }
+      : { cls: "pill pill--neutral", label: "Not started" };
+
+  const metaParts = [
+    `${total} task${total === 1 ? "" : "s"}`,
+    blocked > 0 ? `${blocked} blocked` : critical ? "1 critical open" : "0 critical open",
+    `${done} of ${total} complete`,
+  ];
+
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-      {/* Group header */}
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 border-b border-border bg-muted/30 px-5 py-3.5 text-left transition-colors hover:bg-muted/50"
-      >
-        {open
-          ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-          : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-
-        <span className="text-sm font-semibold text-foreground">{name}</span>
-
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {done} of {total} complete
-        </span>
-
-        {blocked > 0 && (
-          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-700">
-            {blocked} blocked
-          </span>
-        )}
-
-        {critical && (
-          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
-            ⚠ critical open
-          </span>
-        )}
-
-        <div className="ml-auto flex items-center gap-2">
-          <div className="hidden w-32 items-center gap-2 sm:flex">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${avgPct}%` }} />
-            </div>
-            <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">{avgPct}%</span>
-          </div>
+    <div className={open ? "ws" : "ws ws--collapsed"}>
+      <button type="button" className="ws__header" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <svg className="ws__caret" viewBox="0 0 16 16" fill="none">
+          <path d="M5 4l5 4-5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <div className="ws__title">
+          {name}
+          <span className="ws__meta"><strong>{metaParts[0]}</strong> · {metaParts[1]} · {metaParts[2]}</span>
+        </div>
+        <div className="ws__actions">
+          <span className={groupPill.cls}>{groupPill.label}</span>
         </div>
       </button>
-
-      {/* Task rows */}
-      {open && (
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              <th className="w-8 px-4 py-2" />
-              <th className="px-2 py-2 text-left">Task</th>
-              <th className="hidden w-24 px-2 py-2 text-left lg:table-cell">Priority</th>
-              <th className="w-14 px-2 py-2 text-center">Owner</th>
-              <th className="w-20 px-2 py-2 text-left">Due</th>
-              <th className="w-36 px-2 py-2 text-left">Progress</th>
-              <th className="w-28 px-4 py-2 text-left">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {tasks.map((t) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                allTasks={allTasks}
-                onStatusToggle={onStatusToggle}
-                onProgressChange={onProgressChange}
-                onEdit={onEdit}
-              />
-            ))}
-          </tbody>
-        </table>
-      )}
+      <div className="ws__rows">
+        {tasks.map((t) => (
+          <TaskRowView
+            key={t.id}
+            task={t}
+            allTasks={allTasks}
+            onStatusToggle={onStatusToggle}
+            onProgressChange={onProgressChange}
+            onEdit={onEdit}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -518,101 +451,144 @@ export function TasksGrid() {
 
   // Summary counts — for the active project only
   const totalTasks    = projectTasks.length;
-  const completeTasks = projectTasks.filter((t) => t.status === "Complete").length;
-  const blockedTasks  = projectTasks.filter((t) => t.status === "Blocked").length;
   const inProgress    = projectTasks.filter((t) => t.status === "In Progress").length;
+  const notStarted    = projectTasks.filter((t) => t.status === "Not Started").length;
+  const blockedTasks  = projectTasks.filter((t) => t.status === "Blocked").length;
+
+  const priorityCounts: Record<TaskPriority, number> = {
+    Critical: projectTasks.filter((t) => t.priority === "Critical").length,
+    High:     projectTasks.filter((t) => t.priority === "High").length,
+    Medium:   projectTasks.filter((t) => t.priority === "Medium").length,
+    Low:      projectTasks.filter((t) => t.priority === "Low").length,
+  };
+
+  // Per-workstream summary cards
+  const workstreamSummaries = workstreams.map((ws) => {
+    const wsTasks = projectTasks.filter((t) => t.workstream === ws);
+    const avg = wsTasks.length
+      ? Math.round(wsTasks.reduce((s, t) => s + t.progress, 0) / wsTasks.length)
+      : 0;
+    const accent =
+      wsTasks.some((t) => t.status === "Blocked")    ? "summary--risk" :
+      wsTasks.some((t) => t.priority === "Critical" && t.status !== "Complete") ? "summary--warn" :
+      wsTasks.some((t) => t.status === "In Progress") ? "summary--info" :
+      "summary--ok";
+    return { name: ws, count: wsTasks.length, avg, accent };
+  });
 
   return (
-    <div className="space-y-4">
-      {/* Summary bar */}
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm">
-        <span className="text-sm font-medium text-foreground tabular-nums">
-          {completeTasks} of {totalTasks} complete
-        </span>
-        {inProgress > 0 && (
-          <span className="rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-[10px] font-semibold text-blue-700">
-            {inProgress} in progress
-          </span>
-        )}
-        {blockedTasks > 0 && (
-          <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[10px] font-semibold text-rose-700">
-            {blockedTasks} blocked
-          </span>
-        )}
+    <>
+      {/* Workstream summary strip */}
+      {workstreamSummaries.length > 0 && (
+        <div className="summary-strip">
+          {workstreamSummaries.map((s) => (
+            <div key={s.name} className={`summary ${s.accent}`}>
+              <div className="summary__label">{s.name}</div>
+              <div className="summary__row">
+                <span className="summary__count">{s.count} <em>tasks</em></span>
+                <span className="summary__pct">{s.avg}%</span>
+              </div>
+              <div className="summary__progress">
+                <div className="summary__progress-fill" style={{ width: `${s.avg}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-        <div className="flex-1" />
+      {/* Toolbar — status chips + priority chips + workstream select + actions */}
+      <div className="toolbar">
+        <div className="toolbar__group">
+          <button
+            className={filterStatus === "All" ? "filter-chip filter-chip--active" : "filter-chip"}
+            onClick={() => setFilterStatus("All")}
+          >
+            All <span className="filter-chip__count">{totalTasks}</span>
+          </button>
+          <button
+            className={filterStatus === "In Progress" ? "filter-chip filter-chip--active" : "filter-chip"}
+            onClick={() => setFilterStatus("In Progress")}
+          >
+            In Progress <span className="filter-chip__count">{inProgress}</span>
+          </button>
+          <button
+            className={filterStatus === "Not Started" ? "filter-chip filter-chip--active" : "filter-chip"}
+            onClick={() => setFilterStatus("Not Started")}
+          >
+            Not Started <span className="filter-chip__count">{notStarted}</span>
+          </button>
+          <button
+            className={filterStatus === "Blocked" ? "filter-chip filter-chip--active" : "filter-chip"}
+            onClick={() => setFilterStatus("Blocked")}
+          >
+            Blocked <span className="filter-chip__count">{blockedTasks}</span>
+          </button>
+        </div>
+
+        <div className="toolbar__group">
+          {allPriorities.slice(0, 3).map((p) => (
+            <button
+              key={p}
+              className={filterPriority === p ? "filter-chip filter-chip--active" : "filter-chip"}
+              onClick={() => setFilterPriority(filterPriority === p ? "All" : p)}
+            >
+              {p} <span className="filter-chip__count">{priorityCounts[p]}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="toolbar__select">
+          Workstream:&nbsp;
+          <select
+            className="toolbar__select-native"
+            value={filterWorkstream}
+            onChange={(e) => setFilterWorkstream(e.target.value)}
+          >
+            <option value="All">All</option>
+            {allWorkstreams.map((ws) => <option key={ws} value={ws}>{ws}</option>)}
+          </select>
+        </div>
 
         <button
+          className={filterMine ? "filter-chip filter-chip--active" : "filter-chip"}
           onClick={() => setFilterMine((v) => !v)}
-          title={filterMine ? "Showing only items owned by you" : "Show only items owned by you"}
-          className={cn(
-            "rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors",
-            filterMine
-              ? "bg-primary/10 text-primary"
-              : "border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
+          title={filterMine ? "Showing only tasks you own" : "Show only tasks you own"}
+          style={{ height: "32px", border: "1px solid var(--color-line-soft)", borderRadius: "var(--radius-sm)" }}
         >
           Mine
         </button>
 
-        <select
-          value={filterWorkstream}
-          onChange={(e) => setFilterWorkstream(e.target.value)}
-          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="All">All workstreams</option>
-          {allWorkstreams.map((ws) => <option key={ws} value={ws}>{ws}</option>)}
-        </select>
+        <div className="topbar-spacer" />
 
-        <select
-          value={filterPriority}
-          onChange={(e) => setFilterPriority(e.target.value as TaskPriority | "All")}
-          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="All">All priorities</option>
-          {allPriorities.map((p) => <option key={p} value={p}>{p}</option>)}
-        </select>
-
-        <select
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value as TaskStatus | "All")}
-          className="rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-        >
-          <option value="All">All statuses</option>
-          {allStatuses.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-
-        <button
-          onClick={() => setDrawer({ mode: "new" })}
-          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          Add Task
+        <button className="btn btn--primary" onClick={() => setDrawer({ mode: "new" })}>
+          New task
         </button>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap items-center gap-3 px-1 text-[11px] text-muted-foreground">
-        {allPriorities.map((p) => (
-          <span key={p} className="flex items-center gap-1.5">
-            <span className={cn("h-2 w-2 rounded-full", priorityStyles[p].dot)} />
-            {p}
-          </span>
-        ))}
-        <span className="mx-1 text-border">·</span>
-        <span>Click status badge to advance · click progress bar to edit %</span>
-      </div>
-
-      {/* Workstream groups */}
+      {/* Tasks table */}
       {groups.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-muted/20 py-16 text-center">
-          <p className="text-sm font-medium text-foreground">No tasks match the current filters.</p>
-          <p className="mt-1 text-xs text-muted-foreground">Try clearing the workstream, priority, or status filter.</p>
+        <div className="tasks">
+          <div className="tasks-empty">
+            <p className="tasks-empty__title">No tasks match the current filters</p>
+            <p className="tasks-empty__hint">Try clearing the workstream, priority, or status filter.</p>
+          </div>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="tasks">
+          <div className="tasks__head">
+            <div />
+            <div>ID</div>
+            <div>Task</div>
+            <div>Priority</div>
+            <div className="col-owner">Owner</div>
+            <div>Due</div>
+            <div>Progress</div>
+            <div>Status</div>
+            <div className="col-deps">Depends on</div>
+          </div>
+
           {groups.map((g) => (
-            <WorkstreamGroup
+            <WorkstreamGroupView
               key={g.name}
               name={g.name}
               tasks={g.tasks}
@@ -622,6 +598,13 @@ export function TasksGrid() {
               onEdit={(t) => setDrawer({ mode: "edit", task: t })}
             />
           ))}
+
+          <div className="tasks-footer">
+            <span>
+              {filtered.length} of {totalTasks} task{totalTasks === 1 ? "" : "s"} shown · grouped by workstream
+            </span>
+            <span>Click status to advance · click progress bar to edit</span>
+          </div>
         </div>
       )}
 
@@ -911,6 +894,6 @@ export function TasksGrid() {
         onDelete={handleDrawerDelete}
         onClose={() => setDrawer({ mode: "closed" })}
       />
-    </div>
+    </>
   );
 }

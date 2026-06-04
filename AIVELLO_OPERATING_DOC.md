@@ -93,6 +93,17 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M28 — Spec phase: `TRANSPARENCY_MODEL.md`
+**Goal:** Second of three architectural specs. Lock how the product computes and displays cost/schedule transparency to CFOs and CTOs — Earned Value Management, Earned Schedule, Forecast-at-Completion, variance attribution, decision-cost lineage, anomaly detection. Standards-grounded (PMBOK §7, AACE, Earned Schedule, SPC) so the implementation is auditable. Confirmed (NotebookLM + Codex review): NEITHER fork has any EVM today — both do backward-looking tallies only. This makes predictive forecasting a clean differentiator. No code this session.
+
+**DoD:**
+- `v2/docs/TRANSPARENCY_MODEL.md` (~450 lines): EVM formula set (PV/EV/AC/CV/SV/CPI/SPI/BAC/EAC variants/ETC/VAC/TCPI), Earned Schedule (ES/SV(t)/SPI(t)), variance attribution (rate/volume/scope decomposition), FAC with confidence ranges, anomaly-rule set (concrete thresholds, no ML), decision-cost lineage, the AI-cost forecasting tie-back to M27, what our entities have vs need, UI sketches, non-goals, punch list.
+- Build clean; 133 tests pass (docs only).
+
+**Out of scope:** implementation code; the third spec (CALENDAR_INTEGRATION); ML-based forecasting.
+
+### Earlier Current Module — M27 AGENT_AS_RESOURCE spec (shipped, commits c9260b0 + f162bdc)
+
 **Module:** M27 — Spec phase: `AGENT_AS_RESOURCE.md`
 **Goal:** Before any more feature code, write the first of three architectural specs that lock how this product handles the dimensions a CTO/CFO actually care about. M27 = AI agents as first-class resources with full cost attribution. M28 = transparency model (variance attribution, FAC, decision-cost lineage). M29 = calendar integration (ICS / CalDAV / M365 / Google with EU-sovereignty-first). Each spec follows the M20.4 pattern: data model + lifecycle + worked example + open questions + punch list. No code this session.
 

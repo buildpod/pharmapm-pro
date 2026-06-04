@@ -98,35 +98,79 @@ type AgentCostModel =
 
 ### 2.3 `AgentRun` — the unit of agent work
 
-Every agent invocation produces exactly one `AgentRun` record:
+Every agent invocation produces exactly one `AgentRun` record.
+
+**M27.1 revision (NotebookLM standards review):** field names align to the
+**OpenTelemetry GenAI semantic conventions** so the record drops cleanly into
+any observability stack (Datadog, Helicone, LangSmith) without re-mapping.
+Token usage is broken out by **cache class** because a single `inputTokens`
+field cannot audit prompt-cache economics — and prompt caching is the dominant
+cost lever for our own dogfood agent (Claude Code). Cost is explicitly an
+**estimate** distinct from the authoritative vendor invoice.
 
 ```ts
 interface AgentRun {
   id: string;                          // ULID
+
+  // ── OTel GenAI standard attributes (portable to any observability stack) ──
+  "gen_ai.provider.name": AgentProvider;   // "anthropic" | "openai" | ...
+  "gen_ai.request.model": string;          // "claude-sonnet-4-7"
+  "gen_ai.operation.name": string;         // "chat" | "tool_use" | "agent_run"
+  "gen_ai.usage.input_tokens": number;     // full (uncached) input tokens
+  "gen_ai.usage.output_tokens": number;
+  // Cache-class breakdown — provider-specific, mapped to a common shape.
+  // Anthropic: cache_creation_input_tokens (1.25× or 2× base) +
+  //            cache_read_input_tokens (0.1× base).
+  // OpenAI:    prompt_tokens_details.cached_tokens.
+  "gen_ai.usage.cache_creation_input_tokens"?: number;
+  "gen_ai.usage.cache_read_input_tokens"?: number;
+  "gen_ai.usage.cache_ttl"?: "5m" | "1h";  // write-premium tier (Anthropic)
+
+  // ── Cost — estimate vs authoritative ──
+  estimatedCost: number;               // client-side, computed via AgentCostModel at run time
+  authoritativeCost?: number;          // backfilled from vendor billing API (PA-14); source of truth when present
+  costCurrency: "USD" | "EUR" | "GBP";
+  durationMs: number;                  // user-perceived application latency (≥ model exec time)
+
+  // ── Business attribution (our application layer — wraps the OTel payload) ──
   agentDefinitionId: string;
   resourceId: string;                  // the Resource of kind: "ai-agent" running it
   projectId: string;
-  // What was the work?
   taskId?: string;                     // linked task (if owned by agent)
   milestoneId?: string;                // or linked milestone (e.g. report generation)
   moduleRef?: string;                  // e.g. "M26.1" — for our own dogfood case
-  promptSummary: string;               // 1-2 sentence human-readable summary
-  // What did it cost?
-  inputTokens?: number;
-  outputTokens?: number;
-  costAmount: number;                  // computed via AgentCostModel; stored at run-time for audit
-  costCurrency: "USD" | "EUR" | "GBP";
-  durationMs: number;
-  // What was the outcome?
+
+  // ── Forensics — AI Act Art. 12/19, GDPR-safe ──
+  promptSummary: string;               // 1-2 sentence human-readable, PII-free summary (display)
+  promptHash: string;                  // SHA-256 of the raw prompt — NEVER store cleartext (GDPR)
+  policyVersionHash?: string;          // hash of the active rule/guardrail set at run time
+  writerSignature?: string;            // HMAC(prev record + this record) — tamper-evident chain (PA-16)
+
+  // ── Outcome ──
   outputArtifactRefs: string[];        // file paths, commit hashes, doc ids touched
   humanReviewStatus: "auto-approved" | "pending" | "approved" | "rejected";
   humanReviewedBy?: string;            // Resource.id (human)
   humanReviewDate?: string;
-  // When?
+
+  // ── When ──
   startedAt: string;
   completedAt: string;
 }
 ```
+
+**Why cache classes matter (concrete):** our M26.1 dogfood run read ~18.5k input
+tokens, most of which was repeated file/context across the session. With Anthropic
+prompt caching, ~14k of those would be `cache_read_input_tokens` at 0.1× cost, not
+full input at 1× — a ~6× cost difference on the input side. A single `inputTokens`
+field would over-report the cost by hundreds of percent and make cache-optimisation
+invisible to the CFO. This is the single most important correction from the
+standards review.
+
+**Why `estimatedCost` vs `authoritativeCost`:** the run-time number is a client-side
+estimate from `AgentCostModel`. It WILL drift from the vendor invoice (rounding,
+mid-period price changes, cache-tier nuances). We store the estimate for immediate
+rollup, then backfill `authoritativeCost` from the provider billing API (PA-14).
+Rollups prefer `authoritativeCost` when present, fall back to `estimatedCost`.
 
 ### 2.4 Cost-line type extension
 
@@ -156,6 +200,15 @@ interface AuditAction {
   agentDefinitionId: string; // denormalised for fast filtering
 }
 ```
+
+**M27.1 — tamper-evidence (EU AI Act Art. 12).** The Act requires automatic,
+tamper-evident logging retained ≥ 6 months. For regulated production this means
+the audit log is a **hash-chain**: each action carries `writerSignature =
+HMAC(secret, previousEntryHash + thisEntry)`. Any retroactive edit breaks the
+chain and is detectable. **v1 honesty:** our current audit log is application-layer
+and append-only-by-convention, NOT cryptographically tamper-evident. The hash-chain
++ out-of-process write path is a **regulated-production prerequisite** (see §7.1),
+not a v1 feature. We document it so the gap is explicit, not hidden.
 
 ### 2.6 Task assignee model
 
@@ -340,6 +393,25 @@ What this spec is NOT trying to do:
 - **Auto-assign tasks to agents.** PMs assign agents to tasks explicitly. No auto-routing in v1.
 - **Compute "AI productivity score."** Tempting; ill-defined; skipping for v1. Can come later with real data.
 - **Multi-agent collaboration orchestration.** Out of scope. One agent per task. Sequential or parallel runs are separate records, not a "team" abstraction.
+- **FinOps "zombie scope" lifecycle automation** (M27.1 review). Auto-decommissioning, commitment reallocation, scope-exit criteria — FinOps-platform territory, over-engineered for a PM tool. We DO adopt unit-economics (cost-per-outcome); we do NOT build scope lifecycle automation.
+
+### 7.1 Production-architecture gap (stated honestly — M27.1)
+
+The NotebookLM standards review (OTel + EU AI Act + FinOps) flagged that an
+**in-application logging layer structurally fails strict compliance audits** —
+a compromised or crashed app can suppress or lose audit evidence. The compliant
+pattern is an **out-of-process AI Gateway / drop-in proxy** that terminates TLS,
+classifies the payload, looks up the active policy, and writes a tamper-evident
+log from a position the application cannot modify — all *before* forwarding to the
+model.
+
+We are NOT building that in v1. v1 is application-layer logging, append-only by
+convention. **This spec states the gap rather than hiding it:** regulated
+production use (pharma GxP, the CADA public-sector path) requires the AI Gateway
+migration. That migration is gated on the M32 backend (Path C) and is captured as
+PA-17. Until then, the product is demo/pilot-grade for AI-agent audit, not
+inspection-grade. Being honest about this is itself part of the audit-defensible
+positioning — we don't over-claim tamper-evidence we don't yet have.
 
 ---
 
@@ -364,6 +436,12 @@ Ordered by dependency. Each becomes a future module (M30+ candidates).
 | **PA-13** | P3 | FX rates table + project preferred currency + rollup FX conversion. | 0.5 module |
 | **PA-14** | P3 | Provider-specific cost-model imports (Anthropic billing API, OpenAI usage API, etc.) for actual-vs-stored variance. | 1 module per provider |
 | **PA-15** | P3 | Retrofit Claude Code's session-level token telemetry into AgentRun emission for our own dogfood. | 1 module + tooling |
+| **PA-16** | P2 | Tamper-evident audit chain: `writerSignature = HMAC(prev hash + entry)` on every action. AI Act Art. 12. (M27.1) | 1 module |
+| **PA-17** | P1 (regulated-prod gate) | Out-of-process AI Gateway / proxy for compliant identity + payload-classification + audit-write. Gated on M32 backend. AI Act Art. 19. (M27.1) | 2-3 modules + infra |
+| **PA-18** | P2 | OTel GenAI field naming on AgentRun; cache-class token breakdown (cache-create / cache-read / full). (M27.1) | folded into PA-3 |
+| **PA-19** | P3 | `promptHash` (SHA-256) instead of cleartext prompt storage; GDPR derivative-liability avoidance. (M27.1) | folded into PA-3 |
+| **PA-20** | P2 | `authoritativeCost` backfill from vendor billing APIs (Anthropic / OpenAI usage endpoints); rollup prefers authoritative over estimate. (M27.1) | overlaps PA-14 |
+| **PA-21** | P3 | Unit-economics rollup: cost-per-outcome / cost-per-decision metric (FinOps for AI). (M27.1) | 0.5 module |
 
 **Aggregate effort:** roughly **9–11 focused modules** to get the full spec implemented. P0 + P1 covers a usable MVP at 6 modules.
 
@@ -381,5 +459,39 @@ These questions DO NOT block writing the spec — but they DO need answers befor
 
 ---
 
-**Last updated:** 2026-05-21 (spec authored, no implementation yet).
-**Next:** Vineet reviews. Confirms or adjusts. Then M28 = `TRANSPARENCY_MODEL.md` spec, then M29 = `CALENDAR_INTEGRATION.md` spec. After all three locked, implementation modules start with PA-1.
+## 10. Standards alignment (M27.1 — added after NotebookLM review)
+
+This spec was cross-checked against current industry standards. Where the
+original draft diverged, it was corrected. Summary of what changed and why:
+
+| Standard | Original draft | Corrected to | Status |
+|---|---|---|---|
+| **OpenTelemetry GenAI semantic conventions** | `inputTokens` / `outputTokens` ad-hoc | `gen_ai.usage.*`, `gen_ai.request.model`, `gen_ai.provider.name`, `gen_ai.operation.name` + business fields wrapping the OTel payload | ✅ Adopted (§2.3) |
+| **Prompt-cache economics** (Anthropic / OpenAI billing) | single `inputTokens` | `cache_creation_input_tokens` + `cache_read_input_tokens` + full input, with TTL tier | ✅ Adopted — the most material correction (§2.3) |
+| **Estimate vs invoice** | `costAmount` (implied authoritative) | `estimatedCost` + `authoritativeCost?` backfilled from vendor API | ✅ Adopted (§2.3, PA-20) |
+| **EU AI Act Art. 12** (tamper-evident logging) | append-only by convention | hash-chain `writerSignature`; v1 gap stated honestly | ✅ Documented; PA-16; gated on backend |
+| **EU AI Act Art. 19 + GDPR** (no cleartext prompts) | `promptSummary` only | `promptHash` (SHA-256) + PII-free `promptSummary`; `policyVersionHash` | ✅ Adopted (§2.3, PA-19) |
+| **AI Gateway / proxy pattern** | in-app SPI | out-of-process gateway as the regulated-production target | ✅ Documented as gap (§7.1, PA-17) |
+| **FinOps for AI — unit economics** | per-task cost only | + cost-per-outcome / cost-per-decision | ✅ Adopted (PA-21) |
+| **FinOps for AI — scope lifecycle automation** | n/a | considered, rejected | ❌ Non-goal (§7) — over-engineered for a PM tool |
+| **Verified subject at TLS boundary** | n/a | needed for regulated prod | ⏸ Deferred — depends on M32 auth |
+
+**Sources reviewed (via NotebookLM synthesis, 2026-05-21):**
+- OpenTelemetry GenAI semantic conventions
+- FinOps Foundation — FinOps for AI (2026 framework)
+- EU AI Act Articles 12, 19, 20
+- NIST AI RMF 1.0 + Generative AI Profile
+- Anthropic + OpenAI usage / billing API docs (cache-token classes)
+- AI observability field practice (Helicone / LangSmith)
+
+**Honest framing of the v1 → regulated-prod gap:** v1 (demo / pilot) uses
+application-layer logging and client-side cost estimates. Regulated production
+(pharma GxP, CADA public-sector) requires PA-16 (tamper-evident chain) + PA-17
+(out-of-process gateway) + PA-20 (authoritative cost) + M32 (auth for verified
+subject). We surface this gap deliberately — under-claiming audit-grade we don't
+yet have is part of the audit-defensible positioning.
+
+---
+
+**Last updated:** 2026-05-21 (M27.1 standards-alignment revision; still no implementation).
+**Next:** Vineet reviews + answers §9's 5 open questions. Then M28 = `TRANSPARENCY_MODEL.md`, M29 = `CALENDAR_INTEGRATION.md`. After all three specs locked, implementation starts with PA-1.

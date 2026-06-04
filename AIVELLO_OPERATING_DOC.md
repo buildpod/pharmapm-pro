@@ -93,6 +93,18 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M29 — Spec phase: `CALENDAR_INTEGRATION.md`
+**Goal:** Third and final architectural spec. Lock how the product syncs meetings + availability with external calendars — EU-sovereignty-first (iCalendar / CalDAV open standards lead; M365 Graph + Google Calendar optional plugins). Includes the meeting→decision→task flow that closes the loop our Decisions register currently leaves open, and a per-member capacity/load view. Standards-stable (RFC 5545 iCalendar, RFC 4791 CalDAV); written directly, no synthesis round needed. No code this session.
+
+**DoD:**
+- `v2/docs/CALENDAR_INTEGRATION.md` (~280 lines): integration tiers (ICS export → ICS feed import → CalDAV two-way → M365/Google optional), data model (`MeetingSource`, `CalendarLink`, extended `RecurringMeeting`), meeting→decision→task flow, capacity/load view, sovereignty rationale (CADA), worked example, non-goals, punch list, open questions.
+- Build clean; 133 tests pass (docs only).
+- After M29, all three specs locked → implementation can begin.
+
+**Out of scope:** implementation code; real OAuth wiring; the heuristic-audit findings (separate track via NotebookLM).
+
+### Earlier Current Module — M28 TRANSPARENCY_MODEL spec (shipped, commit `0fa2850`)
+
 **Module:** M28 — Spec phase: `TRANSPARENCY_MODEL.md`
 **Goal:** Second of three architectural specs. Lock how the product computes and displays cost/schedule transparency to CFOs and CTOs — Earned Value Management, Earned Schedule, Forecast-at-Completion, variance attribution, decision-cost lineage, anomaly detection. Standards-grounded (PMBOK §7, AACE, Earned Schedule, SPC) so the implementation is auditable. Confirmed (NotebookLM + Codex review): NEITHER fork has any EVM today — both do backward-looking tallies only. This makes predictive forecasting a clean differentiator. No code this session.
 

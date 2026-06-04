@@ -93,6 +93,30 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M27 — Spec phase: `AGENT_AS_RESOURCE.md`
+**Goal:** Before any more feature code, write the first of three architectural specs that lock how this product handles the dimensions a CTO/CFO actually care about. M27 = AI agents as first-class resources with full cost attribution. M28 = transparency model (variance attribution, FAC, decision-cost lineage). M29 = calendar integration (ICS / CalDAV / M365 / Google with EU-sovereignty-first). Each spec follows the M20.4 pattern: data model + lifecycle + worked example + open questions + punch list. No code this session.
+
+**DoD:**
+- `v2/docs/AGENT_AS_RESOURCE.md` (~400 lines, 8 sections):
+  1. Why this matters (CTO/CFO transparency + AI-augmented enterprise + CADA sovereignty)
+  2. Data model — `Resource.kind`, `AgentDefinition`, `AgentRun`, cost-line type extension, audit-log source extension
+  3. Lifecycle — agent registration → task assignment → execution → cost capture → audit
+  4. Cost attribution — token spend → project / workstream / task / module rollup
+  5. UI surfaces (sketch only, no code) — Resources page, Tasks assignee picker, Costs page, audit log filter
+  6. Worked example — exactly how Claude Code's work on M26.1 would have been logged
+  7. Non-goals — what we explicitly aren't doing (auto-pricing, agent marketplace, etc.)
+  8. Punch list — every implementation item the spec implies, ordered by dependency
+- Build clean, all 133 tests still pass (no code changes; specs only).
+- Operating doc §8 entry references the spec + the punch list. Subsequent modules pick items off the punch list.
+
+**Out of scope:**
+- Any implementation code — strictly docs
+- The other two specs (TRANSPARENCY_MODEL, CALENDAR_INTEGRATION) — separate modules
+- Pricing strategy / commercial model
+- Cascade engine port from Codex (still queued, separate)
+
+### Earlier Current Module — M26.1 Tasks page refactor (shipped, commit `21132f6`)
+
 **Module:** M26.1 — Tasks page refactored to new design system
 **Goal:** Second page in the design-system refactor (after M26 Dashboard). Apply the AivelloStudio design tokens to the Tasks page per `design/tasks-reference.html`. Visual chrome only — every handler, the cascade ImpactDrawer wiring, and the TaskFormDrawer wiring preserved verbatim.
 

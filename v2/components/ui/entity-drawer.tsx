@@ -1,12 +1,16 @@
 "use client";
 
+// Right-anchored slide-over drawer with backdrop. Shared chrome for all
+// entity add/edit forms (task, milestone, charter, issue, decision, risk,
+// cost-line, document, meeting, team-member — 10 consumers).
+//
+// M26.1.1 — refactored to the AivelloStudio design system. All styling
+// comes from .drawer-* / .field-* / .field-input classes in components.css.
+// ESC closes; clicking backdrop closes. Form lives in `children`, action
+// buttons in `footer` (split so the footer doesn't scroll with the body).
+
 import { useEffect } from "react";
 import { X } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-// Right-anchored slide-over drawer with backdrop. Used for entity add/edit forms.
-// ESC closes; clicking backdrop closes. Form lives in `children`, action buttons
-// in `footer` (split so the footer doesn't scroll with the body).
 
 export function EntityDrawer({
   open,
@@ -24,9 +28,7 @@ export function EntityDrawer({
   footer: React.ReactNode;
 }) {
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
     if (open) document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
@@ -44,47 +46,36 @@ export function EntityDrawer({
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden
-      />
-      {/* Drawer */}
-      <div
-        className={cn(
-          "fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col",
-          "border-l border-border bg-card shadow-2xl",
-          "animate-in slide-in-from-right duration-200"
-        )}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-      >
-        <header className="flex items-start justify-between gap-3 border-b border-border bg-muted/30 px-5 py-4">
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold text-foreground">{title}</h2>
-            {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
+      <div className="drawer-backdrop" onClick={onClose} aria-hidden />
+
+      <div className="drawer-panel" role="dialog" aria-modal="true" aria-label={title}>
+        <header className="drawer-header">
+          <div style={{ minWidth: 0 }}>
+            <h2 className="drawer-header__title">{title}</h2>
+            {subtitle && <p className="drawer-header__subtitle">{subtitle}</p>}
           </div>
           <button
+            type="button"
+            className="drawer-close"
             onClick={onClose}
-            className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             title="Close (Esc)"
+            aria-label="Close"
           >
-            <X className="h-4 w-4" />
+            <X width={14} height={14} />
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-5 py-5">{children}</div>
+        <div className="drawer-body">{children}</div>
 
-        <footer className="border-t border-border bg-muted/30 px-5 py-3">{footer}</footer>
+        <footer className="drawer-footer">{footer}</footer>
       </div>
     </>
   );
 }
 
-// Small confirm-delete prompt rendered inline (no extra modal). Use inside an
-// EntityDrawer's body or as a controlled section the form toggles to.
+// Inline confirm-delete prompt. Rendered inside an EntityDrawer's footer
+// or as a controlled section the form toggles to. Token-styled with the
+// risk tone — never a separate modal.
 export function ConfirmDelete({
   label,
   onConfirm,
@@ -95,32 +86,19 @@ export function ConfirmDelete({
   onCancel: () => void;
 }) {
   return (
-    <div className="rounded-md border border-rose-200 bg-rose-50 p-3 dark:bg-rose-950/30">
-      <p className="text-sm font-medium text-rose-700 dark:text-rose-300">
-        Delete {label}?
-      </p>
-      <p className="mt-0.5 text-xs text-rose-600/80 dark:text-rose-400/80">
-        This cannot be undone.
-      </p>
-      <div className="mt-3 flex justify-end gap-2">
-        <button
-          onClick={onCancel}
-          className="rounded-md border border-border bg-card px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={onConfirm}
-          className="rounded-md bg-rose-600 px-3 py-1 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-rose-700"
-        >
-          Delete
-        </button>
+    <div className="confirm-delete">
+      <p className="confirm-delete__title">Delete {label}?</p>
+      <p className="confirm-delete__hint">This cannot be undone.</p>
+      <div className="confirm-delete__actions">
+        <button type="button" onClick={onCancel} className="btn btn--ghost">Cancel</button>
+        <button type="button" onClick={onConfirm} className="btn btn--danger">Delete</button>
       </div>
     </div>
   );
 }
 
-// Standard form field wrapper for consistent labels + spacing across forms.
+// Standard form field wrapper for consistent labels + spacing across all
+// drawers. Uses .field / .field-label / .field-hint design-token classes.
 export function Field({
   label,
   hint,
@@ -133,16 +111,18 @@ export function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-semibold text-foreground">
+    <label className="field">
+      <span className="field-label">
         {label}
-        {required && <span className="ml-0.5 text-rose-600">*</span>}
+        {required && <span className="field-required">*</span>}
       </span>
       {children}
-      {hint && <span className="text-[11px] text-muted-foreground">{hint}</span>}
+      {hint && <span className="field-hint">{hint}</span>}
     </label>
   );
 }
 
-export const inputCls =
-  "rounded-md border border-border bg-background px-2.5 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring";
+// Shared input class string applied to inputs, textareas, and selects
+// across all forms. Maps to .field-input in components.css — token-driven,
+// 32px min-height matching .btn, design-token focus ring.
+export const inputCls = "field-input";

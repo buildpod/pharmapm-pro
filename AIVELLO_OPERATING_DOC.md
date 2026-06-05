@@ -93,6 +93,19 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M30 — EVM engine (PT-3): pure domain module + test matrix
+**Goal:** Build the Earned Value Management compute layer specified in `TRANSPARENCY_MODEL.md` (§2/§3) as a standalone, fully-tested pure-function module — the M20.4 cascade-engine pattern. No UI, no entity-store coupling yet; takes a baseline + items + status date, returns the full EVM snapshot. This is the algorithmic core every transparency surface will read from. Codex works the UX-audit presentation track in parallel.
+
+**DoD:**
+- `v2/lib/domain/evm.ts` — pure functions: `plannedValue`, `earnedValue`, `costVariance`, `scheduleVariance`, `cpi`, `spi`, EAC variants (1/2/3), `etc`, `vac`, `tcpi`, Earned Schedule (`earnedSchedule`, `svt`, `spit`), and a `computeEvm(input)` orchestrator returning the full snapshot + a `forecastRange`. Divide-by-zero guards throughout. Canonical formula names in comments for PMBOK/AACE cross-check.
+- `v2/lib/domain/evm.test.ts` — ~25-30 cases: each formula in isolation, on-plan / over-budget / behind-schedule / ahead scenarios, EAC variant selection, Earned Schedule interpolation, TCPI unrecoverable signal, edge cases (zero AC, EV=BAC, empty curve).
+- Build clean; all existing 133 tests still pass; new EVM tests green.
+- B1 (linear PV curve) + B2 (per-workstream budgets) proceed on recommended defaults — engine is input-agnostic so both are swappable.
+
+**Out of scope:** `CostBaseline` entity/store (PT-1, next), UI surfaces (PT-9/10), variance attribution (PT-6), anomaly engine (PT-7). Pure compute only this module.
+
+### Earlier Current Module — M29 CALENDAR_INTEGRATION spec (shipped, commit `c91d5df`)
+
 **Module:** M29 — Spec phase: `CALENDAR_INTEGRATION.md`
 **Goal:** Third and final architectural spec. Lock how the product syncs meetings + availability with external calendars — EU-sovereignty-first (iCalendar / CalDAV open standards lead; M365 Graph + Google Calendar optional plugins). Includes the meeting→decision→task flow that closes the loop our Decisions register currently leaves open, and a per-member capacity/load view. Standards-stable (RFC 5545 iCalendar, RFC 4791 CalDAV); written directly, no synthesis round needed. No code this session.
 

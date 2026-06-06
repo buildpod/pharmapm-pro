@@ -93,6 +93,20 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
+**Module:** M31 — Variance attribution (PT-6) + Anomaly rules (PT-7): pure domain modules
+**Goal:** Two more pure `v2/lib/domain/` modules off the TRANSPARENCY_MODEL spec, extending the M30 EVM engine. PT-6 decomposes a cost variance into rate / volume / scope (the CFO "bridge" waterfall, spec §4). PT-7 is the 8-rule anomaly engine (spec §5) — heuristic, no ML, each a computable threshold over EVM snapshots + history. Builder-domain role: pure functions, tests alongside, no UI/store.
+
+**DoD:**
+- `v2/lib/domain/variance.ts` — `rateVariance`, `volumeVariance`, `scopeVariance`, `attributeVariance` returning a bridge { total, rate, volume, scope, per-line detail }. Sign convention: positive = over budget (CFO mental model); documented vs EVM CV.
+- `v2/lib/domain/variance.test.ts` — formula isolation + the spec's worked bridge example + zero/edge cases.
+- `v2/lib/domain/anomaly.ts` — rules A1–A8 as pure evaluators over an `EvmSnapshot` + optional history (prior periods). Returns `AnomalyFlag[]` with rule id, severity, plain-language message, computed values.
+- `v2/lib/domain/anomaly.test.ts` — each rule fires on its threshold, stays quiet below it, multi-period rules (A1, A4, A5, A6) tested with history.
+- Build clean; all tests green; v1 stays 305/305.
+
+**Out of scope:** CostBaseline entity/store (PT-1), UI surfaces (PT-9/10), AI-cost A8 wiring to real AgentRun data (rule defined; live data is M27 territory).
+
+### Earlier Current Module — M30 EVM engine (shipped, commit `0e86956`)
+
 **Module:** M30 — EVM engine (PT-3): pure domain module + test matrix
 **Goal:** Build the Earned Value Management compute layer specified in `TRANSPARENCY_MODEL.md` (§2/§3) as a standalone, fully-tested pure-function module — the M20.4 cascade-engine pattern. No UI, no entity-store coupling yet; takes a baseline + items + status date, returns the full EVM snapshot. This is the algorithmic core every transparency surface will read from. Codex works the UX-audit presentation track in parallel.
 

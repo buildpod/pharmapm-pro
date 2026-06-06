@@ -11,9 +11,17 @@
 
 import Link from "next/link";
 import "@/app/styles/dashboard.css";
-import { getKpis, budgetTrend, riskTrend } from "@/lib/mockData";
+import { getKpis, budgetTrend, riskTrend, costLines, tasks as seedTasks, projects } from "@/lib/mockData";
 import { useProject } from "@/components/projects/project-provider";
 import { useEntityStore } from "@/lib/stores/entity-store";
+import { computeProjectEvm, type VerdictLevel } from "@/lib/domain/evm-project";
+
+// PT-9 — verdict level → design-token pill. Computed, never hand-set.
+const verdictPill: Record<VerdictLevel, string> = {
+  "on-track": "pill pill--ok",
+  "watch":    "pill pill--warn",
+  "at-risk":  "pill pill--risk",
+};
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -74,10 +82,21 @@ export default function DashboardPage() {
     kpis.budgetPct >= 60 ? "kpi--warn" :
     "kpi--ok";
 
-  // Project health score — kept simple (matches reference's "95 / 100" pattern).
-  // Real validator data wires in here once the dashboard health is fully reactive;
-  // for now we surface the pre-existing visualisation.
-  const healthScore = 95;
+  // PT-9 — computed project confidence + verdict (replaces the former hand-set
+  // health score — the NotebookLM dark-pattern fix). Derived from live cost
+  // lines + planned curve + task progress via the EVM engine. Non-editable.
+  const projTasks = seedTasks.filter((t) => t.projectId === activeProjectId);
+  const projCostLines = costLines.filter((c) => c.projectId === activeProjectId);
+  const proj = projects.find((p) => p.id === activeProjectId);
+  const projEvm = computeProjectEvm({
+    costLines: projCostLines,
+    plannedCurve: budgetTrend,
+    tasks: projTasks,
+    projectStart: proj?.startDate ?? "2026-01-01",
+    statusDate: new Date().toISOString().slice(0, 10),
+    curveYear: new Date(proj?.startDate ?? "2026-01-01").getUTCFullYear(),
+  });
+  const healthScore = projEvm.verdict.score;
   const healthScoreMax = 100;
 
   return (
@@ -187,8 +206,8 @@ export default function DashboardPage() {
 
         <section className="card">
           <div className="card__header">
-            <div className="t-card-title">Project Health</div>
-            <span className="pill pill--warn">1 medium</span>
+            <div className="t-card-title">Confidence</div>
+            <span className={verdictPill[projEvm.verdict.level]}>{projEvm.verdict.headline}</span>
           </div>
           <div className="health">
             <div>
@@ -203,10 +222,12 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="alert-row">
-            <div className="alert-row__icon">!</div>
+            <div className="alert-row__icon">i</div>
             <div>
-              <div className="alert-row__title">Task / milestone date mismatch</div>
-              <div className="t-meta">Review the Project Health card on Risks for the full list</div>
+              <div className="alert-row__title">{projEvm.verdict.reason}</div>
+              <div className="t-meta">
+                Forecast {(projEvm.range.likely / 1_000_000).toFixed(2)}M · CPI {projEvm.snapshot.cpi.toFixed(2)} · SPI(t) {projEvm.snapshot.spit.toFixed(2)}
+              </div>
             </div>
           </div>
         </section>

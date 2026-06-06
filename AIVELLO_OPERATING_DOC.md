@@ -93,7 +93,11 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M31 — Variance attribution (PT-6) + Anomaly rules (PT-7): pure domain modules
+**Module:** M32 — EVM project adapter (PT-1 derived) + dashboard confidence (PT-9)
+**Goal:** Make the EVM engine run on real project data and surface a computed leadership confidence score on the dashboard — replacing the hand-set `95` (the NotebookLM dark-pattern P0 fix). Builder-domain + a thin dashboard wire-up.
+**Status:** ✅ shipped — `evm-project.ts` (derive + confidence + verdict) + dashboard "Confidence" card. 205 tests pass, v1 305/305, build clean. PT-1 done as derivation adapter; persisted CostBaseline deferred (see §8).
+
+### Prior Module — M31 — Variance attribution (PT-6) + Anomaly rules (PT-7): pure domain modules
 **Goal:** Two more pure `v2/lib/domain/` modules off the TRANSPARENCY_MODEL spec, extending the M30 EVM engine. PT-6 decomposes a cost variance into rate / volume / scope (the CFO "bridge" waterfall, spec §4). PT-7 is the 8-rule anomaly engine (spec §5) — heuristic, no ML, each a computable threshold over EVM snapshots + history. Builder-domain role: pure functions, tests alongside, no UI/store.
 
 **DoD:**
@@ -1367,6 +1371,18 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 ## 8 — Last Session Log
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
+
+### Session — 2026-06-06 (M32 — EVM project adapter PT-1-derived + dashboard confidence PT-9)
+
+**Built:**
+- **`evm-project.ts`** — bridges live project data → the EVM engine. `deriveEvmInput` (BAC/AC from cost lines, PV curve from budgetTrend month-mapped, EV from avg task progress), `confidenceScore` (B4 formula: 0.4·min(CPI,1) + 0.4·min(SPI(t),1) + 0.2·(1−forecastBreach), ×100, clamped), `executiveVerdict` (on-track/watch/at-risk + plain-language dominant-driver reason), `computeProjectEvm` orchestrator. 16 tests.
+- **Dashboard PT-9** — replaced the hand-set `healthScore = 95` with the computed verdict. Card retitled "Confidence"; pill is verdict-level (ok/warn/risk); alert row shows the dominant-driver reason + Forecast/CPI/SPI(t) line. **This is the NotebookLM dark-pattern P0 fix** — the score is now computed + non-editable, can't be gamed to mislead executives.
+
+**Decided (honest scope call):** PT-1 delivered as a *pure derivation adapter* (engine runs on real data now via budgetTrend as the live PV curve), NOT a persisted/frozen `CostBaseline` entity. Rationale: the visible win (PT-9) needed an EvmInput, which derivation provides; a heavy persisted entity wasn't required to ship value. Deferred-and-flagged: persisted CostBaseline (for re-baseline audit history) + per-item budgets (PT-2, sharpens EV beyond avg-progress approximation). Documented in `evm-project.ts` header.
+
+**Verified:** v2 205 tests pass (194 → +11 net after fixing one over-aggressive assertion — a CPI-0.8/SPI(t)-0.75/25%-breach project scores 77 = "watch", which is correct, not <70). Build clean. v1 305/305.
+
+**Next:** the dashboard score is computed from mockData (consistent with getKpis) — live-store reactivity (recompute as tasks/costs edit) is a refinement. PT-10 (Costs page EVM strip + variance waterfall UI) surfaces variance.ts. Persisted CostBaseline when re-baseline audit is needed. Codex UX track converges here — the "Executive Verdict" banner slot it builds can consume this same computeProjectEvm output.
 
 ### Session — 2026-06-06 (M31 — variance attribution PT-6 + anomaly engine PT-7)
 

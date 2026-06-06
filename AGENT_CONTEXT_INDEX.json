@@ -1,0 +1,63 @@
+{
+  "version": "1.0",
+  "project": "pharmapm-pro-v2",
+  "updated": "2026-06-06",
+  "description": "TRACE role-based file routing. Each role reads only the files it needs.",
+  "global_read_first": [
+    "AGENT_CONTEXT.md",
+    "AIVELLO_OPERATING_DOC.md"
+  ],
+  "roles": {
+    "builder-domain": {
+      "description": "Implementing pure TypeScript domain logic in v2/lib/domain/ — no UI, no stores.",
+      "read_first": ["AGENT_CONTEXT.md", "AIVELLO_OPERATING_DOC.md"],
+      "source_files": [
+        "v2/lib/domain/"
+      ],
+      "test_files": [
+        "v2/lib/domain/*.test.ts"
+      ],
+      "reference_only": [
+        "v2/lib/mockData.ts"
+      ],
+      "do_not_modify": ["src/", "tools/", "index.html"],
+      "notes": "Domain functions must be pure (no side effects, no imports from app/ or components/). Test file lives alongside source: evm.ts → evm.test.ts."
+    },
+    "builder-ui": {
+      "description": "Building or refactoring React pages and components in v2/app/ and v2/components/.",
+      "read_first": ["AGENT_CONTEXT.md", "AIVELLO_OPERATING_DOC.md"],
+      "source_files": [
+        "v2/app/",
+        "v2/components/"
+      ],
+      "reference_only": [
+        "v2/lib/domain/",
+        "v2/lib/mockData.ts"
+      ],
+      "do_not_modify": ["src/", "tools/", "index.html"],
+      "skills": ["ui-string-audit", "tone-discipline", "error-message-pattern", "save-flow-parity", "cross-entity-parity", "pre-existing-state-distinction"],
+      "notes": "Invoke all three quality skills on every UI string change. Check sibling entity surfaces (tasks/milestones/risks grids) for parity when changing one."
+    },
+    "builder-spec": {
+      "description": "Writing or extending architecture spec documents in v2/docs/.",
+      "read_first": ["AGENT_CONTEXT.md", "AIVELLO_OPERATING_DOC.md"],
+      "source_files": [
+        "v2/docs/"
+      ],
+      "reference_only": [
+        "LEARNINGS.md"
+      ],
+      "do_not_modify": ["src/", "v2/app/", "v2/components/", "v2/lib/"],
+      "notes": "Spec docs follow the M20.4 pattern: data model + lifecycle + worked example + open questions + punch list."
+    },
+    "architect-review": {
+      "description": "Cross-cutting review — no code changes.",
+      "read_first": ["AGENT_CONTEXT.md", "AIVELLO_OPERATING_DOC.md", "LEARNINGS.md"],
+      "read_also": [
+        "v2/lib/domain/",
+        "v2/docs/"
+      ],
+      "notes": "Read-only. Produce findings only."
+    }
+  }
+}

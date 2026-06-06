@@ -1368,6 +1368,22 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
 
+### Session — 2026-06-06 (M31 — variance attribution PT-6 + anomaly engine PT-7)
+
+**Context:** First session under the TRACE infrastructure (AGENT_CONTEXT.md + role index). Bootstrapped via the compact context file + §4 only — not the full operating doc. Builder-domain role.
+
+**Built (two pure `v2/lib/domain/` modules, two commits):**
+- **PT-6 `variance.ts`** — rate/volume/scope cost-variance decomposition (CFO bridge waterfall, TRANSPARENCY_MODEL §4). `rateVariance`, `volumeVariance`, `scopeVariance`, `attributeVariance` → bridge with per-line + per-scope drill detail. Sign convention: positive = over budget (inverse of EVM CV). 11 tests incl the spec's worked $120k example (48k rate + 52k volume + 20k scope).
+- **PT-7 `anomaly.ts`** — 8-rule heuristic engine (spec §5), no ML. A1 CPI-degraded-2-periods, A2 SPI(t)-behind, A3 TCPI-unrecoverable, A4 burn-spike, A5 velocity-collapse, A6 risk-posture, A7 forecast-breach, A8 AI-cost-runaway. Pure evaluators over EvmSnapshot + period history. 19 tests: each rule fires on threshold + stays quiet below + a compound-troubled-project case.
+
+**Decided:** A8 (AI-cost) rule defined + tested but live AgentRun wiring deferred to M27 implementation. Both modules input-agnostic — no store/UI coupling yet.
+
+**Verified:** v2 194 tests pass (was 175 → +19). Build clean. v1 305/305 green.
+
+**Committed:** PT-6 + PT-7 as separate commits. EVM domain trio now complete: evm (M30) + variance + anomaly.
+
+**Next:** PT-1 (CostBaseline entity/store) to feed real project data into these engines, then PT-9 (dashboard confidence re-grounded on computed EVM — the NotebookLM dark-pattern fix). PT-1 crosses into store territory (builder-domain + store).
+
 ### Session — 2026-05-18 (M25 — Decisions register)
 
 **Strategic context:**

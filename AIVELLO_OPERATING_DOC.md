@@ -93,7 +93,11 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M32 — EVM project adapter (PT-1 derived) + dashboard confidence (PT-9)
+**Module:** M32.1 — dashboard confidence reads live store data (PT-9.1) · commit `61e02dd`
+**Goal:** Close the gap left by M32 — the confidence score derived from the frozen `mockData` seed, so PM edits to task progress / cost actuals never moved the number. Now reads the live entity store (`tasks` + `costLines`). Pure wiring, no engine change.
+**Status:** ✅ shipped — dashboard `page.tsx` reads `useEntityStore` for tasks + cost lines feeding `computeProjectEvm`. v2 205 tests pass, typecheck + build clean, v1 untouched.
+
+### Prior Module — M32 — EVM project adapter (PT-1 derived) + dashboard confidence (PT-9)
 **Goal:** Make the EVM engine run on real project data and surface a computed leadership confidence score on the dashboard — replacing the hand-set `95` (the NotebookLM dark-pattern P0 fix). Builder-domain + a thin dashboard wire-up.
 **Status:** ✅ shipped — `evm-project.ts` (derive + confidence + verdict) + dashboard "Confidence" card. 205 tests pass, v1 305/305, build clean. PT-1 done as derivation adapter; persisted CostBaseline deferred (see §8).
 

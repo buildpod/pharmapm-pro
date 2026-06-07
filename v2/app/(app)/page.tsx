@@ -11,7 +11,7 @@
 
 import Link from "next/link";
 import "@/app/styles/dashboard.css";
-import { getKpis, budgetTrend, riskTrend, costLines, tasks as seedTasks, projects } from "@/lib/mockData";
+import { getKpis, budgetTrend, riskTrend, projects } from "@/lib/mockData";
 import { useProject } from "@/components/projects/project-provider";
 import { useEntityStore } from "@/lib/stores/entity-store";
 import { computeProjectEvm, type VerdictLevel } from "@/lib/domain/evm-project";
@@ -62,6 +62,10 @@ export default function DashboardPage() {
   const kpis = getKpis(activeProjectId);
   const charters = useEntityStore((s) => s.charters);
   const charter  = charters.find((c) => c.projectId === activeProjectId);
+  // Confidence reads LIVE store data (PT-9.1) so PM edits to tasks/costs move
+  // the score — not the frozen mockData seed.
+  const liveTasks = useEntityStore((s) => s.tasks);
+  const liveCostLines = useEntityStore((s) => s.costLines);
 
   const scheduleOnTrack = kpis.scheduleVariance <= 0;
   const scheduleVarianceLabel = kpis.scheduleVariance === 0
@@ -85,8 +89,8 @@ export default function DashboardPage() {
   // PT-9 — computed project confidence + verdict (replaces the former hand-set
   // health score — the NotebookLM dark-pattern fix). Derived from live cost
   // lines + planned curve + task progress via the EVM engine. Non-editable.
-  const projTasks = seedTasks.filter((t) => t.projectId === activeProjectId);
-  const projCostLines = costLines.filter((c) => c.projectId === activeProjectId);
+  const projTasks = liveTasks.filter((t) => t.projectId === activeProjectId);
+  const projCostLines = liveCostLines.filter((c) => c.projectId === activeProjectId);
   const proj = projects.find((p) => p.id === activeProjectId);
   const projEvm = computeProjectEvm({
     costLines: projCostLines,

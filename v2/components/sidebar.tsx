@@ -22,6 +22,7 @@ import {
   Inbox,
   Scroll,
   Scale,
+  Activity,
 } from "lucide-react";
 import { useProject } from "@/components/projects/project-provider";
 
@@ -30,6 +31,7 @@ const navGroups = [
     label: "Overview",
     items: [
       { label: "Dashboard", href: "/", icon: LayoutDashboard },
+      { label: "Activity",  href: "/activity", icon: Activity },
       { label: "My Items",  href: "/my-items", icon: Inbox },
     ],
   },

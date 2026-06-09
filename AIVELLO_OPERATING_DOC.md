@@ -93,7 +93,11 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M32.1 — dashboard confidence reads live store data (PT-9.1) · commit `61e02dd`
+**Module:** M33 — Activity timeline feed (humanized read-surface of the M20.2 audit trail)
+**Goal:** A scannable, social-style ("Instagram form, audit substance") chronological feed of every project change — the deferred §7 "activity feed" idea. Reframed away from a literal Instagram feed: NO algorithmic ranking, NO vanity metrics, NO ephemeral content — those would violate MASTER_UI_UX principle 5 (never hide risk/approval/audit) + the audit-immutability rule. One feed item per real `AuditAction`; never fabricated.
+**Status:** ✅ shipped — pure `activity-feed.ts` mapper (`toFeedItems`/`relativeTime`/`dayLabel`/`groupByDay`) + 16 tests; reactive `ActivityFeed` component (re-reads the per-project audit log on any store mutation) + `/activity` route + sidebar nav + `activity.css` timeline. Actor model already distinguishes human / ai-agent / system, so agent-authored events (PA-4) drop in without rework. v2 221 tests pass (+16), typecheck + build clean (/activity = 4.25 kB static), v1 untouched.
+
+### Prior Module — M32.1 — dashboard confidence reads live store data (PT-9.1) · commit `61e02dd`
 **Goal:** Close the gap left by M32 — the confidence score derived from the frozen `mockData` seed, so PM edits to task progress / cost actuals never moved the number. Now reads the live entity store (`tasks` + `costLines`). Pure wiring, no engine change.
 **Status:** ✅ shipped — dashboard `page.tsx` reads `useEntityStore` for tasks + cost lines feeding `computeProjectEvm`. v2 205 tests pass, typecheck + build clean, v1 untouched.
 
@@ -1376,7 +1380,19 @@ When Claude or Vineet has an idea mid-session that isn't part of the Current Mod
 
 > Newest entries at the top. Each entry: date, what was worked on, what was decided, what was committed, what's next.
 
-### Session — 2026-06-06 (M32 — EVM project adapter PT-1-derived + dashboard confidence PT-9)
+### Session — 2026-06-09 (M33 — Activity timeline feed + M32.1 confidence reactivity)
+
+**Built:**
+- **M32.1** — dashboard Confidence now reads the live entity store (`tasks` + `costLines`) instead of the frozen mockData seed, so PM edits move the score. Commit `61e02dd`.
+- **M33 Activity feed** — `v2/lib/domain/activity-feed.ts` (pure): `toFeedItems(AuditAction[]) → FeedItem[]` (verb + actor + tone + day-grouping), `relativeTime`, `dayLabel`, `groupByDay`. 16 tests. + `ActivityFeed` component (reactive: subscribes to store collections, re-reads `readAuditLog(projectId)` on any mutation), `/activity` route, sidebar entry under Overview, `app/styles/activity.css` (timeline rail + tone dots, reuses `.card`/`.pill` tokens).
+
+**Decided (product call):** rejected a literal Instagram feed — algorithmic ranking / vanity likes / ephemeral stories are dark patterns in a regulated audit context (MASTER_UI_UX §5 + audit immutability). Took Instagram's *form* (scannable, chronological, social, day-dividers, drill-in) over audit-grade *substance* (one item per real `AuditAction`, never fabricated, honest empty-state). Actor model is forward-compatible with the agent-as-resource spec (human / ai-agent / system) so PA-4 agent events surface without a rework.
+
+**Verified:** v2 221 tests pass (205 → +16). Typecheck clean. Build clean — `/activity` emits as a 4.25 kB static route (19/19 pages). v1 untouched (305/305 unaffected; no v1 files touched).
+
+**Next:** populate-on-real-use is intentional (empty until actions accrue). When PA-3/PA-4 land, AgentRun events feed the same timeline. Convergence note: Codex's command-center has no activity timeline — this is a candidate surface to share once the two repos reconcile. Not yet committed to git (built this session; commit on Vineet's word).
+
+
 
 **Built:**
 - **`evm-project.ts`** — bridges live project data → the EVM engine. `deriveEvmInput` (BAC/AC from cost lines, PV curve from budgetTrend month-mapped, EV from avg task progress), `confidenceScore` (B4 formula: 0.4·min(CPI,1) + 0.4·min(SPI(t),1) + 0.2·(1−forecastBreach), ×100, clamped), `executiveVerdict` (on-track/watch/at-risk + plain-language dominant-driver reason), `computeProjectEvm` orchestrator. 16 tests.

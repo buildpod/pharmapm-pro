@@ -1,3 +1,13 @@
+> [!IMPORTANT]
+> **This repository is archived as reference (June 2026).** Active development of the
+> AivelloStudio product moved to
+> [pharmapm-command-center](https://github.com/buildpod/pharmapm-command-center),
+> which absorbed this repo's v2 line — the EVM/Earned-Schedule engines, the
+> Decisions/Issues registers, the design discipline, and the project skills.
+> What stays here: the **v1 reference app** (deployed and working, 305 tests —
+> see below) and the full module history (`AIVELLO_OPERATING_DOC.md`, M0–M33).
+> Do not build new features here.
+
 # PharmaPM Pro — Multi-File Hardened Backbone
 
 This is the v1.1 hardened architecture backbone, physically split into module files.

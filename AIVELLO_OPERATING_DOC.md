@@ -93,7 +93,9 @@ These are locked. Do not re-debate without writing a new ADR.
 
 ### Current Module
 
-**Module:** M33 — Activity timeline feed (humanized read-surface of the M20.2 audit trail)
+**Module:** M34 — REPO ARCHIVED (Phase-4 convergence, 2026-06-12). Development moved to `pharmapm-command-center`, which absorbed everything this repo's v2 built: the EVM/Earned-Schedule/variance/anomaly engines (M30–M32), the activity feed (M33), the Decisions/Issues registers (M24/M25), the design discipline, and the 11 project skills. Its `COMMAND_CENTRE_PHARMAPM_PRO.md` + `CLAUDE.md` are the operating docs now; decision #11 there ("one financial truth") carries this repo's computed-not-hand-set principle forward. v1 stays deployed here as reference (305 tests, do not modify). No new modules in this repo.
+
+### Prior Module — M33 — Activity timeline feed (humanized read-surface of the M20.2 audit trail)
 **Goal:** A scannable, social-style ("Instagram form, audit substance") chronological feed of every project change — the deferred §7 "activity feed" idea. Reframed away from a literal Instagram feed: NO algorithmic ranking, NO vanity metrics, NO ephemeral content — those would violate MASTER_UI_UX principle 5 (never hide risk/approval/audit) + the audit-immutability rule. One feed item per real `AuditAction`; never fabricated.
 **Status:** ✅ shipped — pure `activity-feed.ts` mapper (`toFeedItems`/`relativeTime`/`dayLabel`/`groupByDay`) + 16 tests; reactive `ActivityFeed` component (re-reads the per-project audit log on any store mutation) + `/activity` route + sidebar nav + `activity.css` timeline. Actor model already distinguishes human / ai-agent / system, so agent-authored events (PA-4) drop in without rework. v2 221 tests pass (+16), typecheck + build clean (/activity = 4.25 kB static), v1 untouched.
 
